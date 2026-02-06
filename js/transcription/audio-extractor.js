@@ -7,6 +7,7 @@ import { Config } from '../core/config.js';
 import { EventBus, Events } from '../core/event-bus.js';
 import { StateManager } from '../core/state-manager.js';
 import { createLogger } from '../core/utils.js';
+import { captureYouTubeAudio } from './browser-audio-capture.js';
 
 const log = createLogger('AudioExtractor');
 
@@ -41,25 +42,109 @@ class AudioExtractor {
     log.log('Extracting audio from YouTube:', videoId);
 
     try {
-      // Request audio via worker proxy
-      onProgress?.({ stage: 'fetching', percent: 0, message: 'Requesting audio from YouTube...' });
+      // Step 1: Try to get audio URL from worker (tries multiple methods)
+      onProgress?.({ stage: 'fetching', percent: 0, message: 'Requesting audio URL...' });
 
-      const response = await fetch(`${this.workerUrl}/api/youtube/audio?v=${videoId}`, {
+      let audioMeta = null;
+      let lastError = null;
+
+      // Method 1: Try worker endpoint (uses yt-dlp service)
+      try {
+        const metaResponse = await fetch(`${this.workerUrl}/api/youtube/audio?v=${videoId}`, {
+          method: 'GET'
+        });
+
+        if (metaResponse.ok) {
+          audioMeta = await metaResponse.json();
+          if (audioMeta.available && audioMeta.audioUrl) {
+            log.log('Got audio URL from worker');
+          } else if (audioMeta.hasCaptions) {
+            // Worker says: use captions instead of audio
+            throw new Error(
+              'CAPTIONS_AVAILABLE:' + (audioMeta.message || 'Video has captions. Use caption-based transcription.')
+            );
+          } else {
+            lastError = audioMeta.error || audioMeta.suggestion;
+            audioMeta = null;
+          }
+        } else if (metaResponse.status === 404 || metaResponse.status === 501) {
+          lastError = 'Audio extraction service not available';
+        } else {
+          const err = await metaResponse.json().catch(() => ({}));
+          lastError = err.error || `HTTP ${metaResponse.status}`;
+        }
+      } catch (e) {
+        if (e.message.startsWith('CAPTIONS_AVAILABLE:')) {
+          throw e; // Re-throw to trigger caption fallback
+        }
+        log.warn('Worker audio fetch failed:', e.message);
+        lastError = e.message;
+      }
+
+      // Method 2: If worker failed, try client-side extraction
+      // This only works in certain browser contexts (not cross-origin from GitHub Pages)
+      if (!audioMeta) {
+        onProgress?.({ stage: 'fetching', percent: 5, message: 'Trying alternative extraction...' });
+
+        try {
+          // Import youtubeFetcher dynamically to avoid circular dependency
+          const { youtubeFetcher } = await import('../content/youtube-fetcher.js');
+          const clientResult = await youtubeFetcher.extractAudioClientSide(videoId);
+
+          if (clientResult.available && clientResult.audioUrl) {
+            log.log('Got audio URL from client-side extraction');
+            audioMeta = clientResult;
+          } else {
+            lastError = clientResult.error || lastError;
+          }
+        } catch (e) {
+          log.warn('Client-side audio extraction failed:', e.message);
+          // This is expected to fail on GitHub Pages due to CORS
+        }
+      }
+
+      // Method 3: If server-side failed, use browser audio capture
+      // This plays the video and captures the audio in real-time
+      if (!audioMeta || !audioMeta.available || !audioMeta.audioUrl) {
+        log.log('Server-side extraction failed, attempting browser audio capture');
+        onProgress?.({ stage: 'browser-capture', percent: 5, message: 'Preparing browser audio capture...' });
+
+        try {
+          // Use 1.5x speed - good balance of speed and audio quality
+          // Audio is still captured correctly, just faster
+          const audioBuffer = await captureYouTubeAudio(videoId, {
+            playbackSpeed: 1.5,
+            onProgress: (progress) => {
+              onProgress?.({
+                stage: 'browser-capture',
+                percent: 5 + Math.round(progress.percent * 0.9),
+                message: `Capturing audio at 1.5x: ${Math.round(progress.currentTime || 0)}s / ${Math.round(progress.duration || 0)}s`
+              });
+            }
+          });
+
+          log.log('Browser audio capture successful');
+          return audioBuffer;
+
+        } catch (captureError) {
+          log.error('Browser audio capture failed:', captureError);
+          throw new Error(
+            'Audio extraction failed. Browser capture was cancelled or failed. ' +
+            'Please try again and allow audio sharing when prompted.'
+          );
+        }
+      }
+
+      log.log('Got audio URL from', audioMeta.source);
+      onProgress?.({ stage: 'fetching', percent: 10, message: `Downloading audio via ${audioMeta.source}...` });
+
+      // Step 2: Fetch actual audio from the URL
+      const response = await fetch(audioMeta.audioUrl, {
         method: 'GET'
       });
 
       if (!response.ok) {
-        // If endpoint returns 404 or 501, provide a helpful error
-        if (response.status === 404 || response.status === 501) {
-          throw new Error(
-            'YouTube audio extraction not yet implemented on worker. ' +
-            'The /api/youtube/audio endpoint needs to be added to support Whisper transcription. ' +
-            'For now, please use videos with existing captions or upload audio files directly.'
-          );
-        }
-
-        const error = await response.json().catch(() => ({ error: 'Failed to fetch audio' }));
-        throw new Error(error.error || `HTTP ${response.status}`);
+        throw new Error(`Failed to download audio: HTTP ${response.status}`);
       }
 
       // Get total size for progress tracking
@@ -80,7 +165,7 @@ class AudioExtractor {
         received += value.length;
 
         if (total > 0) {
-          const percent = Math.round((received / total) * 100);
+          const percent = 10 + Math.round((received / total) * 85); // 10-95%
           onProgress?.({
             stage: 'downloading',
             percent: Math.min(percent, 95),

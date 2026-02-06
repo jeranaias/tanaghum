@@ -136,6 +136,13 @@
               <span id="search-results-count">0 videos found</span>
               <button class="btn btn-ghost btn-sm" id="clear-search">Clear</button>
             </div>
+            <div class="ilr-legend-compact" title="Videos marked with ★ Good Match are close to your target ILR level">
+              <span class="ilr-legend-label">ILR:</span>
+              <span class="ilr-legend-item" title="Elementary">1</span>
+              <span class="ilr-legend-item" title="Limited Working">2</span>
+              <span class="ilr-legend-item" title="Professional">3</span>
+              <span class="ilr-legend-help">?</span>
+            </div>
             <div id="search-results-grid" class="search-results-grid">
               <!-- Video cards populated by JavaScript -->
             </div>
@@ -316,6 +323,7 @@
               <span id="video-duration"></span>
             </div>
             <div class="video-badges">
+              <span class="badge badge-ilr" id="video-ilr" title="Estimated ILR level">ILR ~2.0</span>
               <span class="badge" id="video-captions">Captions available</span>
               <span class="badge" id="video-language" style="display: none;"></span>
             </div>
@@ -824,6 +832,24 @@
         captionsBadge.textContent = 'No captions - will transcribe';
         captionsBadge.className = 'badge badge-warning';
       }
+
+      // Estimate and display ILR level
+      const estimatedIlr = estimateVideoIlr({
+        title: data.title,
+        channel: data.author,
+        durationSeconds: data.duration
+      });
+      const ilrBadge = $('#video-ilr');
+      if (ilrBadge) {
+        ilrBadge.textContent = `ILR ~${estimatedIlr.toFixed(1)}`;
+
+        // Color based on match with target
+        const targetIlr = StateManager.get('params.targetIlr') || 2.0;
+        const isMatch = Math.abs(estimatedIlr - targetIlr) <= 0.5;
+        ilrBadge.className = isMatch
+          ? 'badge badge-ilr badge-success'
+          : 'badge badge-ilr';
+      }
     }
 
     function hideVideoPreview() {
@@ -1256,6 +1282,302 @@
       setTimeout(() => toast.remove(), 4000);
     }
 
+    /**
+     * Estimate ILR level based on video metadata heuristics
+     * Uses multiple signals: channel type, title keywords, topic domain,
+     * video format, duration, and linguistic complexity indicators.
+     *
+     * ILR Scale Reference:
+     * 1.0 - Elementary: Basic phrases, simple sentences
+     * 1.5 - Elementary+: Simple conversations, routine topics
+     * 2.0 - Limited Working: Factual discussions, straightforward narratives
+     * 2.5 - Limited Working+: News broadcasts, formal speeches
+     * 3.0 - General Professional: Complex analysis, technical discussions
+     * 3.5 - General Professional+: Nuanced argumentation, sophisticated rhetoric
+     */
+    function estimateVideoIlr(video) {
+      const title = (video.title || '');
+      const titleLower = title.toLowerCase();
+      const channel = (video.channel || '');
+      const channelLower = channel.toLowerCase();
+      const combined = titleLower + ' ' + channelLower;
+
+      // Start with base score and modifiers
+      let baseScore = 2.0;
+      let modifiers = [];
+
+      // ===========================================
+      // CHANNEL-BASED SCORING (strongest signal)
+      // ===========================================
+
+      // Tier 1: Major News Networks - ILR 2.5-3.0 (Formal MSA, professional delivery)
+      const majorNewsChannels = [
+        'الجزيرة', 'aljazeera', 'al jazeera',
+        'العربية', 'alarabiya', 'al arabiya',
+        'bbc عربي', 'bbc arabic',
+        'فرانس 24', 'france 24',
+        'دويتشه فيله', 'dw عربي', 'dw arabic',
+        'سكاي نيوز عربية', 'sky news arabia',
+        'روسيا اليوم', 'rt arabic',
+        'الحرة', 'alhurra',
+        'المنار', 'manar',
+        'تلفزيون سوريا', 'syria tv'
+      ];
+      if (majorNewsChannels.some(ch => combined.includes(ch))) {
+        baseScore = 2.5;
+        modifiers.push({ factor: 'major_news_channel', delta: 0 });
+      }
+
+      // Tier 2: Educational channels for learners - ILR 1.0-1.5
+      const learnerChannels = [
+        'learn arabic', 'تعلم العربية', 'arabic pod',
+        'arabicpod', 'arabic 101', 'easy arabic',
+        'arabic with', 'عربي للمبتدئين', 'beginner arabic',
+        'madinah arabic', 'qasid', 'lingualism'
+      ];
+      if (learnerChannels.some(ch => combined.includes(ch))) {
+        baseScore = 1.0;
+        modifiers.push({ factor: 'learner_channel', delta: 0 });
+      }
+
+      // Tier 3: Children's content - ILR 1.0-1.5
+      const kidsChannels = [
+        'طيور الجنة', 'toyor al jannah', 'toyor baby',
+        'كراميش', 'karameesh', 'spacetoon',
+        'mbc3', 'براعم', 'baraem',
+        'أطفال', 'kids', 'children', 'قناة الأطفال',
+        'كوكي', 'كوكو', 'سمسم', 'sesame'
+      ];
+      if (kidsChannels.some(ch => combined.includes(ch))) {
+        baseScore = 1.0;
+        modifiers.push({ factor: 'kids_channel', delta: 0 });
+      }
+
+      // Tier 4: Religious/Islamic content - varies widely, default 2.0-2.5
+      const religiousChannels = [
+        'الرحمة', 'الناس', 'اقرأ', 'المجد',
+        'طريق الإسلام', 'way of islam', 'islamweb',
+        'الشيخ', 'sheikh', 'imam',
+        'quran', 'قرآن', 'تلاوة', 'recitation'
+      ];
+      if (religiousChannels.some(ch => combined.includes(ch))) {
+        baseScore = 2.0;
+        modifiers.push({ factor: 'religious_channel', delta: 0.25 });
+      }
+
+      // Tier 5: Academic/Think Tank channels - ILR 3.0+
+      const academicChannels = [
+        'brookings', 'carnegie', 'atlantic council',
+        'المركز العربي', 'arab center',
+        'مركز دراسات', 'research center',
+        'معهد', 'institute', 'جامعة', 'university',
+        'ted', 'tedx'
+      ];
+      if (academicChannels.some(ch => combined.includes(ch))) {
+        baseScore = 3.0;
+        modifiers.push({ factor: 'academic_channel', delta: 0 });
+      }
+
+      // ===========================================
+      // CONTENT TYPE INDICATORS
+      // ===========================================
+
+      // News broadcasts - formal, clear MSA
+      const newsIndicators = [
+        'نشرة الأخبار', 'news bulletin', 'breaking',
+        'عاجل', 'أخبار اليوم', 'today\'s news',
+        'نشرة', 'الأخبار', 'ملخص الأخبار'
+      ];
+      if (newsIndicators.some(kw => combined.includes(kw))) {
+        modifiers.push({ factor: 'news_content', delta: 0.25 });
+      }
+
+      // Interviews - often complex with multiple speakers
+      const interviewIndicators = [
+        'مقابلة', 'interview', 'لقاء', 'حوار',
+        'ضيف', 'guest', 'الاتجاه المعاكس',
+        'بلا حدود', 'face to face'
+      ];
+      if (interviewIndicators.some(kw => combined.includes(kw))) {
+        modifiers.push({ factor: 'interview', delta: 0.25 });
+      }
+
+      // Documentaries - typically well-produced, clear narration
+      const docIndicators = [
+        'وثائقي', 'documentary', 'تحقيق',
+        'investigation', 'استقصائي',
+        'الجزيرة الوثائقية', 'nat geo', 'national geographic'
+      ];
+      if (docIndicators.some(kw => combined.includes(kw))) {
+        modifiers.push({ factor: 'documentary', delta: 0.25 });
+      }
+
+      // Lectures/Academic talks - complex vocabulary, abstract concepts
+      const lectureIndicators = [
+        'محاضرة', 'lecture', 'ندوة', 'seminar',
+        'مؤتمر', 'conference', 'symposium',
+        'ورشة عمل', 'workshop', 'درس', 'lesson'
+      ];
+      if (lectureIndicators.some(kw => combined.includes(kw))) {
+        modifiers.push({ factor: 'lecture', delta: 0.5 });
+      }
+
+      // Political analysis - sophisticated vocabulary
+      const politicalIndicators = [
+        'تحليل سياسي', 'political analysis',
+        'الوضع السياسي', 'political situation',
+        'العلاقات الدولية', 'international relations',
+        'السياسة الخارجية', 'foreign policy',
+        'الصراع', 'conflict', 'أزمة', 'crisis',
+        'انتخابات', 'elections', 'برلمان', 'parliament'
+      ];
+      if (politicalIndicators.some(kw => combined.includes(kw))) {
+        modifiers.push({ factor: 'political_content', delta: 0.5 });
+      }
+
+      // Economic/Business content - technical vocabulary
+      const economicIndicators = [
+        'الاقتصاد', 'economy', 'economic',
+        'البورصة', 'stock market', 'أسواق المال',
+        'التضخم', 'inflation', 'الناتج المحلي', 'gdp',
+        'استثمار', 'investment', 'تجارة', 'trade',
+        'بنك', 'bank', 'عملة', 'currency'
+      ];
+      if (economicIndicators.some(kw => combined.includes(kw))) {
+        modifiers.push({ factor: 'economic_content', delta: 0.25 });
+      }
+
+      // Cultural/Historical content - can vary widely
+      const culturalIndicators = [
+        'تراث', 'heritage', 'ثقافة', 'culture',
+        'تاريخ', 'history', 'حضارة', 'civilization',
+        'فن', 'art', 'موسيقى', 'music',
+        'أدب', 'literature', 'شعر', 'poetry'
+      ];
+      if (culturalIndicators.some(kw => combined.includes(kw))) {
+        modifiers.push({ factor: 'cultural_content', delta: 0.25 });
+      }
+
+      // Sports - usually simpler, informal
+      const sportsIndicators = [
+        'رياضة', 'sports', 'كرة القدم', 'football',
+        'مباراة', 'match', 'دوري', 'league',
+        'كأس العالم', 'world cup', 'أهداف', 'goals',
+        'ملخص المباراة', 'match summary'
+      ];
+      if (sportsIndicators.some(kw => combined.includes(kw))) {
+        modifiers.push({ factor: 'sports_content', delta: -0.25 });
+      }
+
+      // Science/Technology - technical but often explained
+      const scienceIndicators = [
+        'علوم', 'science', 'تكنولوجيا', 'technology',
+        'فضاء', 'space', 'طب', 'medicine',
+        'اختراع', 'invention', 'اكتشاف', 'discovery',
+        'ذكاء اصطناعي', 'ai', 'artificial intelligence'
+      ];
+      if (scienceIndicators.some(kw => combined.includes(kw))) {
+        modifiers.push({ factor: 'science_content', delta: 0.25 });
+      }
+
+      // ===========================================
+      // COMPLEXITY INDICATORS (in title)
+      // ===========================================
+
+      // Simple/Beginner indicators - lower score
+      const simpleIndicators = [
+        'سهل', 'easy', 'بسيط', 'simple',
+        'للمبتدئين', 'for beginners', 'مبسط', 'simplified',
+        'شرح', 'explanation', 'ملخص', 'summary',
+        'في دقائق', 'in minutes', 'مختصر', 'brief'
+      ];
+      if (simpleIndicators.some(kw => combined.includes(kw))) {
+        modifiers.push({ factor: 'simple_indicator', delta: -0.5 });
+      }
+
+      // Complex/Advanced indicators - higher score
+      const complexIndicators = [
+        'تحليل معمق', 'deep analysis', 'دراسة',
+        'متقدم', 'advanced', 'تفصيلي', 'detailed',
+        'شامل', 'comprehensive', 'موسع', 'extended',
+        'الجزء الأول', 'part 1', 'سلسلة', 'series'
+      ];
+      if (complexIndicators.some(kw => combined.includes(kw))) {
+        modifiers.push({ factor: 'complex_indicator', delta: 0.5 });
+      }
+
+      // ===========================================
+      // DIALECT INDICATORS
+      // ===========================================
+
+      // Dialectal content often less formal
+      const dialectIndicators = [
+        'مصري', 'egyptian', 'لهجة مصرية',
+        'شامي', 'levantine', 'سوري', 'syrian',
+        'خليجي', 'gulf', 'إماراتي', 'سعودي',
+        'مغربي', 'moroccan', 'جزائري', 'algerian',
+        'عامية', 'colloquial', 'لهجة', 'dialect'
+      ];
+      if (dialectIndicators.some(kw => combined.includes(kw))) {
+        modifiers.push({ factor: 'dialect_content', delta: -0.25 });
+      }
+
+      // Formal MSA indicators
+      const msaIndicators = [
+        'فصحى', 'fusha', 'فصيح', 'classical',
+        'عربية فصحى', 'standard arabic',
+        'لغة عربية', 'arabic language'
+      ];
+      if (msaIndicators.some(kw => combined.includes(kw))) {
+        modifiers.push({ factor: 'formal_msa', delta: 0.25 });
+      }
+
+      // ===========================================
+      // DURATION-BASED ADJUSTMENTS
+      // ===========================================
+
+      const duration = video.durationSeconds || 0;
+
+      // Very short clips (<2 min) - often simpler content or snippets
+      if (duration > 0 && duration < 120) {
+        modifiers.push({ factor: 'very_short', delta: -0.25 });
+      }
+
+      // Long-form content (>15 min) - usually more comprehensive
+      if (duration > 900) {
+        modifiers.push({ factor: 'long_form', delta: 0.25 });
+      }
+
+      // Very long lectures (>45 min) - likely academic
+      if (duration > 2700) {
+        modifiers.push({ factor: 'very_long', delta: 0.25 });
+      }
+
+      // ===========================================
+      // CALCULATE FINAL SCORE
+      // ===========================================
+
+      let finalScore = baseScore;
+      for (const mod of modifiers) {
+        finalScore += mod.delta;
+      }
+
+      // Clamp to valid ILR range
+      finalScore = Math.min(3.5, Math.max(1.0, finalScore));
+
+      // Round to nearest 0.5
+      finalScore = Math.round(finalScore * 2) / 2;
+
+      // Debug logging (can be removed in production)
+      console.log(`ILR estimate for "${title.substring(0, 50)}...":`, {
+        baseScore,
+        modifiers: modifiers.map(m => `${m.factor}: ${m.delta > 0 ? '+' : ''}${m.delta}`),
+        finalScore
+      });
+
+      return finalScore;
+    }
+
     // Smart Search functionality
     const searchQuery = $('#search-query');
     const searchBtn = $('#search-btn');
@@ -1340,19 +1662,32 @@
 
       searchResultsCount.textContent = `${videos.length} videos found`;
 
-      searchResultsGrid.innerHTML = videos.map(video => `
-        <div class="video-search-card" data-video-id="${video.videoId}" data-video='${JSON.stringify(video).replace(/'/g, "&#39;")}'>
-          <img class="video-thumb-small" src="${video.thumbnail}" alt="${video.title}" loading="lazy">
-          <div class="video-info">
-            <h4>${video.title}</h4>
-            <div class="video-channel">${video.channel}</div>
-            <div class="video-meta-row">
-              <span>${video.duration || ''}</span>
-              <span>${video.views || ''}</span>
+      // Get current target ILR for display
+      const targetIlr = StateManager.get('params.targetIlr') || 2.0;
+
+      searchResultsGrid.innerHTML = videos.map(video => {
+        // Estimate ILR based on channel/title heuristics
+        const estimatedIlr = estimateVideoIlr(video);
+        const ilrMatch = Math.abs(estimatedIlr - targetIlr) <= 0.5;
+
+        return `
+          <div class="video-search-card ${ilrMatch ? 'recommended' : ''}"
+               data-video-id="${video.videoId}"
+               data-video='${JSON.stringify(video).replace(/'/g, "&#39;")}'
+               data-estimated-ilr="${estimatedIlr}">
+            <img class="video-thumb-small" src="${video.thumbnail}" alt="${video.title}" loading="lazy">
+            <div class="video-info">
+              <h4>${video.title}</h4>
+              <div class="video-channel">${video.channel}</div>
+              <div class="video-meta-row">
+                <span>${video.duration || ''}</span>
+                <span>${video.views || ''}</span>
+                <span class="ilr-badge estimated" title="Estimated ILR level">~${estimatedIlr.toFixed(1)}</span>
+              </div>
             </div>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
 
       searchResults.classList.remove('hidden');
 
@@ -1365,6 +1700,7 @@
     async function selectSearchResult(card) {
       const videoId = card.dataset.videoId;
       const videoData = JSON.parse(card.dataset.video);
+      const estimatedIlr = parseFloat(card.dataset.estimatedIlr) || 2.0;
 
       // Mark as selected
       searchResultsGrid.querySelectorAll('.video-search-card').forEach(c => c.classList.remove('selected'));
@@ -1375,6 +1711,7 @@
         type: 'youtube',
         url: `https://www.youtube.com/watch?v=${videoId}`,
         videoId: videoId,
+        estimatedIlr: estimatedIlr,
         metadata: {
           title: videoData.title,
           author: videoData.channel,
@@ -1394,7 +1731,14 @@
         captions: { available: false }
       });
 
-      showToast('success', 'Video selected', 'Ready to generate lesson');
+      // Get target ILR for match message
+      const targetIlr = StateManager.get('params.targetIlr') || 2.0;
+      const isMatch = Math.abs(estimatedIlr - targetIlr) <= 0.5;
+      const matchMsg = isMatch
+        ? `Good match for ILR ${targetIlr.toFixed(1)}`
+        : `Estimated ILR ${estimatedIlr.toFixed(1)}`;
+
+      showToast('success', 'Video selected', matchMsg);
     }
 
     // Search on button click (custom search)

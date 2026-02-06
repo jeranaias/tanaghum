@@ -1,7 +1,216 @@
 /**
  * YouTube Handler
  * Extracts captions and metadata from YouTube videos
+ * Uses Piped API as primary source with multiple fallback instances
  */
+
+// Piped API instances (ordered by reliability)
+const PIPED_INSTANCES = [
+  'https://pipedapi.kavin.rocks',
+  'https://pipedapi.adminforge.de',
+  'https://api.piped.yt',
+  'https://pipedapi.leptons.xyz',
+  'https://pipedapi.darkness.services',
+  'https://piped-api.privacy.com.de'
+];
+
+// InnerTube API configuration (fallback)
+const INNERTUBE_API_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
+const INNERTUBE_CLIENT = {
+  clientName: 'WEB',
+  clientVersion: '2.20240101.00.00',
+  hl: 'en',
+  gl: 'US'
+};
+
+/**
+ * Parse WebVTT content into segments
+ */
+function parseVTT(vttContent) {
+  const segments = [];
+  const lines = vttContent.split('\n');
+  let currentStart = 0;
+  let currentText = '';
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    // Look for timestamp lines (00:00:00.000 --> 00:00:05.000)
+    const timeMatch = line.match(/(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})\.(\d{3})/);
+    if (timeMatch) {
+      // Parse start time
+      const startHours = parseInt(timeMatch[1], 10);
+      const startMins = parseInt(timeMatch[2], 10);
+      const startSecs = parseInt(timeMatch[3], 10);
+      const startMs = parseInt(timeMatch[4], 10);
+      currentStart = startHours * 3600 + startMins * 60 + startSecs + startMs / 1000;
+
+      // Parse end time for duration
+      const endHours = parseInt(timeMatch[5], 10);
+      const endMins = parseInt(timeMatch[6], 10);
+      const endSecs = parseInt(timeMatch[7], 10);
+      const endMs = parseInt(timeMatch[8], 10);
+      const endTime = endHours * 3600 + endMins * 60 + endSecs + endMs / 1000;
+
+      // Collect text until next timestamp or empty line
+      currentText = '';
+      for (let j = i + 1; j < lines.length; j++) {
+        const textLine = lines[j].trim();
+        if (!textLine || textLine.includes('-->')) break;
+        // Skip cue identifiers (numeric or UUID-like)
+        if (/^\d+$/.test(textLine) || /^[a-f0-9-]{36}$/i.test(textLine)) continue;
+        currentText += (currentText ? ' ' : '') + textLine;
+      }
+
+      // Clean up the text
+      currentText = currentText
+        .replace(/<[^>]+>/g, '') // Remove HTML tags
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&#39;/g, "'")
+        .replace(/&quot;/g, '"')
+        .trim();
+
+      if (currentText) {
+        segments.push({
+          start: currentStart,
+          duration: endTime - currentStart,
+          text: currentText
+        });
+      }
+    }
+  }
+
+  return segments;
+}
+
+/**
+ * Try fetching from Piped API with fallback instances
+ */
+async function fetchFromPiped(endpoint, videoId) {
+  for (const instance of PIPED_INSTANCES) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+
+      const response = await fetch(`${instance}${endpoint}${videoId}`, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+
+      clearTimeout(timeout);
+
+      if (response.ok) {
+        const data = await response.json();
+        data._pipedInstance = instance;
+        return data;
+      }
+    } catch (e) {
+      console.log(`Piped instance ${instance} failed:`, e.message);
+      continue;
+    }
+  }
+  return null;
+}
+
+/**
+ * Fetch captions using InnerTube API
+ */
+async function fetchCaptionsViaInnerTube(videoId) {
+  const playerUrl = `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_API_KEY}`;
+
+  const response = await fetch(playerUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    },
+    body: JSON.stringify({
+      context: {
+        client: INNERTUBE_CLIENT
+      },
+      videoId: videoId
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error('InnerTube API request failed');
+  }
+
+  const data = await response.json();
+
+  // Check for captions
+  const captionTracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+
+  if (!captionTracks || captionTracks.length === 0) {
+    return { videoId, available: false };
+  }
+
+  // Prefer Arabic, then auto-generated Arabic, then English, then first
+  let track = captionTracks.find(t => t.languageCode === 'ar');
+  if (!track) track = captionTracks.find(t => t.languageCode?.startsWith('ar'));
+  if (!track) track = captionTracks.find(t => t.languageCode === 'en' && t.kind === 'asr');
+  if (!track) track = captionTracks.find(t => t.kind === 'asr');
+  if (!track) track = captionTracks[0];
+
+  if (!track?.baseUrl) {
+    return { videoId, available: false };
+  }
+
+  // Fetch the caption content
+  const captionUrl = new URL(track.baseUrl);
+  captionUrl.searchParams.set('fmt', 'json3');
+
+  const captionResponse = await fetch(captionUrl.toString());
+  if (!captionResponse.ok) {
+    throw new Error('Failed to fetch caption content');
+  }
+
+  const captionData = await captionResponse.json();
+  const events = captionData.events || [];
+
+  const segments = events
+    .filter(e => e.segs && e.tStartMs !== undefined)
+    .map(event => {
+      const text = event.segs
+        .map(seg => seg.utf8 || '')
+        .join('')
+        .replace(/\n/g, ' ')
+        .trim();
+
+      return {
+        start: event.tStartMs / 1000,
+        duration: (event.dDurationMs || 2000) / 1000,
+        text
+      };
+    })
+    .filter(seg => seg.text.length > 0);
+
+  if (segments.length === 0) {
+    return { videoId, available: false };
+  }
+
+  const fullText = segments.map(s => s.text).join(' ');
+
+  return {
+    videoId,
+    available: true,
+    language: track.languageCode,
+    languageName: track.name?.simpleText || track.name?.runs?.[0]?.text || track.languageCode,
+    isAutoGenerated: track.kind === 'asr',
+    trackCount: captionTracks.length,
+    availableLanguages: captionTracks.map(t => ({
+      code: t.languageCode,
+      name: t.name?.simpleText || t.name?.runs?.[0]?.text || t.languageCode
+    })),
+    segments,
+    fullText,
+    wordCount: fullText.split(/\s+/).filter(w => w.length > 0).length
+  };
+}
 
 /**
  * Handle YouTube API requests
@@ -105,10 +314,64 @@ async function getVideoMetadata(videoId, origin) {
 }
 
 /**
- * Get video captions using timedtext API
+ * Get video captions - tries Piped API first, then falls back to other methods
  */
 async function getVideoCaptions(videoId, origin) {
-  // Fetch the watch page to get caption tracks
+  // Method 1: Try Piped API first (most reliable, doesn't get blocked)
+  try {
+    const pipedData = await fetchFromPiped('/streams/', videoId);
+    if (pipedData && pipedData.subtitles && pipedData.subtitles.length > 0) {
+      // Find Arabic subtitles, or fall back to first available
+      let subtitle = pipedData.subtitles.find(s => s.code === 'ar' || s.code?.startsWith('ar'));
+      if (!subtitle) subtitle = pipedData.subtitles.find(s => s.autoGenerated);
+      if (!subtitle) subtitle = pipedData.subtitles[0];
+
+      if (subtitle && subtitle.url) {
+        // Fetch the actual subtitle content
+        const subResponse = await fetch(subtitle.url);
+        if (subResponse.ok) {
+          const vttContent = await subResponse.text();
+          const segments = parseVTT(vttContent);
+
+          if (segments.length > 0) {
+            const fullText = segments.map(s => s.text).join(' ');
+            return jsonResponse({
+              videoId,
+              available: true,
+              language: subtitle.code,
+              languageName: subtitle.name || subtitle.code,
+              isAutoGenerated: subtitle.autoGenerated || false,
+              trackCount: pipedData.subtitles.length,
+              availableLanguages: pipedData.subtitles.map(s => ({
+                code: s.code,
+                name: s.name || s.code
+              })),
+              segments,
+              fullText,
+              wordCount: fullText.split(/\s+/).filter(w => w.length > 0).length,
+              source: 'piped',
+              _pipedInstance: pipedData._pipedInstance
+            }, 200, origin);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Piped caption fetch failed:', e.message);
+  }
+
+  // Method 2: Try InnerTube API
+  try {
+    const innertubeResult = await fetchCaptionsViaInnerTube(videoId);
+    if (innertubeResult.available && innertubeResult.segments?.length > 0) {
+      innertubeResult.source = 'innertube';
+      return jsonResponse(innertubeResult, 200, origin);
+    }
+  } catch (e) {
+    console.error('InnerTube caption fetch failed:', e.message);
+  }
+
+  // Method 3: Fallback to watch page parsing
   const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
   const watchResponse = await fetch(watchUrl, {
     headers: {
@@ -159,6 +422,73 @@ async function getVideoCaptions(videoId, origin) {
         captionTracks = decoded?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
       } catch (e) {
         console.error('Failed to parse embedded player response:', e);
+      }
+    }
+  }
+
+  // Method 4: Try timedtext API directly (fallback for auto-captions)
+  if (!captionTracks || !Array.isArray(captionTracks) || captionTracks.length === 0) {
+    // Try common language codes for auto-generated captions
+    const langCodes = ['ar', 'en', 'a.ar', 'a.en'];
+
+    for (const lang of langCodes) {
+      try {
+        const timedtextUrl = `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${lang}&fmt=srv3`;
+        const ttResponse = await fetch(timedtextUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
+
+        if (ttResponse.ok) {
+          const ttText = await ttResponse.text();
+          // Check if we got actual caption data (not empty or error)
+          if (ttText.length > 100 && ttText.includes('<p')) {
+            // Parse srv3 XML format
+            const segments = [];
+            const pMatches = ttText.matchAll(/<p[^>]*\st="(\d+)"[^>]*(?:\sd="(\d+)")?[^>]*>([^<]*)<\/p>/g);
+            for (const match of pMatches) {
+              const startMs = parseInt(match[1], 10);
+              const durationMs = parseInt(match[2] || '2000', 10);
+              const text = match[3]
+                .replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&#39;/g, "'")
+                .replace(/&quot;/g, '"')
+                .replace(/\n/g, ' ')
+                .trim();
+
+              if (text) {
+                segments.push({
+                  start: startMs / 1000,
+                  duration: durationMs / 1000,
+                  text
+                });
+              }
+            }
+
+            if (segments.length > 0) {
+              const vtt = generateVTT(segments);
+              const fullText = segments.map(s => s.text).join(' ');
+
+              return jsonResponse({
+                videoId,
+                available: true,
+                language: lang.replace('a.', ''),
+                languageName: lang.startsWith('a.') ? 'Auto-generated' : lang,
+                isAutoGenerated: lang.startsWith('a.'),
+                trackCount: 1,
+                segments,
+                vtt,
+                fullText,
+                wordCount: fullText.split(/\s+/).filter(w => w.length > 0).length
+              }, 200, origin);
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`Timedtext API failed for ${lang}:`, e.message);
       }
     }
   }
@@ -226,56 +556,130 @@ async function fetchCaptionTrack(tracks, videoId, origin) {
     }, 200, origin);
   }
 
-  // Add format parameter
-  if (!captionUrl.searchParams.has('fmt')) {
-    captionUrl.searchParams.set('fmt', 'json3');
-  }
-
-  const captionResponse = await fetch(captionUrl.toString(), {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-  });
-
-  if (!captionResponse.ok) {
-    return jsonResponse({
-      videoId,
-      available: false,
-      error: 'Failed to fetch caption content'
-    }, 200, origin);
-  }
-
-  // Parse with error handling
+  // Try json3 format first, then fall back to srv3 (XML)
   let captionData;
+  let segments = [];
+
+  // Try JSON format (json3)
+  const json3Url = new URL(captionUrl.toString());
+  json3Url.searchParams.set('fmt', 'json3');
+
   try {
-    captionData = await captionResponse.json();
-  } catch {
+    const captionResponse = await fetch(json3Url.toString(), {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*'
+      }
+    });
+
+    if (captionResponse.ok) {
+      const contentType = captionResponse.headers.get('content-type') || '';
+      const text = await captionResponse.text();
+
+      // Check if it's actually JSON
+      if (contentType.includes('json') || text.trim().startsWith('{')) {
+        captionData = JSON.parse(text);
+        segments = (captionData.events || [])
+          .filter(e => e.segs && e.tStartMs !== undefined)
+          .map(event => {
+            const segText = event.segs
+              .map(seg => seg.utf8 || '')
+              .join('')
+              .replace(/\n/g, ' ')
+              .trim();
+            return {
+              start: event.tStartMs / 1000,
+              duration: (event.dDurationMs || 2000) / 1000,
+              text: segText
+            };
+          })
+          .filter(seg => seg.text.length > 0);
+      }
+    }
+  } catch (e) {
+    console.error('JSON3 caption fetch failed:', e.message);
+  }
+
+  // Fallback: Try srv3 (XML) format if JSON failed
+  if (segments.length === 0) {
+    const srv3Url = new URL(captionUrl.toString());
+    srv3Url.searchParams.set('fmt', 'srv3');
+
+    try {
+      const xmlResponse = await fetch(srv3Url.toString(), {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+
+      if (xmlResponse.ok) {
+        const xmlText = await xmlResponse.text();
+        // Parse simple XML format: <p t="startMs" d="durationMs">text</p>
+        const pMatches = xmlText.matchAll(/<p[^>]*\st="(\d+)"[^>]*(?:\sd="(\d+)")?[^>]*>([^<]*)<\/p>/g);
+        for (const match of pMatches) {
+          const startMs = parseInt(match[1], 10);
+          const durationMs = parseInt(match[2] || '2000', 10);
+          const text = match[3]
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&#39;/g, "'")
+            .replace(/&quot;/g, '"')
+            .replace(/\n/g, ' ')
+            .trim();
+
+          if (text) {
+            segments.push({
+              start: startMs / 1000,
+              duration: durationMs / 1000,
+              text
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error('SRV3 caption fetch failed:', e.message);
+    }
+  }
+
+  // Fallback: Try raw timedtext (VTT-like) format
+  if (segments.length === 0) {
+    try {
+      const rawResponse = await fetch(captionUrl.toString(), {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+
+      if (rawResponse.ok) {
+        const rawText = await rawResponse.text();
+        // Try to parse as simple timed text
+        const lines = rawText.split('\n');
+        let currentStart = 0;
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith('<') && !trimmed.includes('-->')) {
+            segments.push({
+              start: currentStart,
+              duration: 3,
+              text: trimmed
+            });
+            currentStart += 3;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Raw caption fetch failed:', e.message);
+    }
+  }
+
+  if (segments.length === 0) {
     return jsonResponse({
       videoId,
       available: false,
-      error: 'Failed to parse caption data'
+      error: 'Failed to parse captions in any format'
     }, 200, origin);
   }
-
-  const events = captionData.events || [];
-
-  // Parse caption events into segments
-  const segments = events
-    .filter(e => e.segs && e.tStartMs !== undefined)
-    .map(event => {
-      const text = event.segs
-        .map(seg => seg.utf8 || '')
-        .join('')
-        .replace(/\n/g, ' ')
-        .trim();
-
-      return {
-        start: event.tStartMs / 1000,
-        duration: (event.dDurationMs || 2000) / 1000,
-        text
-      };
-    })
-    .filter(seg => seg.text.length > 0);
 
   // Generate VTT format
   const vtt = generateVTT(segments);
@@ -445,14 +849,42 @@ async function searchVideos(query, origin) {
 
 /**
  * Get audio stream URL for a YouTube video
- * Uses yt-dlp service on Render.com for reliable extraction
+ * Uses Piped API first, then yt-dlp service as fallback
  */
 async function getVideoAudio(videoId, origin, env) {
-  // yt-dlp service URL (Fly.io deployment)
+  // Method 1: Try Piped API first (returns direct audio stream URLs)
+  try {
+    const pipedData = await fetchFromPiped('/streams/', videoId);
+    if (pipedData && pipedData.audioStreams && pipedData.audioStreams.length > 0) {
+      // Find best audio stream (prefer higher quality, opus/webm format)
+      const audioStreams = pipedData.audioStreams
+        .filter(s => s.mimeType && s.url)
+        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+
+      if (audioStreams.length > 0) {
+        const bestAudio = audioStreams[0];
+        return jsonResponse({
+          videoId,
+          available: true,
+          audioUrl: bestAudio.url,
+          mimeType: bestAudio.mimeType,
+          bitrate: bestAudio.bitrate,
+          quality: bestAudio.quality,
+          duration: pipedData.duration,
+          title: pipedData.title,
+          source: 'piped',
+          _pipedInstance: pipedData._pipedInstance
+        }, 200, origin);
+      }
+    }
+  } catch (e) {
+    console.error('Piped audio fetch failed:', e.message);
+  }
+
+  // Method 2: Try yt-dlp service (Fly.io deployment)
   const ytdlpServiceUrl = env?.YTDLP_SERVICE_URL || 'https://tanaghum-ytdlp.fly.dev';
 
   try {
-    // Try yt-dlp service first (most reliable)
     const response = await fetch(`${ytdlpServiceUrl}/extract?url=${videoId}&format=info`, {
       headers: { 'Accept': 'application/json' }
     });
