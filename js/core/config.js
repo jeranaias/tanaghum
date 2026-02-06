@@ -65,7 +65,7 @@ const Config = {
   AUDIO: {
     maxDurationSeconds: 600, // 10 minutes hard limit
     recommendedMaxSeconds: 300, // 5 minutes recommended
-    minDurationSeconds: 30,
+    minDurationSeconds: 5, // Allow short clips
     maxFileSizeMB: 100,
     supportedFormats: ['mp3', 'wav', 'ogg', 'webm', 'm4a', 'aac'],
     targetSampleRate: 16000
