@@ -38,7 +38,7 @@ export async function handleYouTube(request, env, url, origin) {
         return await getVideoCaptions(videoId, origin);
 
       case 'audio':
-        return await getVideoAudio(videoId, origin);
+        return await getVideoAudio(videoId, origin, env);
 
       default:
         return jsonResponse({ error: 'Unknown YouTube endpoint' }, 404, origin);
@@ -445,25 +445,55 @@ async function searchVideos(query, origin) {
 
 /**
  * Get audio stream URL for a YouTube video
- * Note: YouTube actively blocks server-side extraction.
- * For videos without captions, users should upload the audio file.
+ * Uses yt-dlp service on Render.com for reliable extraction
  */
-async function getVideoAudio(videoId, origin) {
-  // First, check if captions are available (preferred path)
-  const captionsResult = await getVideoCaptions(videoId, origin);
-  const captionsData = await captionsResult.json();
+async function getVideoAudio(videoId, origin, env) {
+  // yt-dlp service URL (set via environment variable or use default)
+  const ytdlpServiceUrl = env?.YTDLP_SERVICE_URL || 'https://tanaghum-ytdlp.onrender.com';
 
-  if (captionsData.available) {
-    return jsonResponse({
-      videoId,
-      available: false,
-      hasCaptions: true,
-      message: 'This video has captions available. Use captions instead of audio transcription for better accuracy.',
-      captionsLanguage: captionsData.language
-    }, 200, origin);
+  try {
+    // Try yt-dlp service first (most reliable)
+    const response = await fetch(`${ytdlpServiceUrl}/extract?url=${videoId}&format=info`, {
+      headers: { 'Accept': 'application/json' }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.available && data.audioUrl) {
+        return jsonResponse({
+          videoId,
+          available: true,
+          audioUrl: data.audioUrl,
+          mimeType: data.mimeType || 'audio/webm',
+          duration: data.duration,
+          title: data.title,
+          source: 'ytdlp-service'
+        }, 200, origin);
+      }
+    }
+  } catch (e) {
+    console.error('yt-dlp service error:', e.message);
   }
 
-  // Try direct extraction (works for some videos)
+  // Fallback: Check if captions are available
+  try {
+    const captionsResult = await getVideoCaptions(videoId, origin);
+    const captionsData = await captionsResult.json();
+
+    if (captionsData.available) {
+      return jsonResponse({
+        videoId,
+        available: false,
+        hasCaptions: true,
+        message: 'Audio extraction service unavailable, but this video has captions. Using captions for better accuracy.',
+        captionsLanguage: captionsData.language
+      }, 200, origin);
+    }
+  } catch (e) {
+    console.error('Captions check error:', e.message);
+  }
+
+  // Last resort: Try direct extraction
   const directResult = await getVideoAudioDirect(videoId, origin);
   const directData = await directResult.json();
 
@@ -471,18 +501,12 @@ async function getVideoAudio(videoId, origin) {
     return jsonResponse(directData, 200, origin);
   }
 
-  // Audio extraction failed - provide helpful message
+  // All methods failed
   return jsonResponse({
     videoId,
     available: false,
-    hasCaptions: false,
-    error: 'Audio extraction unavailable for this video.',
-    suggestion: 'This video has no captions and audio cannot be extracted directly. Please download the audio using a tool like yt-dlp and upload it to Tanaghum.',
-    alternatives: [
-      'Use a video that has Arabic captions',
-      'Download the audio with yt-dlp: yt-dlp -x --audio-format mp3 "https://youtube.com/watch?v=' + videoId + '"',
-      'Use the Upload Audio option in Tanaghum'
-    ]
+    error: 'Audio extraction unavailable. The yt-dlp service may be starting up (wait 30s and retry) or the video is protected.',
+    suggestion: 'Try again in 30 seconds, or upload the audio file directly.'
   }, 200, origin);
 }
 
