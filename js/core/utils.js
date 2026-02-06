@@ -70,10 +70,10 @@ export function formatTime(seconds) {
  * @returns {string} Formatted size string
  */
 export function formatBytes(bytes) {
-  if (bytes === 0) return '0 B';
+  if (!bytes || bytes <= 0 || !isFinite(bytes)) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 }
 
@@ -226,6 +226,7 @@ function isObject(item) {
  * @returns {string} Escaped text
  */
 export function escapeHtml(text) {
+  if (!text) return '';
   const map = {
     '&': '&amp;',
     '<': '&lt;',
@@ -233,7 +234,7 @@ export function escapeHtml(text) {
     '"': '&quot;',
     "'": '&#039;'
   };
-  return text.replace(/[&<>"']/g, m => map[m]);
+  return String(text).replace(/[&<>"']/g, m => map[m]);
 }
 
 /**

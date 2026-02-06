@@ -131,19 +131,38 @@ function validateMultipleChoice(question, errors, warnings) {
     warnings.push(`Expected 4 options, got ${options.length}`);
   }
 
-  const correctCount = options.filter(o => o.is_correct).length;
+  // Count correct answers - handle various formats
+  const correctCount = options.filter(o => {
+    // Handle boolean is_correct
+    if (typeof o.is_correct === 'boolean') return o.is_correct;
+    // Handle truthy string values like "true"
+    if (o.is_correct === 'true' || o.is_correct === 1) return true;
+    return false;
+  }).length;
+
   if (correctCount === 0) {
     errors.push('No correct answer marked');
   } else if (correctCount > 1) {
     errors.push('Multiple correct answers marked (should be exactly 1)');
   }
 
-  // Check each option
+  // Check each option for required content
   options.forEach((opt, i) => {
+    if (!opt) {
+      errors.push(`Option ${i} is null or undefined`);
+      return;
+    }
+
     if (!opt.id) {
       warnings.push(`Option ${i} missing ID`);
     }
-    if (!opt.text?.ar && !opt.text_ar) {
+
+    // Check for Arabic text in various formats
+    const hasArabicText = hasNonEmptyString(opt.text?.ar) ||
+                          hasNonEmptyString(opt.text_ar) ||
+                          (typeof opt.text === 'string' && hasNonEmptyString(opt.text));
+
+    if (!hasArabicText) {
       errors.push(`Option ${i} missing Arabic text`);
     }
   });
@@ -153,11 +172,23 @@ function validateMultipleChoice(question, errors, warnings) {
  * Validate true/false question
  */
 function validateTrueFalse(question, errors, warnings) {
-  if (typeof question.correct_answer !== 'boolean') {
-    errors.push('correct_answer must be true or false');
+  // Accept boolean, or string "true"/"false", or numbers 0/1
+  const answer = question.correct_answer;
+  const isValidAnswer = typeof answer === 'boolean' ||
+                        answer === 'true' || answer === 'false' ||
+                        answer === 0 || answer === 1;
+
+  if (!isValidAnswer) {
+    errors.push('correct_answer must be true or false (got: ' + typeof answer + ')');
   }
 
-  if (!question.justification?.ar && !question.justification_ar) {
+  // Check justification in various formats
+  const hasJustification = hasNonEmptyString(question.justification?.ar) ||
+                           hasNonEmptyString(question.justification?.en) ||
+                           hasNonEmptyString(question.justification_ar) ||
+                           hasNonEmptyString(question.justification_en);
+
+  if (!hasJustification) {
     warnings.push('Missing justification for true/false answer');
   }
 }
@@ -166,21 +197,41 @@ function validateTrueFalse(question, errors, warnings) {
  * Validate fill in the blank question
  */
 function validateFillBlank(question, errors, warnings) {
-  const sentence = question.sentence_with_blank?.ar || question.sentence_ar;
+  const sentence = question.sentence_with_blank?.ar || question.sentence_ar || '';
 
-  if (sentence && !sentence.includes('___') && !sentence.includes('____')) {
-    warnings.push('Sentence may be missing blank marker (_____)');
+  // Check for blank marker - allow various formats
+  const hasBlankMarker = sentence.includes('___') ||
+                         sentence.includes('____') ||
+                         sentence.includes('_____') ||
+                         sentence.includes('[blank]') ||
+                         sentence.includes('[...]');
+
+  if (sentence && !hasBlankMarker) {
+    warnings.push('Sentence may be missing blank marker (___)');
   }
 
   const wordBank = question.word_bank;
   if (!Array.isArray(wordBank)) {
     errors.push('word_bank must be an array');
   } else {
-    if (wordBank.length < 2) {
-      errors.push('word_bank must have at least 2 options');
+    // Filter out empty/null values before validation
+    const validWords = wordBank.filter(w => w !== null && w !== undefined && w !== '');
+
+    if (validWords.length < 2) {
+      errors.push('word_bank must have at least 2 valid options');
     }
-    if (!wordBank.includes(question.correct_word)) {
-      errors.push('correct_word not found in word_bank');
+
+    // Check correct_word exists - handle string matching carefully
+    const correctWord = question.correct_word;
+    if (correctWord) {
+      const correctWordStr = String(correctWord).trim();
+      const wordBankStrs = validWords.map(w => String(w).trim());
+
+      if (!wordBankStrs.includes(correctWordStr)) {
+        errors.push('correct_word not found in word_bank');
+      }
+    } else {
+      errors.push('correct_word is missing');
     }
   }
 }
@@ -203,29 +254,54 @@ function validateOpenEnded(question, errors, warnings) {
 }
 
 /**
- * Check if question has a field (handles nested paths)
+ * Check if question has a field with meaningful content (handles nested paths)
  */
 function hasField(obj, field) {
+  if (!obj || typeof obj !== 'object') return false;
+
   if (field.includes('.')) {
     const parts = field.split('.');
     let current = obj;
     for (const part of parts) {
-      if (!current || !current[part]) return false;
+      if (!current || current[part] === undefined || current[part] === null) return false;
       current = current[part];
+    }
+    // Check if final value is meaningful (not empty string)
+    return current !== '' && current !== undefined && current !== null;
+  }
+
+  // Check direct field with meaningful value
+  if (obj[field] !== undefined && obj[field] !== null && obj[field] !== '') {
+    // If it's an object, check if it has meaningful content
+    if (typeof obj[field] === 'object' && !Array.isArray(obj[field])) {
+      // For bilingual objects, at least one language should have content
+      if ('ar' in obj[field] || 'en' in obj[field]) {
+        return hasNonEmptyString(obj[field].ar) || hasNonEmptyString(obj[field].en);
+      }
+      // For other objects, check they're not empty
+      return Object.keys(obj[field]).length > 0;
     }
     return true;
   }
 
-  // Check both nested and flat versions
-  if (obj[field]) return true;
-
-  // Check for _ar/_en suffixed versions
-  if (obj[`${field}_ar`] || obj[`${field}_en`]) return true;
+  // Check for _ar/_en suffixed versions - at least one must be non-empty
+  const hasAr = hasNonEmptyString(obj[`${field}_ar`]);
+  const hasEn = hasNonEmptyString(obj[`${field}_en`]);
+  if (hasAr || hasEn) return true;
 
   // Check for nested object with ar/en
-  if (obj[field]?.ar || obj[field]?.en) return true;
+  if (obj[field] && typeof obj[field] === 'object') {
+    return hasNonEmptyString(obj[field].ar) || hasNonEmptyString(obj[field].en);
+  }
 
   return false;
+}
+
+/**
+ * Check if value is a non-empty string
+ */
+function hasNonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
 }
 
 /**

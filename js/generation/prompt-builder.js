@@ -6,6 +6,63 @@
 import { Config } from '../core/config.js';
 
 /**
+ * Maximum allowed input length to prevent abuse
+ */
+const MAX_TRANSCRIPT_LENGTH = 50000;
+const MAX_TOPIC_LENGTH = 100;
+
+/**
+ * Sanitize user-provided text to prevent prompt injection
+ * @param {string} text - User input text
+ * @param {number} maxLength - Maximum allowed length
+ * @returns {string} Sanitized text
+ */
+function sanitizeInput(text, maxLength = MAX_TRANSCRIPT_LENGTH) {
+  if (!text || typeof text !== 'string') {
+    return '';
+  }
+
+  // Truncate to maximum length
+  let sanitized = text.slice(0, maxLength);
+
+  // Remove potential instruction markers that could confuse the model
+  // These patterns are commonly used to attempt prompt injection
+  sanitized = sanitized
+    // Remove markdown code block markers that might wrap fake instructions
+    .replace(/```[\s\S]*?```/g, (match) => match.replace(/```/g, "'''"))
+    // Remove XML-like tags that might look like system instructions
+    .replace(/<\/?(?:system|instruction|prompt|user|assistant|human|ai)[^>]*>/gi, '')
+    // Remove common prompt injection patterns
+    .replace(/(?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|above|prior)\s+(?:instructions?|prompts?|rules?)/gi, '[FILTERED]')
+    .replace(/(?:new\s+)?(?:system\s+)?(?:instructions?|prompts?)\s*:/gi, '[FILTERED]:')
+    // Normalize excessive whitespace
+    .replace(/\n{4,}/g, '\n\n\n')
+    .trim();
+
+  return sanitized;
+}
+
+/**
+ * Sanitize topic/category input (stricter rules)
+ * @param {string} topic - Topic string
+ * @returns {string} Sanitized topic
+ */
+function sanitizeTopic(topic) {
+  if (!topic || typeof topic !== 'string') {
+    return 'general';
+  }
+
+  // Only allow alphanumeric and basic punctuation
+  const sanitized = topic
+    .slice(0, MAX_TOPIC_LENGTH)
+    .replace(/[^a-zA-Z0-9\s\-_]/g, '')
+    .trim()
+    .toLowerCase();
+
+  return sanitized || 'general';
+}
+
+/**
  * ILR level descriptions for prompts
  */
 const ILR_DESCRIPTIONS = {
@@ -37,9 +94,11 @@ const TOPIC_CONTEXT = {
  */
 export function buildTranscriptCorrectionPrompt(transcript, options = {}) {
   const { dialect = 'msa' } = options;
+  const sanitizedTranscript = sanitizeInput(transcript);
+  const sanitizedDialect = sanitizeTopic(dialect);
 
-  const dialectNote = dialect !== 'msa'
-    ? `\nNote: This text may contain ${dialect} dialect features. Preserve dialectal vocabulary but correct errors.`
+  const dialectNote = sanitizedDialect !== 'msa'
+    ? `\nNote: This text may contain ${sanitizedDialect} dialect features. Preserve dialectal vocabulary but correct errors.`
     : '';
 
   return {
@@ -59,7 +118,7 @@ Return ONLY the corrected Arabic text with no explanations or formatting.`,
 
     user: `Correct this Arabic transcript:
 
-${transcript}`
+${sanitizedTranscript}`
   };
 }
 
@@ -68,10 +127,15 @@ ${transcript}`
  */
 export function buildILRAnalysisPrompt(transcript, options = {}) {
   const { wordCount = 0, speakingRate = 0 } = options;
+  const sanitizedTranscript = sanitizeInput(transcript);
+
+  // Validate numeric inputs
+  const safeWordCount = Number.isFinite(wordCount) && wordCount > 0 ? Math.floor(wordCount) : 0;
+  const safeSpeakingRate = Number.isFinite(speakingRate) && speakingRate > 0 ? Math.floor(speakingRate) : 0;
 
   const metadata = [];
-  if (wordCount) metadata.push(`Word count: ${wordCount}`);
-  if (speakingRate) metadata.push(`Speaking rate: ${speakingRate} words/minute`);
+  if (safeWordCount) metadata.push(`Word count: ${safeWordCount}`);
+  if (safeSpeakingRate) metadata.push(`Speaking rate: ${safeSpeakingRate} words/minute`);
 
   return {
     system: `You are an expert in Arabic language proficiency assessment using the ILR (Interagency Language Roundtable) scale.
@@ -106,7 +170,7 @@ Return a JSON object with:
 }
 
 Text:
-${transcript}`
+${sanitizedTranscript}`
   };
 }
 
@@ -122,6 +186,31 @@ export function buildQuestionGenerationPrompt(transcript, options = {}) {
     types = ['multiple_choice', 'true_false'],
     avoidSkills = []
   } = options;
+
+  const sanitizedTranscript = sanitizeInput(transcript);
+  const sanitizedTopic = sanitizeTopic(topic);
+
+  // Validate phase
+  const validPhases = ['pre', 'while', 'post'];
+  const safePhase = validPhases.includes(phase) ? phase : 'while';
+
+  // Validate count (1-20 range)
+  const safeCount = Math.max(1, Math.min(20, Number.isFinite(count) ? Math.floor(count) : 5));
+
+  // Validate ILR level
+  const validIlrLevels = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5];
+  const safeIlrLevel = validIlrLevels.includes(ilrLevel) ? ilrLevel : 2.0;
+
+  // Validate types
+  const validTypes = ['multiple_choice', 'true_false', 'fill_blank', 'open_ended'];
+  const safeTypes = types.filter(t => validTypes.includes(t));
+  if (safeTypes.length === 0) safeTypes.push('multiple_choice');
+
+  // Sanitize avoidSkills (just take alphanumeric/underscore values)
+  const safeAvoidSkills = avoidSkills
+    .filter(s => typeof s === 'string')
+    .map(s => s.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 50))
+    .filter(s => s.length > 0);
 
   const phaseGuidelines = {
     pre: `Pre-listening questions prepare students before hearing the audio.
@@ -165,39 +254,39 @@ open_ended:
   return {
     system: `You are an expert Arabic language teacher creating comprehension questions.
 
-Target proficiency: ILR ${ilrLevel} (${ILR_DESCRIPTIONS[ilrLevel] || 'Intermediate'})
-Topic context: ${TOPIC_CONTEXT[topic] || 'general topics'}
+Target proficiency: ILR ${safeIlrLevel} (${ILR_DESCRIPTIONS[safeIlrLevel] || 'Intermediate'})
+Topic context: ${TOPIC_CONTEXT[sanitizedTopic] || 'general topics'}
 
-${phaseGuidelines[phase]}
+${phaseGuidelines[safePhase]}
 
 ${typeInstructions}
 
 Quality requirements:
 - Questions must be directly answerable from the text
-- Language difficulty matches ILR ${ilrLevel}
+- Language difficulty matches ILR ${safeIlrLevel}
 - Both Arabic and English versions for all text
 - Vary question types and skills tested
 - Explanations help learners understand why answer is correct`,
 
-    user: `Create ${count} ${phase}-listening comprehension questions.
+    user: `Create ${safeCount} ${safePhase}-listening comprehension questions.
 
-Allowed types: ${types.join(', ')}
-${avoidSkills.length > 0 ? `Avoid these skills (already covered): ${avoidSkills.join(', ')}` : ''}
+Allowed types: ${safeTypes.join(', ')}
+${safeAvoidSkills.length > 0 ? `Avoid these skills (already covered): ${safeAvoidSkills.join(', ')}` : ''}
 
 Return a JSON array of questions. Each question object must have:
 {
-  "type": "${types[0]}",
+  "type": "${safeTypes[0]}",
   "skill": "<skill being tested>",
   "question_ar": "<Arabic question text>",
   "question_en": "<English translation>",
-  ${phase === 'while' ? '"timestamp_percent": <0-1 when question should appear>,' : ''}
+  ${safePhase === 'while' ? '"timestamp_percent": <0-1 when question should appear>,' : ''}
   // ... type-specific fields as specified above
   "explanation_ar": "<Arabic explanation>",
   "explanation_en": "<English explanation>"
 }
 
 Source text:
-${transcript}`
+${sanitizedTranscript}`
   };
 }
 
@@ -211,9 +300,25 @@ export function buildVocabularyExtractionPrompt(transcript, options = {}) {
     existingWords = []
   } = options;
 
+  const sanitizedTranscript = sanitizeInput(transcript);
+
+  // Validate count (1-50 range)
+  const safeCount = Math.max(1, Math.min(50, Number.isFinite(count) ? Math.floor(count) : 10));
+
+  // Validate ILR level
+  const validIlrLevels = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5];
+  const safeIlrLevel = validIlrLevels.includes(ilrLevel) ? ilrLevel : 2.0;
+
+  // Sanitize existing words (Arabic text only, limit length)
+  const safeExistingWords = existingWords
+    .filter(w => typeof w === 'string')
+    .map(w => w.slice(0, 50).trim())
+    .filter(w => w.length > 0)
+    .slice(0, 100); // Max 100 existing words
+
   return {
     system: `You are an expert Arabic vocabulary instructor.
-Extract key vocabulary items appropriate for ILR ${ilrLevel} learners.
+Extract key vocabulary items appropriate for ILR ${safeIlrLevel} learners.
 
 Selection criteria:
 - Essential for understanding the text
@@ -227,8 +332,8 @@ For each word provide:
 - Example from the source text
 - Part of speech`,
 
-    user: `Extract ${count} key vocabulary items from this text.
-${existingWords.length > 0 ? `\nExclude these already-covered words: ${existingWords.join(', ')}` : ''}
+    user: `Extract ${safeCount} key vocabulary items from this text.
+${safeExistingWords.length > 0 ? `\nExclude these already-covered words: ${safeExistingWords.join(', ')}` : ''}
 
 Return a JSON array where each item has:
 {
@@ -244,7 +349,7 @@ Return a JSON array where each item has:
 }
 
 Text:
-${transcript}`
+${sanitizedTranscript}`
   };
 }
 
@@ -252,6 +357,8 @@ ${transcript}`
  * Build a dialect detection prompt
  */
 export function buildDialectDetectionPrompt(transcript) {
+  const sanitizedTranscript = sanitizeInput(transcript);
+
   return {
     system: `You are an expert in Arabic dialectology.
 Identify the primary dialect or variety of Arabic used in the text.
@@ -280,7 +387,7 @@ Return JSON:
 }
 
 Text:
-${transcript}`
+${sanitizedTranscript}`
   };
 }
 
@@ -289,12 +396,20 @@ ${transcript}`
  */
 export function buildMetadataPrompt(transcript, options = {}) {
   const { topic = 'general' } = options;
+  const sanitizedTranscript = sanitizeInput(transcript);
+  const sanitizedTopic = sanitizeTopic(topic);
+
+  // Safe substring - handle short transcripts without "..."
+  const previewLength = 1000;
+  const textPreview = sanitizedTranscript.length > previewLength
+    ? sanitizedTranscript.substring(0, previewLength) + '...'
+    : sanitizedTranscript;
 
   return {
     system: `You are creating metadata for an Arabic listening comprehension lesson.
 Generate a concise, descriptive title and brief description.`,
 
-    user: `Create a title and description for this ${topic} lesson.
+    user: `Create a title and description for this ${sanitizedTopic} lesson.
 
 Return JSON:
 {
@@ -306,7 +421,7 @@ Return JSON:
 }
 
 Text:
-${transcript.substring(0, 1000)}...`
+${textPreview}`
   };
 }
 

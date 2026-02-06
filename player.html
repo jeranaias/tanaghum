@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Interactive Arabic listening lesson with synchronized transcript">
+  <meta name="robots" content="noindex, nofollow">
+
+  <!-- Open Graph Meta Tags -->
+  <meta property="og:title" content="Lesson Player | Tanaghum">
+  <meta property="og:description" content="Interactive Arabic listening lesson with synchronized transcript">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Tanaghum">
+
+  <title>Lesson Player | Tanaghum</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/player.css">
+</head>
+<body>
+  <!-- Skip Navigation Link -->
+  <a href="#main-content" class="skip-link" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:9999;padding:1rem;background:#1a73e8;color:#fff;text-decoration:none;">Skip to main content</a>
+
+  <!-- Header -->
+  <header class="header" role="banner">
+    <div class="header-inner">
+      <a href="index.html" class="logo">
+        <span class="logo-arabic" lang="ar">تناغم</span>
+        <span>Tanaghum</span>
+      </a>
+      <nav class="nav" aria-label="Main navigation">
+        <a href="index.html" class="nav-link">Home</a>
+        <a href="generator.html" class="nav-link">Generate</a>
+        <a href="gallery.html" class="nav-link">Gallery</a>
+        <a href="about.html" class="nav-link">About</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Player Layout -->
+  <main class="player-layout" id="main-content">
+    <!-- Left Panel: Transcript -->
+    <section class="panel panel-transcript" aria-labelledby="transcript-heading">
+      <div class="panel-header">
+        <h2 id="transcript-heading">Transcript</h2>
+        <div class="panel-controls">
+          <label class="toggle-label">
+            <input type="checkbox" id="toggle-translation" checked aria-describedby="translation-desc">
+            <span id="translation-desc">Translation</span>
+          </label>
+          <label class="toggle-label">
+            <input type="checkbox" id="toggle-autoscroll" checked aria-describedby="autoscroll-desc">
+            <span id="autoscroll-desc">Auto-scroll</span>
+          </label>
+        </div>
+      </div>
+      <div class="transcript-container" id="transcript-container" role="region" aria-label="Synchronized transcript" aria-live="polite">
+        <!-- Transcript lines populated by JavaScript -->
+      </div>
+    </section>
+
+    <!-- Center: Video/Audio Player -->
+    <section class="panel panel-player" aria-labelledby="lesson-title">
+      <!-- Lesson Info -->
+      <div class="lesson-info" id="lesson-info">
+        <h1 class="lesson-title" id="lesson-title">Loading lesson...</h1>
+        <div class="lesson-meta" aria-label="Lesson metadata">
+          <span class="ilr-badge" id="lesson-ilr">ILR 2.0</span>
+          <span class="lesson-topic" id="lesson-topic">General</span>
+          <span class="lesson-duration" id="lesson-duration" aria-label="Duration">0:00</span>
+        </div>
+      </div>
+
+      <!-- Media Container -->
+      <div class="media-container" id="media-container">
+        <!-- YouTube iframe or audio visualizer -->
+        <div class="media-placeholder">
+          <div class="media-icon">&#127911;</div>
+          <p>Load a lesson to begin</p>
+        </div>
+      </div>
+
+      <!-- Playback Controls -->
+      <div class="player-controls" role="group" aria-label="Audio playback controls">
+        <div class="progress-container">
+          <div class="progress-bar" id="progress-bar" role="slider" aria-label="Playback progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+            <div class="progress-fill" id="progress-fill"></div>
+            <div class="progress-handle" id="progress-handle" aria-hidden="true"></div>
+          </div>
+          <div class="time-display" aria-live="off">
+            <span id="current-time" aria-label="Current time">0:00</span>
+            <span aria-hidden="true">/</span>
+            <span id="total-time" aria-label="Total time">0:00</span>
+          </div>
+        </div>
+
+        <div class="controls-row">
+          <div class="controls-left">
+            <button class="control-btn" id="btn-skip-back" type="button" aria-label="Skip back 10 seconds" title="Back 10s">
+              <span aria-hidden="true">&#8634;</span>
+              <small aria-hidden="true">10</small>
+            </button>
+          </div>
+
+          <div class="controls-center">
+            <button class="control-btn control-btn-play" id="btn-play" type="button" aria-label="Play" title="Play/Pause">
+              <span class="icon-play" aria-hidden="true">&#9654;</span>
+              <span class="icon-pause" style="display:none;" aria-hidden="true">&#10074;&#10074;</span>
+            </button>
+          </div>
+
+          <div class="controls-right">
+            <button class="control-btn" id="btn-skip-forward" type="button" aria-label="Skip forward 10 seconds" title="Forward 10s">
+              <span aria-hidden="true">&#8635;</span>
+              <small aria-hidden="true">10</small>
+            </button>
+
+            <div class="speed-control">
+              <button class="control-btn" id="btn-speed" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Playback speed: 1x" title="Playback Speed">
+                <span id="speed-label" aria-hidden="true">1x</span>
+              </button>
+              <div class="speed-menu hidden" id="speed-menu" role="menu" aria-label="Playback speed options">
+                <button data-speed="0.5" role="menuitem" type="button">0.5x</button>
+                <button data-speed="0.75" role="menuitem" type="button">0.75x</button>
+                <button data-speed="1" class="active" role="menuitem" type="button" aria-current="true">1x</button>
+                <button data-speed="1.25" role="menuitem" type="button">1.25x</button>
+                <button data-speed="1.5" role="menuitem" type="button">1.5x</button>
+                <button data-speed="2" role="menuitem" type="button">2x</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase Tabs -->
+      <div class="phase-tabs" role="tablist" aria-label="Lesson phases">
+        <button class="phase-tab active" data-phase="pre" role="tab" aria-selected="true" aria-controls="quiz-container" id="tab-pre" type="button">
+          <span class="phase-icon" aria-hidden="true">&#128172;</span>
+          <span>Pre-Listening</span>
+          <span class="phase-badge" id="pre-badge" aria-label="Progress">0/0</span>
+        </button>
+        <button class="phase-tab" data-phase="while" role="tab" aria-selected="false" aria-controls="quiz-container" id="tab-while" type="button">
+          <span class="phase-icon" aria-hidden="true">&#127911;</span>
+          <span>While-Listening</span>
+          <span class="phase-badge" id="while-badge" aria-label="Progress">0/0</span>
+        </button>
+        <button class="phase-tab" data-phase="post" role="tab" aria-selected="false" aria-controls="quiz-container" id="tab-post" type="button">
+          <span class="phase-icon" aria-hidden="true">&#128221;</span>
+          <span>Post-Listening</span>
+          <span class="phase-badge" id="post-badge" aria-label="Progress">0/0</span>
+        </button>
+      </div>
+
+      <!-- Quiz Container -->
+      <div class="quiz-container" id="quiz-container" role="tabpanel" aria-labelledby="tab-pre" aria-live="polite">
+        <!-- Questions populated by JavaScript -->
+      </div>
+    </section>
+
+    <!-- Right Panel: Vocabulary -->
+    <section class="panel panel-vocabulary" aria-labelledby="vocab-heading">
+      <div class="panel-header">
+        <h2 id="vocab-heading">Vocabulary</h2>
+        <span class="vocab-count" id="vocab-count" aria-live="polite">0 words</span>
+      </div>
+      <div class="vocabulary-container" id="vocabulary-container" role="list" aria-label="Vocabulary words">
+        <!-- Vocabulary items populated by JavaScript -->
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Load Lesson Modal -->
+  <div class="modal hidden" id="load-modal" role="dialog" aria-modal="true" aria-labelledby="load-modal-title">
+    <div class="modal-backdrop" aria-hidden="true"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="load-modal-title">Load Lesson</h3>
+        <button class="modal-close" id="modal-close" type="button" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="load-options">
+          <div class="load-option">
+            <h4 id="load-file-heading">From File</h4>
+            <p id="load-file-desc">Load a previously exported lesson JSON file</p>
+            <input type="file" id="lesson-file-input" accept=".json" hidden aria-describedby="load-file-desc">
+            <button class="btn btn-secondary" id="btn-load-file" type="button" aria-describedby="load-file-desc">Choose File</button>
+          </div>
+          <div class="load-option">
+            <h4 id="load-url-heading">From URL</h4>
+            <p id="load-url-desc">Load a lesson from a URL</p>
+            <label for="lesson-url-input" class="visually-hidden">Lesson URL</label>
+            <input type="url" id="lesson-url-input" class="form-input" placeholder="https://..." aria-describedby="load-url-desc" required pattern="https?://.+">
+            <button class="btn btn-secondary" id="btn-load-url" type="button">Load</button>
+          </div>
+          <div class="load-option">
+            <h4>Demo Lesson</h4>
+            <p id="load-demo-desc">Try a sample lesson to see how it works</p>
+            <button class="btn btn-primary" id="btn-load-demo" type="button" aria-describedby="load-demo-desc">Load Demo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module">
+    import { EventBus, Events } from './js/core/event-bus.js';
+    import { StateManager } from './js/core/state-manager.js';
+    import { formatTime, $ } from './js/core/utils.js';
+    import { LessonPlayer } from './js/player/lesson-player.js';
+    import { TranscriptSync } from './js/player/transcript-sync.js';
+    import { QuizPanel } from './js/player/quiz-panel.js';
+    import { VocabularyPanel } from './js/player/vocabulary-panel.js';
+
+    // Error handling for module imports
+    window.addEventListener('error', (e) => {
+      if (e.message && e.message.includes('import')) {
+        console.error('Module loading error:', e.message);
+        showToast('error', 'Loading Error', 'Failed to load player modules. Please refresh the page.');
+      }
+    });
+
+    // Initialize components
+    let player = null;
+    let transcriptSync = null;
+    let quizPanel = null;
+    let vocabularyPanel = null;
+    let currentLesson = null;
+
+    // DOM Elements
+    const playBtn = $('#btn-play');
+    const skipBackBtn = $('#btn-skip-back');
+    const skipForwardBtn = $('#btn-skip-forward');
+    const speedBtn = $('#btn-speed');
+    const speedMenu = $('#speed-menu');
+    const progressBar = $('#progress-bar');
+    const progressFill = $('#progress-fill');
+    const progressHandle = $('#progress-handle');
+    const currentTimeEl = $('#current-time');
+    const totalTimeEl = $('#total-time');
+    const transcriptContainer = $('#transcript-container');
+    const quizContainer = $('#quiz-container');
+    const vocabularyContainer = $('#vocabulary-container');
+
+    /**
+     * Initialize the player with a lesson
+     */
+    async function initPlayer(lesson) {
+      currentLesson = lesson;
+
+      // Update UI with lesson info
+      $('#lesson-title').textContent = lesson.metadata?.title || 'Untitled Lesson';
+      $('#lesson-ilr').textContent = `ILR ${lesson.analysis?.ilrLevel || '2.0'}`;
+      $('#lesson-topic').textContent = lesson.metadata?.topic?.nameEn || 'General';
+      $('#lesson-duration').textContent = lesson.metadata?.durationFormatted || '0:00';
+      $('#vocab-count').textContent = `${lesson.content?.vocabulary?.items?.length || 0} words`;
+
+      // Initialize player
+      player = new LessonPlayer({
+        onTimeUpdate: (current, duration) => {
+          updateProgress(current, duration);
+        },
+        onSegmentChange: (index, segment) => {
+          // Transcript sync handles this via events
+        },
+        onPlay: () => {
+          playBtn.querySelector('.icon-play').style.display = 'none';
+          playBtn.querySelector('.icon-pause').style.display = 'inline';
+        },
+        onPause: () => {
+          playBtn.querySelector('.icon-play').style.display = 'inline';
+          playBtn.querySelector('.icon-pause').style.display = 'none';
+        }
+      });
+
+      await player.load(lesson);
+
+      // Setup media container
+      const mediaContainer = $('#media-container');
+      if (lesson.audio?.type === 'youtube') {
+        mediaContainer.innerHTML = `
+          <iframe id="yt-iframe"
+                  src="https://www.youtube.com/embed/${lesson.audio.videoId}?enablejsapi=1&origin=${window.location.origin}"
+                  frameborder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowfullscreen>
+          </iframe>
+        `;
+      } else {
+        mediaContainer.innerHTML = `
+          <div class="audio-visualizer">
+            <div class="visualizer-bars">
+              ${Array(20).fill('<div class="bar"></div>').join('')}
+            </div>
+            <div class="audio-title">${lesson.metadata?.title || 'Audio'}</div>
+          </div>
+        `;
+      }
+
+      // Initialize transcript
+      transcriptSync = new TranscriptSync(transcriptContainer, {
+        showTranslation: $('#toggle-translation').checked,
+        autoScroll: $('#toggle-autoscroll').checked,
+        onSegmentClick: (index, segment) => {
+          player.seekToSegment(index);
+          player.play();
+        }
+      });
+
+      transcriptSync.load(
+        lesson.content?.transcript?.segments || [],
+        lesson.content?.translation?.segments || []
+      );
+
+      // Initialize quiz panel
+      quizPanel = new QuizPanel(quizContainer, {
+        showFeedback: true,
+        onAnswer: (questionId, answer, isCorrect) => {
+          updatePhaseBadges();
+        },
+        onComplete: (phase, answers) => {
+          showToast('success', 'Phase Complete', `You completed all ${phase}-listening questions!`);
+        }
+      });
+
+      quizPanel.load(lesson.content?.questions || {});
+      quizPanel.showPreQuestions();
+      updatePhaseBadges();
+
+      // Initialize vocabulary panel
+      vocabularyPanel = new VocabularyPanel(vocabularyContainer, {
+        showDetails: true,
+        ttsEnabled: true,
+        onWordClick: (item) => {
+          // Highlight word in transcript
+          transcriptSync.highlightTerm(item.word_ar || item.arabic);
+        }
+      });
+
+      vocabularyPanel.load(lesson.content?.vocabulary || {});
+
+      // Update total time
+      totalTimeEl.textContent = formatTime(player.duration);
+
+      console.log('Player initialized with lesson:', lesson.id);
+    }
+
+    /**
+     * Update progress bar
+     */
+    function updateProgress(current, duration) {
+      const percent = duration > 0 ? (current / duration) * 100 : 0;
+      progressFill.style.width = `${percent}%`;
+      progressHandle.style.left = `${percent}%`;
+      currentTimeEl.textContent = formatTime(current);
+    }
+
+    /**
+     * Update phase badges
+     */
+    function updatePhaseBadges() {
+      if (!quizPanel) return;
+
+      const progress = quizPanel.getProgress();
+
+      $('#pre-badge').textContent = `${progress.byPhase.pre.answered}/${progress.byPhase.pre.total}`;
+      $('#while-badge').textContent = `${progress.byPhase.while.answered}/${progress.byPhase.while.total}`;
+      $('#post-badge').textContent = `${progress.byPhase.post.answered}/${progress.byPhase.post.total}`;
+    }
+
+    // Event Listeners
+
+    // Play/Pause
+    playBtn.addEventListener('click', () => {
+      player?.togglePlay();
+    });
+
+    // Skip buttons
+    skipBackBtn.addEventListener('click', () => {
+      player?.skip(-10);
+    });
+
+    skipForwardBtn.addEventListener('click', () => {
+      player?.skip(10);
+    });
+
+    // Speed control
+    speedBtn.addEventListener('click', () => {
+      speedMenu.classList.toggle('hidden');
+    });
+
+    speedMenu.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const speed = parseFloat(btn.dataset.speed);
+        player?.setPlaybackRate(speed);
+        $('#speed-label').textContent = `${speed}x`;
+
+        speedMenu.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        speedMenu.classList.add('hidden');
+      });
+    });
+
+    // Progress bar click/drag
+    progressBar.addEventListener('click', (e) => {
+      const rect = progressBar.getBoundingClientRect();
+      const percent = (e.clientX - rect.left) / rect.width;
+      const time = percent * (player?.duration || 0);
+      player?.seek(time);
+    });
+
+    // Phase tabs
+    document.querySelectorAll('.phase-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.phase-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        const phase = tab.dataset.phase;
+        if (phase === 'pre') quizPanel?.showPreQuestions();
+        else if (phase === 'while') quizPanel?.showWhileQuestions();
+        else if (phase === 'post') quizPanel?.showPostQuestions();
+      });
+    });
+
+    // Transcript toggles
+    $('#toggle-translation').addEventListener('change', (e) => {
+      transcriptSync?.toggleTranslation(e.target.checked);
+    });
+
+    $('#toggle-autoscroll').addEventListener('change', (e) => {
+      transcriptSync?.toggleAutoScroll(e.target.checked);
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          player?.togglePlay();
+          break;
+        case 'ArrowLeft':
+          player?.skip(-5);
+          break;
+        case 'ArrowRight':
+          player?.skip(5);
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          player?.setPlaybackRate(Math.min(2, (player?.playbackRate || 1) + 0.25));
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          player?.setPlaybackRate(Math.max(0.5, (player?.playbackRate || 1) - 0.25));
+          break;
+      }
+    });
+
+    // Load modal
+    const loadModal = $('#load-modal');
+    const modalClose = $('#modal-close');
+
+    modalClose.addEventListener('click', () => {
+      loadModal.classList.add('hidden');
+    });
+
+    $('#btn-load-file').addEventListener('click', () => {
+      $('#lesson-file-input').click();
+    });
+
+    $('#lesson-file-input').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        try {
+          const text = await file.text();
+          const lesson = JSON.parse(text);
+          await initPlayer(lesson);
+          loadModal.classList.add('hidden');
+          showToast('success', 'Lesson Loaded', lesson.metadata?.title || 'Lesson loaded successfully');
+        } catch (error) {
+          showToast('error', 'Load Failed', error.message);
+        }
+      }
+    });
+
+    $('#btn-load-demo').addEventListener('click', async () => {
+      // Load demo lesson
+      const demoLesson = createDemoLesson();
+      await initPlayer(demoLesson);
+      loadModal.classList.add('hidden');
+      showToast('success', 'Demo Loaded', 'Demo lesson loaded');
+    });
+
+    // Toast helper
+    function showToast(type, title, message) {
+      const container = $('#toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      toast.innerHTML = `
+        <div class="toast-content">
+          <div class="toast-title">${title}</div>
+          <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close">&times;</button>
+      `;
+
+      container.appendChild(toast);
+      toast.querySelector('.toast-close').addEventListener('click', () => toast.remove());
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    // Demo lesson generator
+    function createDemoLesson() {
+      return {
+        schemaVersion: '1.0.0',
+        id: 'demo_lesson_001',
+        createdAt: new Date().toISOString(),
+        metadata: {
+          title: 'الاقتصاد العربي - Economic News Demo',
+          duration: 60,
+          durationFormatted: '1:00',
+          wordCount: 45,
+          ilr: { level: '2.0', name: 'Limited Working Proficiency' },
+          topic: { code: 'economy', nameEn: 'Economy', nameAr: 'الاقتصاد' }
+        },
+        content: {
+          transcript: {
+            text: 'شهد الاقتصاد العربي نمواً ملحوظاً في السنوات الأخيرة. وقد ساهمت عدة عوامل في هذا النمو الاقتصادي. من أهمها ارتفاع أسعار النفط والاستثمارات الأجنبية.',
+            segments: [
+              { id: 0, start: 0, end: 8, text: 'شهد الاقتصاد العربي نمواً ملحوظاً في السنوات الأخيرة' },
+              { id: 1, start: 8, end: 16, text: 'وقد ساهمت عدة عوامل في هذا النمو الاقتصادي' },
+              { id: 2, start: 16, end: 25, text: 'من أهمها ارتفاع أسعار النفط والاستثمارات الأجنبية' }
+            ]
+          },
+          translation: {
+            text: 'The Arab economy has witnessed notable growth in recent years. Several factors have contributed to this economic growth. Among the most important are rising oil prices and foreign investments.',
+            segments: [
+              { text: 'The Arab economy has witnessed notable growth in recent years' },
+              { text: 'Several factors have contributed to this economic growth' },
+              { text: 'Among the most important are rising oil prices and foreign investments' }
+            ]
+          },
+          vocabulary: {
+            items: [
+              { word_ar: 'الاقتصاد', word_en: 'economy', root: 'ق-ص-د', pos: 'noun', definition_en: 'The system of production and consumption' },
+              { word_ar: 'نمو', word_en: 'growth', root: 'ن-م-و', pos: 'noun', definition_en: 'Increase in size or development' },
+              { word_ar: 'عوامل', word_en: 'factors', root: 'ع-م-ل', pos: 'noun', definition_en: 'Elements that contribute to a result' },
+              { word_ar: 'استثمارات', word_en: 'investments', root: 'ث-م-ر', pos: 'noun', definition_en: 'Money put into financial schemes' }
+            ]
+          },
+          questions: {
+            pre: [
+              { id: 'pre-0', type: 'open_ended', question_text: { ar: 'ماذا تعرف عن الاقتصاد العربي؟', en: 'What do you know about the Arab economy?' } }
+            ],
+            while: [
+              {
+                id: 'while-0',
+                type: 'multiple_choice',
+                question_text: { ar: 'ما الفكرة الرئيسية للتسجيل؟', en: 'What is the main idea of the recording?' },
+                options: ['Economic decline', 'Economic growth', 'Political change', 'Social issues'],
+                correct_answer: 1,
+                explanation: { en: 'The recording discusses the notable economic growth in the Arab world.' }
+              },
+              {
+                id: 'while-1',
+                type: 'true_false',
+                question_text: { ar: 'ذكر المتحدث أسعار النفط كعامل مهم', en: 'The speaker mentioned oil prices as an important factor' },
+                correct_answer: true,
+                explanation: { en: 'Yes, oil prices were mentioned as one of the main factors.' }
+              }
+            ],
+            post: [
+              { id: 'post-0', type: 'open_ended', question_text: { ar: 'لخص الفكرة الرئيسية في جملة واحدة', en: 'Summarize the main idea in one sentence' } }
+            ]
+          }
+        },
+        analysis: {
+          ilrLevel: '2.0',
+          score: 2.1,
+          confidence: 0.85
+        },
+        audio: null
+      };
+    }
+
+    // Check for lesson in state, localStorage, or URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    const lessonFromState = StateManager.get('lesson');
+    const lessonFromStorage = localStorage.getItem('tanaghum_current_lesson');
+    const lessonIdFromHash = window.location.hash.slice(1);
+
+    if (lessonFromState) {
+      initPlayer(lessonFromState);
+    } else if (lessonFromStorage) {
+      try {
+        const lesson = JSON.parse(lessonFromStorage);
+        initPlayer(lesson);
+        // Clear after loading so it doesn't persist unexpectedly
+        localStorage.removeItem('tanaghum_current_lesson');
+      } catch (e) {
+        console.error('Failed to load lesson from storage:', e);
+        loadModal.classList.remove('hidden');
+      }
+    } else if (lessonIdFromHash) {
+      // Try to load from IndexedDB via sharing system
+      import('./js/gallery/lesson-sharing.js').then(({ LessonSharing }) => {
+        LessonSharing.loadLesson(lessonIdFromHash).then(lesson => {
+          if (lesson) {
+            initPlayer(lesson);
+          } else {
+            showToast('error', 'Lesson Not Found', 'Could not find the shared lesson');
+            loadModal.classList.remove('hidden');
+          }
+        });
+      }).catch(() => {
+        loadModal.classList.remove('hidden');
+      });
+    } else if (urlParams.has('demo')) {
+      initPlayer(createDemoLesson());
+    } else {
+      // Show load modal
+      loadModal.classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="About Tanaghum - A free Arabic listening comprehension lesson generator">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://tanaghum.app/about.html">
+
+  <!-- Open Graph Meta Tags -->
+  <meta property="og:title" content="About | Tanaghum">
+  <meta property="og:description" content="About Tanaghum - A free Arabic listening comprehension lesson generator">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tanaghum.app/about.html">
+  <meta property="og:site_name" content="Tanaghum">
+
+  <!-- Twitter Card Meta Tags -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="About | Tanaghum">
+  <meta name="twitter:description" content="About Tanaghum - A free Arabic listening comprehension lesson generator">
+
+  <title>About | Tanaghum</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/main.css">
+
+  <!-- Visually hidden utility class -->
+  <style>
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+  <style>
+    .about-hero {
+      padding: 80px 0 40px;
+      background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+      color: white;
+      text-align: center;
+    }
+
+    .about-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .about-title-ar {
+      font-family: 'Noto Naskh Arabic', serif;
+      display: block;
+      font-size: 3rem;
+      margin-bottom: 8px;
+    }
+
+    .about-subtitle {
+      font-size: 1.125rem;
+      opacity: 0.9;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .about-content {
+      padding: 60px 0;
+    }
+
+    .about-section {
+      max-width: 800px;
+      margin: 0 auto 60px;
+      padding: 0 24px;
+    }
+
+    .about-section h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--color-primary);
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--color-primary);
+    }
+
+    .about-section p {
+      color: var(--color-text-secondary);
+      line-height: 1.8;
+      margin-bottom: 16px;
+    }
+
+    .about-section ul {
+      margin: 16px 0;
+      padding-left: 24px;
+    }
+
+    .about-section li {
+      color: var(--color-text-secondary);
+      line-height: 1.8;
+      margin-bottom: 8px;
+    }
+
+    .ilr-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 24px 0;
+    }
+
+    .ilr-table th,
+    .ilr-table td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .ilr-table th {
+      background: var(--color-surface);
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+
+    .ilr-table td {
+      color: var(--color-text-secondary);
+    }
+
+    .ilr-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.875rem;
+    }
+
+    .ilr-1 { background: #e0f2fe; color: #0369a1; }
+    .ilr-1-5 { background: #dbeafe; color: #1d4ed8; }
+    .ilr-2 { background: #dcfce7; color: #15803d; }
+    .ilr-2-5 { background: #fef9c3; color: #a16207; }
+    .ilr-3 { background: #fed7aa; color: #c2410c; }
+    .ilr-3-5 { background: #fecaca; color: #b91c1c; }
+
+    .tech-stack {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 24px 0;
+    }
+
+    .tech-item {
+      background: var(--color-surface);
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid var(--color-border);
+    }
+
+    .tech-item h4 {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--color-text-primary);
+    }
+
+    .tech-item p {
+      font-size: 0.875rem;
+      color: var(--color-text-secondary);
+      margin: 0;
+    }
+
+    .credit-section {
+      background: var(--color-surface);
+      padding: 40px;
+      border-radius: 12px;
+      text-align: center;
+      border: 1px solid var(--color-border);
+    }
+
+    .credit-section h3 {
+      font-size: 1.25rem;
+      margin-bottom: 12px;
+      color: var(--color-text-primary);
+    }
+
+    .credit-section p {
+      margin-bottom: 8px;
+    }
+
+    .credit-link {
+      color: var(--color-primary);
+      text-decoration: none;
+    }
+
+    .credit-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <!-- Skip Navigation Link -->
+  <a href="#main-content" class="skip-link" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:9999;padding:1rem;background:#1a73e8;color:#fff;text-decoration:none;">Skip to main content</a>
+
+  <!-- Header -->
+  <header class="header" role="banner">
+    <div class="header-inner">
+      <a href="index.html" class="logo">
+        <span class="logo-arabic" lang="ar">تناغم</span>
+        <span>Tanaghum</span>
+      </a>
+      <nav class="nav" aria-label="Main navigation">
+        <a href="index.html" class="nav-link">Home</a>
+        <a href="generator.html" class="nav-link">Generate</a>
+        <a href="gallery.html" class="nav-link">Gallery</a>
+        <a href="about.html" class="nav-link active" aria-current="page">About</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main id="main-content">
+
+  <!-- Hero -->
+  <section class="about-hero">
+    <div class="container">
+      <h1 class="about-title">
+        <span class="about-title-ar" lang="ar">تناغم</span>
+        About Tanaghum
+      </h1>
+      <p class="about-subtitle">
+        A free, open-source tool for generating professional Arabic listening comprehension lessons
+      </p>
+    </div>
+  </section>
+
+  <!-- Content -->
+  <div class="about-content">
+    <section class="about-section">
+      <h2>What is Tanaghum?</h2>
+      <p>
+        Tanaghum (تناغم, meaning "harmony" in Arabic) is a free, client-side Arabic listening comprehension
+        lesson generator. It transforms YouTube videos, audio files, or text into complete, pedagogically-sound
+        lessons with synchronized transcripts, vocabulary lists, and comprehension questions.
+      </p>
+      <p>
+        Everything runs directly in your browser - no server costs, no sign-up required, no data leaves your
+        device. Generate professional-quality lessons in minutes and export them as standalone HTML files
+        that work offline.
+      </p>
+    </section>
+
+    <section class="about-section">
+      <h2>Key Features</h2>
+      <ul>
+        <li><strong>AI-Powered Transcription:</strong> Uses Whisper (via Transformers.js) for accurate Arabic speech-to-text directly in your browser</li>
+        <li><strong>ILR-Calibrated Content:</strong> Lessons are tagged with ILR proficiency levels for appropriate difficulty matching</li>
+        <li><strong>Pre/While/Post Framework:</strong> Research-backed listening comprehension structure with questions at each stage</li>
+        <li><strong>Smart Search:</strong> AI-evaluated YouTube search to find suitable content for language learning</li>
+        <li><strong>Vocabulary Extraction:</strong> Automatic word lists with roots, translations, and definitions</li>
+        <li><strong>Standalone Export:</strong> Download complete lessons as single HTML files that work offline</li>
+        <li><strong>Community Gallery:</strong> Share and discover lessons created by other users</li>
+      </ul>
+    </section>
+
+    <section class="about-section" id="ilr" aria-labelledby="ilr-heading">
+      <h2 id="ilr-heading">ILR Proficiency Levels</h2>
+      <p>
+        The Interagency Language Roundtable (ILR) scale is the standard grading scale for language
+        proficiency in the U.S. federal government. Tanaghum uses this scale to help learners find
+        content appropriate for their level.
+      </p>
+      <table class="ilr-table" aria-labelledby="ilr-heading">
+        <caption class="visually-hidden">ILR proficiency levels from 1 (Elementary) to 3+ (General Professional+)</caption>
+        <thead>
+          <tr>
+            <th scope="col">Level</th>
+            <th scope="col">Name</th>
+            <th scope="col">Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row"><span class="ilr-badge ilr-1">1</span></th>
+            <td>Elementary</td>
+            <td>Can understand short, simple texts with familiar vocabulary. Basic greetings and routine phrases.</td>
+          </tr>
+          <tr>
+            <th scope="row"><span class="ilr-badge ilr-1-5">1+</span></th>
+            <td>Elementary+</td>
+            <td>Can understand simple conversations on routine topics. Recognizes basic sentence patterns.</td>
+          </tr>
+          <tr>
+            <th scope="row"><span class="ilr-badge ilr-2">2</span></th>
+            <td>Limited Working</td>
+            <td>Can understand factual news, personal narratives, and simple arguments. Follows straightforward discussions.</td>
+          </tr>
+          <tr>
+            <th scope="row"><span class="ilr-badge ilr-2-5">2+</span></th>
+            <td>Limited Working+</td>
+            <td>Can understand standard news broadcasts, formal speeches, and extended arguments on familiar topics.</td>
+          </tr>
+          <tr>
+            <th scope="row"><span class="ilr-badge ilr-3">3</span></th>
+            <td>General Professional</td>
+            <td>Can understand political analysis, technical discussions, and complex arguments. Follows most broadcasts.</td>
+          </tr>
+          <tr>
+            <th scope="row"><span class="ilr-badge ilr-3-5">3+</span></th>
+            <td>General Professional+</td>
+            <td>Can understand complex argumentation, nuanced content, and subtle cultural references.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="about-section">
+      <h2>Technology Stack</h2>
+      <p>Tanaghum is built entirely on modern web technologies and runs 100% client-side:</p>
+      <div class="tech-stack">
+        <div class="tech-item">
+          <h4>Transformers.js</h4>
+          <p>Runs Whisper speech recognition directly in the browser using WebAssembly</p>
+        </div>
+        <div class="tech-item">
+          <h4>Multi-Provider LLM</h4>
+          <p>Google AI Studio, Groq, and OpenRouter for question generation with automatic fallback</p>
+        </div>
+        <div class="tech-item">
+          <h4>Cloudflare Workers</h4>
+          <p>Lightweight proxy for YouTube data and LLM APIs, no server hosting needed</p>
+        </div>
+        <div class="tech-item">
+          <h4>IndexedDB</h4>
+          <p>Local storage for caching transcriptions and lessons without server dependencies</p>
+        </div>
+        <div class="tech-item">
+          <h4>Web Audio API</h4>
+          <p>Client-side audio processing for playback control and visualization</p>
+        </div>
+        <div class="tech-item">
+          <h4>GitHub Pages</h4>
+          <p>Free hosting with zero server costs - just static files</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="about-section">
+      <h2>The Pre/While/Post Framework</h2>
+      <p>
+        Tanaghum generates lessons using the research-backed Pre/While/Post listening comprehension
+        framework used by language educators worldwide:
+      </p>
+      <ul>
+        <li><strong>Pre-Listening:</strong> Activate prior knowledge and set expectations. Questions help learners think about the topic before listening.</li>
+        <li><strong>While-Listening:</strong> Focus on specific information during playback. Questions guide active listening for key details, main ideas, and supporting points.</li>
+        <li><strong>Post-Listening:</strong> Reflect and synthesize understanding. Questions encourage critical thinking, personal response, and connection to broader themes.</li>
+      </ul>
+    </section>
+
+    <section class="about-section">
+      <div class="credit-section">
+        <h3>Created by SSgt Jesse Morgan, USMC</h3>
+        <p>Built for Arabic language learners and educators everywhere.</p>
+        <p>Free and open source under the MIT License.</p>
+        <p>
+          <a href="https://github.com/tanaghum/tanaghum" class="credit-link" target="_blank" rel="noopener noreferrer">
+            View on GitHub<span class="visually-hidden"> (opens in new tab)</span>
+          </a>
+        </p>
+      </div>
+    </section>
+  </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer" role="contentinfo">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-logo">
+          <span class="footer-logo-arabic" lang="ar">تناغم</span>
+          <span>Tanaghum</span>
+        </div>
+        <nav class="footer-links" aria-label="Footer navigation">
+          <a href="about.html" class="footer-link" aria-current="page">About</a>
+          <a href="https://github.com/tanaghum/tanaghum" class="footer-link" target="_blank" rel="noopener noreferrer">GitHub<span class="visually-hidden"> (opens in new tab)</span></a>
+        </nav>
+      </div>
+      <p class="footer-copy">
+        Created by SSgt Jesse Morgan, USMC. Free and open source under MIT License.
+      </p>
+    </div>
+  </footer>
+</body>
+</html>

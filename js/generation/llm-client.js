@@ -59,6 +59,12 @@ class LLMClient {
    * Load quotas from localStorage
    */
   loadQuotas() {
+    const freshQuotas = {
+      google: PROVIDERS.google.dailyLimit,
+      groq: PROVIDERS.groq.dailyLimit,
+      openrouter: PROVIDERS.openrouter.dailyLimit
+    };
+
     try {
       const stored = localStorage.getItem(QUOTA_STORAGE_KEY);
       if (stored) {
@@ -66,8 +72,19 @@ class LLMClient {
 
         // Check if quotas are from today
         const today = new Date().toDateString();
-        if (data.date === today) {
-          return data.quotas;
+        if (data.date === today && data.quotas) {
+          // Validate and sanitize loaded quotas
+          const loadedQuotas = {};
+          for (const [provider, limit] of Object.entries(freshQuotas)) {
+            const storedValue = data.quotas[provider];
+            // Ensure quota is a valid non-negative number
+            if (typeof storedValue === 'number' && !isNaN(storedValue) && storedValue >= 0) {
+              loadedQuotas[provider] = Math.min(storedValue, limit); // Cap at daily limit
+            } else {
+              loadedQuotas[provider] = limit;
+            }
+          }
+          return loadedQuotas;
         }
       }
     } catch (e) {
@@ -75,11 +92,7 @@ class LLMClient {
     }
 
     // Return fresh quotas
-    return {
-      google: PROVIDERS.google.dailyLimit,
-      groq: PROVIDERS.groq.dailyLimit,
-      openrouter: PROVIDERS.openrouter.dailyLimit
-    };
+    return freshQuotas;
   }
 
   /**
@@ -122,6 +135,11 @@ class LLMClient {
    * Decrement quota for a provider
    */
   decrementQuota(providerId) {
+    // Guard against invalid quota values
+    if (typeof this.quotas[providerId] !== 'number' || isNaN(this.quotas[providerId])) {
+      this.quotas[providerId] = 0;
+    }
+
     if (this.quotas[providerId] > 0) {
       this.quotas[providerId]--;
       this.saveQuotas();
@@ -162,6 +180,33 @@ class LLMClient {
   }
 
   /**
+   * Check if error is a rate limit (429) or quota error
+   * @param {Error} error - The error to check
+   * @returns {boolean}
+   */
+  isRateLimitError(error) {
+    const message = error.message?.toLowerCase() || '';
+    return message.includes('429') ||
+           message.includes('rate limit') ||
+           message.includes('quota exceeded') ||
+           message.includes('too many requests');
+  }
+
+  /**
+   * Check if error is temporary/retryable
+   * @param {Error} error - The error to check
+   * @returns {boolean}
+   */
+  isTemporaryError(error) {
+    const message = error.message?.toLowerCase() || '';
+    return message.includes('timeout') ||
+           message.includes('network') ||
+           message.includes('503') ||
+           message.includes('502') ||
+           message.includes('504');
+  }
+
+  /**
    * Make a request to the LLM API
    * @param {Object} options - Request options
    * @returns {Promise<Object>} Response data
@@ -174,12 +219,19 @@ class LLMClient {
       maxTokens = 2048,
       jsonMode = false,
       provider = null, // Force specific provider
-      retries = 2
+      retries = 2,
+      _fallbackAttempt = 0 // Internal: track fallback depth to prevent infinite recursion
     } = options;
+
+    // Prevent infinite fallback recursion (max 3 providers)
+    const MAX_FALLBACK_ATTEMPTS = Object.keys(PROVIDERS).length;
+    if (_fallbackAttempt >= MAX_FALLBACK_ATTEMPTS) {
+      throw new Error('All LLM providers failed after fallback attempts.');
+    }
 
     // Select provider
     let providerId = provider || this.currentProvider;
-    if (!providerId || this.quotas[providerId] <= 0) {
+    if (!providerId || !this.quotas[providerId] || this.quotas[providerId] <= 0) {
       providerId = this.selectBestProvider();
     }
 
@@ -214,7 +266,10 @@ class LLMClient {
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Request failed' }));
-        throw new Error(error.error || `HTTP ${response.status}`);
+        const errorMessage = error.error || `HTTP ${response.status}`;
+        const err = new Error(errorMessage);
+        err.status = response.status;
+        throw err;
       }
 
       return response.json();
@@ -238,15 +293,31 @@ class LLMClient {
     } catch (error) {
       log.error(`${providerConfig.name} failed:`, error.message);
 
-      // Try fallback provider
-      if (!provider) { // Only fallback if not forcing a specific provider
-        this.quotas[providerId] = 0; // Mark as exhausted for this session
-        this.saveQuotas();
+      // Determine if we should try fallback
+      const shouldFallback = !provider; // Only fallback if not forcing a specific provider
+
+      if (shouldFallback) {
+        // Only mark as exhausted for rate limit errors, not temporary failures
+        if (this.isRateLimitError(error)) {
+          this.quotas[providerId] = 0; // Mark as exhausted for this session
+          this.saveQuotas();
+          log.warn(`Provider ${providerId} rate limited, marking as exhausted`);
+        } else if (!this.isTemporaryError(error)) {
+          // For non-temporary errors (auth, bad request), also mark exhausted
+          this.quotas[providerId] = 0;
+          this.saveQuotas();
+          log.warn(`Provider ${providerId} failed with permanent error, marking as exhausted`);
+        }
+        // For temporary errors, don't exhaust the provider
 
         const fallbackProvider = this.selectBestProvider();
         if (fallbackProvider && fallbackProvider !== providerId) {
           log.log(`Falling back to ${fallbackProvider}`);
-          return this.request({ ...options, provider: fallbackProvider });
+          return this.request({
+            ...options,
+            provider: fallbackProvider,
+            _fallbackAttempt: _fallbackAttempt + 1
+          });
         }
       }
 
@@ -504,6 +575,149 @@ ${transcript}`;
     });
 
     return result.data || [];
+  }
+
+  /**
+   * Evaluate search results for language learning quality
+   * @param {Array} videos - Video metadata array
+   * @param {Object} options - Evaluation options
+   * @returns {Promise<Array>} Ranked and evaluated videos
+   */
+  async evaluateSearchResults(videos, options = {}) {
+    const {
+      targetIlr = 2.0,
+      topic = 'general',
+      maxResults = 6
+    } = options;
+
+    if (!videos || videos.length === 0) {
+      return [];
+    }
+
+    // Prepare video summaries for LLM evaluation
+    const videoSummaries = videos.slice(0, 12).map((v, i) => ({
+      index: i,
+      title: v.title,
+      channel: v.channel,
+      duration: v.duration,
+      description: v.description?.substring(0, 200) || ''
+    }));
+
+    const systemPrompt = `You are an expert Arabic language instructor selecting content for learners at ILR level ${targetIlr}.
+
+Evaluate YouTube videos for Arabic language learning suitability. Consider:
+- Clear audio quality (news channels, educational content = good)
+- Appropriate complexity for ILR ${targetIlr}
+- Useful for topic: ${topic}
+- Avoid: music videos, very short clips, non-educational entertainment
+
+Rate each video 1-10 for language learning value and estimate ILR level.`;
+
+    const prompt = `Evaluate these Arabic YouTube videos for language learning:
+
+${JSON.stringify(videoSummaries, null, 2)}
+
+Return JSON array with objects containing:
+- index: original video index
+- score: 1-10 learning value
+- estimatedIlr: estimated ILR level (1.0-3.5)
+- suitable: boolean - good for ILR ${targetIlr} learners
+- reason: brief explanation (20 words max)
+
+Order by score descending. Include only videos scoring 5+.`;
+
+    try {
+      const result = await this.json({
+        prompt,
+        systemPrompt,
+        temperature: 0.3
+      });
+
+      if (!result.data || !Array.isArray(result.data)) {
+        log.warn('Invalid evaluation response, returning original videos');
+        return videos.slice(0, maxResults);
+      }
+
+      // Merge evaluation data with original videos
+      const evaluated = result.data
+        .filter(e => e.suitable !== false && e.score >= 5)
+        .slice(0, maxResults)
+        .map(e => {
+          const original = videos[e.index];
+          if (!original) return null;
+
+          return {
+            ...original,
+            evaluation: {
+              score: e.score,
+              estimatedIlr: e.estimatedIlr,
+              suitable: e.suitable,
+              reason: e.reason
+            }
+          };
+        })
+        .filter(Boolean);
+
+      log.log(`Evaluated ${videos.length} videos, ${evaluated.length} suitable`);
+      return evaluated;
+
+    } catch (error) {
+      log.warn('Evaluation failed, returning original videos:', error.message);
+      return videos.slice(0, maxResults);
+    }
+  }
+
+  /**
+   * Generate optimal search queries for content discovery
+   * @param {Object} options - Search options
+   * @returns {Promise<Array>} Suggested search queries
+   */
+  async generateSearchQueries(options = {}) {
+    const {
+      targetIlr = 2.0,
+      topic = 'general',
+      count = 5
+    } = options;
+
+    const topicDescriptions = {
+      economy: 'economic news, financial reports, business discussions',
+      politics: 'political analysis, government news, international relations',
+      culture: 'arts, literature, traditions, social customs',
+      science: 'scientific discoveries, technology, research',
+      society: 'social issues, daily life, community',
+      health: 'medical news, wellness, healthcare',
+      education: 'learning, schools, academic topics',
+      general: 'news, interviews, documentaries'
+    };
+
+    const systemPrompt = `You are an expert in finding Arabic learning content on YouTube.
+Generate search queries that will find high-quality Arabic content suitable for ILR ${targetIlr} learners.`;
+
+    const prompt = `Generate ${count} YouTube search queries in Arabic to find content about: ${topicDescriptions[topic] || topicDescriptions.general}
+
+Requirements:
+- Queries should be in Arabic
+- Target content appropriate for ILR level ${targetIlr}
+- Focus on clear spoken Arabic (news, interviews, educational)
+- Avoid music, entertainment, children's content
+
+Return JSON array of objects with:
+- query: the Arabic search query
+- description: what type of content it will find (English)
+- expectedIlr: expected ILR range`;
+
+    try {
+      const result = await this.json({
+        prompt,
+        systemPrompt,
+        temperature: 0.7
+      });
+
+      return result.data || [];
+    } catch (error) {
+      log.warn('Query generation failed:', error.message);
+      return [];
+    }
   }
 }
 

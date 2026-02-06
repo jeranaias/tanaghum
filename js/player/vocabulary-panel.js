@@ -1,0 +1,400 @@
+/**
+ * Tanaghum Vocabulary Panel
+ * Displays vocabulary items with definitions, examples, and audio
+ */
+
+import { Config } from '../core/config.js';
+import { EventBus, Events } from '../core/event-bus.js';
+import { createLogger, escapeHtml, debounce } from '../core/utils.js';
+
+const log = createLogger('VocabPanel');
+
+/**
+ * Vocabulary Panel class
+ */
+class VocabularyPanel {
+  constructor(container, options = {}) {
+    this.container = typeof container === 'string'
+      ? document.querySelector(container)
+      : container;
+
+    this.vocabulary = [];
+    this.filter = 'all';
+    this.searchTerm = '';
+    this.showDetails = options.showDetails ?? true;
+    this.onWordClick = options.onWordClick || (() => {});
+    this.onPlayAudio = options.onPlayAudio || (() => {});
+
+    // TTS for pronunciation
+    this.ttsEnabled = options.ttsEnabled ?? true;
+    this.isSpeaking = false;
+
+    // Debounced search to prevent excessive re-renders
+    this.debouncedSearch = debounce((term) => {
+      this.searchTerm = term;
+      this.renderVocabList();
+    }, 300);
+  }
+
+  /**
+   * Load vocabulary items
+   * @param {Object} vocabulary - Vocabulary data
+   */
+  load(vocabulary) {
+    this.vocabulary = vocabulary?.items || vocabulary || [];
+    this.filter = 'all';
+    this.searchTerm = '';
+    this.render();
+
+    log.log(`Loaded ${this.vocabulary.length} vocabulary items`);
+  }
+
+  /**
+   * Render the vocabulary panel
+   */
+  render() {
+    if (!this.container) return;
+
+    const filtered = this.getFilteredVocabulary();
+
+    this.container.innerHTML = `
+      <div class="vocab-header">
+        <div class="vocab-search">
+          <input type="text" class="vocab-search-input"
+                 placeholder="Search vocabulary..."
+                 value="${this.searchTerm}">
+        </div>
+        <div class="vocab-filters">
+          <button class="vocab-filter-btn${this.filter === 'all' ? ' active' : ''}" data-filter="all">
+            All (${this.vocabulary.length})
+          </button>
+          <button class="vocab-filter-btn${this.filter === 'nouns' ? ' active' : ''}" data-filter="nouns">
+            Nouns
+          </button>
+          <button class="vocab-filter-btn${this.filter === 'verbs' ? ' active' : ''}" data-filter="verbs">
+            Verbs
+          </button>
+        </div>
+      </div>
+
+      <div class="vocab-list">
+        ${filtered.length > 0
+          ? filtered.map((item, i) => this.renderVocabItem(item, i)).join('')
+          : '<div class="vocab-empty">No vocabulary items found</div>'
+        }
+      </div>
+    `;
+
+    this.attachEventListeners();
+  }
+
+  /**
+   * Render a vocabulary item
+   * @param {Object} item - Vocabulary item
+   * @param {number} index - Item index
+   * @returns {string} HTML
+   */
+  renderVocabItem(item, index) {
+    // Escape all user-provided content to prevent XSS
+    const arabic = escapeHtml(item.word_ar || item.arabic || item.word || '');
+    const english = escapeHtml(item.word_en || item.english || item.translation || '');
+    const root = escapeHtml(item.root || '');
+    const pos = escapeHtml(item.pos || item.partOfSpeech || '');
+    const definitionAr = escapeHtml(item.definition_ar || item.definitionAr || '');
+    const definitionEn = escapeHtml(item.definition_en || item.definitionEn || '');
+    const exampleAr = escapeHtml(item.example_ar || item.exampleAr || '');
+    const exampleEn = escapeHtml(item.example_en || item.exampleEn || '');
+
+    return `
+      <div class="vocab-item" data-index="${index}">
+        <div class="vocab-item-header">
+          <div class="vocab-word">
+            <span class="vocab-arabic" dir="rtl">${arabic}</span>
+            ${this.ttsEnabled ? '<button class="vocab-play-btn" title="Listen" aria-label="Listen to pronunciation">&#128266;</button>' : ''}
+          </div>
+          <div class="vocab-english">${english}</div>
+        </div>
+
+        ${this.showDetails ? `
+          <div class="vocab-item-details">
+            ${root ? `<div class="vocab-root"><span class="label">Root:</span> ${root}</div>` : ''}
+            ${pos ? `<div class="vocab-pos"><span class="label">Type:</span> ${pos}</div>` : ''}
+
+            ${definitionAr || definitionEn ? `
+              <div class="vocab-definition">
+                ${definitionAr ? `<div class="def-ar" dir="rtl">${definitionAr}</div>` : ''}
+                ${definitionEn ? `<div class="def-en">${definitionEn}</div>` : ''}
+              </div>
+            ` : ''}
+
+            ${exampleAr || exampleEn ? `
+              <div class="vocab-example">
+                <span class="label">Example:</span>
+                ${exampleAr ? `<div class="example-ar" dir="rtl">"${exampleAr}"</div>` : ''}
+                ${exampleEn ? `<div class="example-en">"${exampleEn}"</div>` : ''}
+              </div>
+            ` : ''}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  /**
+   * Render just the vocabulary list (for search updates)
+   */
+  renderVocabList() {
+    const listContainer = this.container?.querySelector('.vocab-list');
+    if (!listContainer) return;
+
+    const filtered = this.getFilteredVocabulary();
+    listContainer.innerHTML = filtered.length > 0
+      ? filtered.map((item, i) => this.renderVocabItem(item, i)).join('')
+      : '<div class="vocab-empty">No vocabulary items found</div>';
+
+    this.attachListEventListeners();
+  }
+
+  /**
+   * Attach event listeners for list items only
+   */
+  attachListEventListeners() {
+    // Play buttons
+    this.container?.querySelectorAll('.vocab-play-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const item = btn.closest('.vocab-item');
+        const index = parseInt(item.dataset.index);
+        this.playPronunciation(index);
+      });
+    });
+
+    // Item click (toggle details or callback)
+    this.container?.querySelectorAll('.vocab-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const index = parseInt(item.dataset.index);
+        const vocabItem = this.getFilteredVocabulary()[index];
+        this.onWordClick(vocabItem, index);
+      });
+    });
+  }
+
+  /**
+   * Attach event listeners
+   */
+  attachEventListeners() {
+    // Search input with debouncing
+    const searchInput = this.container?.querySelector('.vocab-search-input');
+    searchInput?.addEventListener('input', (e) => {
+      this.debouncedSearch(e.target.value);
+    });
+
+    // Filter buttons
+    this.container?.querySelectorAll('.vocab-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        // Update active state visually
+        this.container.querySelectorAll('.vocab-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.filter = btn.dataset.filter;
+        this.renderVocabList();
+      });
+    });
+
+    // Attach list item listeners
+    this.attachListEventListeners();
+  }
+
+  /**
+   * Get filtered vocabulary
+   * @returns {Array} Filtered items
+   */
+  getFilteredVocabulary() {
+    let items = this.vocabulary;
+
+    // Apply category filter
+    if (this.filter !== 'all') {
+      items = items.filter(item => {
+        const pos = (item.pos || item.partOfSpeech || '').toLowerCase();
+
+        switch (this.filter) {
+          case 'nouns':
+            return pos.includes('noun') || pos.includes('اسم');
+          case 'verbs':
+            return pos.includes('verb') || pos.includes('فعل');
+          case 'adjectives':
+            return pos.includes('adj') || pos.includes('صفة');
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Apply search filter
+    if (this.searchTerm) {
+      const term = this.searchTerm.toLowerCase();
+      items = items.filter(item => {
+        const arabic = (item.word_ar || item.arabic || '').toLowerCase();
+        const english = (item.word_en || item.english || '').toLowerCase();
+        const def = (item.definition_en || '').toLowerCase();
+
+        return arabic.includes(term) || english.includes(term) || def.includes(term);
+      });
+    }
+
+    return items;
+  }
+
+  /**
+   * Play pronunciation using TTS
+   * @param {number} index - Vocabulary item index
+   */
+  async playPronunciation(index) {
+    // Prevent overlapping speech
+    if (this.isSpeaking) {
+      if ('speechSynthesis' in window) {
+        speechSynthesis.cancel();
+      }
+    }
+
+    const items = this.getFilteredVocabulary();
+    const item = items[index];
+
+    if (!item) return;
+
+    const word = item.word_ar || item.arabic || item.word;
+
+    try {
+      this.isSpeaking = true;
+
+      // Use Web Speech API if available
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(word);
+        utterance.lang = 'ar';
+        utterance.rate = 0.8;
+
+        // Find Arabic voice if available
+        const voices = speechSynthesis.getVoices();
+        const arabicVoice = voices.find(v => v.lang.startsWith('ar'));
+        if (arabicVoice) {
+          utterance.voice = arabicVoice;
+        }
+
+        utterance.onend = () => { this.isSpeaking = false; };
+        utterance.onerror = () => { this.isSpeaking = false; };
+
+        speechSynthesis.speak(utterance);
+      } else {
+        // Fallback to worker TTS
+        const audio = new Audio(`${Config.WORKER_URL}/api/tts?text=${encodeURIComponent(word)}&lang=ar`);
+        audio.onended = () => { this.isSpeaking = false; };
+        audio.onerror = () => { this.isSpeaking = false; };
+        await audio.play();
+      }
+
+      this.onPlayAudio(item, word);
+    } catch (error) {
+      this.isSpeaking = false;
+      log.error('TTS failed:', error);
+    }
+  }
+
+  /**
+   * Highlight word in vocabulary
+   * @param {string} word - Word to highlight
+   */
+  highlightWord(word) {
+    if (!word || !this.container) return;
+
+    this.container.querySelectorAll('.vocab-item').forEach(item => {
+      const arabic = item.querySelector('.vocab-arabic')?.textContent;
+      if (arabic && arabic.includes(word)) {
+        item.classList.add('highlighted');
+      } else {
+        item.classList.remove('highlighted');
+      }
+    });
+  }
+
+  /**
+   * Clear highlights
+   */
+  clearHighlights() {
+    this.container?.querySelectorAll('.vocab-item.highlighted').forEach(item => {
+      item.classList.remove('highlighted');
+    });
+  }
+
+  /**
+   * Set filter
+   * @param {string} filter - Filter type
+   */
+  setFilter(filter) {
+    this.filter = filter;
+    this.render();
+  }
+
+  /**
+   * Toggle details visibility
+   * @param {boolean} show - Show details
+   */
+  toggleDetails(show) {
+    this.showDetails = show;
+    this.render();
+  }
+
+  /**
+   * Get statistics
+   */
+  getStats() {
+    const items = this.vocabulary;
+
+    const byType = {
+      nouns: 0,
+      verbs: 0,
+      adjectives: 0,
+      other: 0
+    };
+
+    items.forEach(item => {
+      const pos = (item.pos || item.partOfSpeech || '').toLowerCase();
+      if (pos.includes('noun') || pos.includes('اسم')) byType.nouns++;
+      else if (pos.includes('verb') || pos.includes('فعل')) byType.verbs++;
+      else if (pos.includes('adj') || pos.includes('صفة')) byType.adjectives++;
+      else byType.other++;
+    });
+
+    return {
+      total: items.length,
+      byType
+    };
+  }
+
+  /**
+   * Export vocabulary to CSV
+   * @returns {string} CSV content
+   */
+  exportToCSV() {
+    const headers = ['Arabic', 'English', 'Root', 'Part of Speech', 'Definition', 'Example'];
+    const rows = this.vocabulary.map(item => [
+      item.word_ar || item.arabic || '',
+      item.word_en || item.english || '',
+      item.root || '',
+      item.pos || item.partOfSpeech || '',
+      item.definition_en || '',
+      item.example_ar || ''
+    ].map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(','));
+
+    return [headers.join(','), ...rows].join('\n');
+  }
+
+  /**
+   * Cleanup
+   */
+  destroy() {
+    if (this.container) {
+      this.container.innerHTML = '';
+    }
+  }
+}
+
+export { VocabularyPanel };

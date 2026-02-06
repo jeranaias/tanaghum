@@ -4,6 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Generate Arabic comprehension lessons with synchronized audio and text">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://tanaghum.app/generator.html">
+
+  <!-- Open Graph Meta Tags -->
+  <meta property="og:title" content="Generate Lesson | Tanaghum">
+  <meta property="og:description" content="Generate Arabic comprehension lessons with synchronized audio and text">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tanaghum.app/generator.html">
+  <meta property="og:site_name" content="Tanaghum">
+
+  <!-- Twitter Card Meta Tags -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Generate Lesson | Tanaghum">
+  <meta name="twitter:description" content="Generate Arabic comprehension lessons with synchronized audio and text">
 
   <title>Generate Lesson | Tanaghum</title>
 
@@ -15,18 +29,22 @@
   <!-- Styles -->
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/generator.css">
+  <link rel="stylesheet" href="css/export-dialog.css">
 </head>
 <body>
+  <!-- Skip Navigation Link -->
+  <a href="#main-content" class="skip-link" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:9999;padding:1rem;background:#1a73e8;color:#fff;text-decoration:none;">Skip to main content</a>
+
   <!-- Header -->
-  <header class="header">
+  <header class="header" role="banner">
     <div class="header-inner">
-      <a href="/" class="logo">
-        <span class="logo-arabic">تناغم</span>
+      <a href="index.html" class="logo">
+        <span class="logo-arabic" lang="ar">تناغم</span>
         <span>Tanaghum</span>
       </a>
-      <nav class="nav">
-        <a href="/" class="nav-link">Home</a>
-        <a href="generator.html" class="nav-link active">Generate</a>
+      <nav class="nav" aria-label="Main navigation">
+        <a href="index.html" class="nav-link">Home</a>
+        <a href="generator.html" class="nav-link active" aria-current="page">Generate</a>
         <a href="gallery.html" class="nav-link">Gallery</a>
         <a href="about.html" class="nav-link">About</a>
       </nav>
@@ -34,83 +52,142 @@
   </header>
 
   <!-- Three-Panel Layout -->
-  <main class="generator-layout">
+  <main class="generator-layout" id="main-content">
     <!-- Left Panel: Configuration -->
-    <aside class="panel panel-left" id="config-panel">
+    <aside class="panel panel-left" id="config-panel" aria-label="Lesson configuration">
       <!-- Content Source -->
       <div class="panel-section">
-        <h3 class="section-title">Content Source</h3>
+        <h3 class="section-title" id="source-heading">Content Source</h3>
 
-        <div class="source-tabs">
-          <button class="source-tab active" data-source="youtube">
-            <span class="tab-icon">&#128250;</span>
+        <div class="source-tabs" role="tablist" aria-labelledby="source-heading">
+          <button class="source-tab active" data-source="youtube" role="tab" aria-selected="true" aria-controls="source-youtube" id="tab-youtube" type="button">
+            <span class="tab-icon" aria-hidden="true">&#128250;</span>
             <span class="tab-label">YouTube URL</span>
             <span class="tab-desc">Paste any Arabic video</span>
           </button>
 
-          <button class="source-tab" data-source="upload">
-            <span class="tab-icon">&#128193;</span>
+          <button class="source-tab" data-source="upload" role="tab" aria-selected="false" aria-controls="source-upload" id="tab-upload" type="button">
+            <span class="tab-icon" aria-hidden="true">&#128193;</span>
             <span class="tab-label">Upload Audio</span>
             <span class="tab-desc">MP3, WAV, M4A (max 10 min)</span>
           </button>
 
-          <button class="source-tab" data-source="text">
-            <span class="tab-icon">&#128221;</span>
+          <button class="source-tab" data-source="search" role="tab" aria-selected="false" aria-controls="source-search" id="tab-search" type="button">
+            <span class="tab-icon" aria-hidden="true">&#128269;</span>
+            <span class="tab-label">Smart Search</span>
+            <span class="tab-desc">Find Arabic content for you</span>
+          </button>
+
+          <button class="source-tab" data-source="text" role="tab" aria-selected="false" aria-controls="source-text" id="tab-text" type="button">
+            <span class="tab-icon" aria-hidden="true">&#128221;</span>
             <span class="tab-label">Paste Text</span>
             <span class="tab-desc">Enter transcript directly</span>
           </button>
         </div>
 
         <!-- YouTube Input -->
-        <div class="source-content" id="source-youtube">
+        <div class="source-content" id="source-youtube" role="tabpanel" aria-labelledby="tab-youtube">
           <div class="form-group">
             <label class="form-label" for="youtube-url">YouTube URL</label>
             <input type="url" id="youtube-url" class="form-input"
-                   placeholder="https://youtube.com/watch?v=...">
-            <p class="form-hint">Works with any Arabic video that has captions</p>
+                   placeholder="https://youtube.com/watch?v=..."
+                   pattern="https?://(www\.)?(youtube\.com|youtu\.be)/.+"
+                   aria-describedby="youtube-hint">
+            <p class="form-hint" id="youtube-hint">Works with any Arabic video that has captions</p>
           </div>
         </div>
 
         <!-- Upload Input -->
-        <div class="source-content hidden" id="source-upload">
-          <div id="drop-zone" class="drop-zone">
-            <span class="drop-icon">&#128193;</span>
+        <div class="source-content hidden" id="source-upload" role="tabpanel" aria-labelledby="tab-upload">
+          <div id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-label="Upload audio file. Drag and drop or click to upload">
+            <span class="drop-icon" aria-hidden="true">&#128193;</span>
             <span>Drag & drop or click to upload</span>
             <input type="file" id="file-input" hidden
-                   accept=".mp3,.wav,.m4a,.ogg,.webm,.aac,audio/*">
+                   accept=".mp3,.wav,.m4a,.ogg,.webm,.aac,audio/*"
+                   aria-label="Select audio file">
           </div>
-          <div id="file-preview" class="file-preview hidden">
-            <span>&#127925;</span>
+          <div id="file-preview" class="file-preview hidden" role="status" aria-live="polite">
+            <span aria-hidden="true">&#127925;</span>
             <div class="file-info">
               <div class="file-name" id="file-name"></div>
               <div class="file-size" id="file-size"></div>
             </div>
-            <button class="file-remove" id="file-remove">&times;</button>
+            <button class="file-remove" id="file-remove" type="button" aria-label="Remove file">&times;</button>
+          </div>
+        </div>
+
+        <!-- Smart Search Input -->
+        <div class="source-content hidden" id="source-search" role="tabpanel" aria-labelledby="tab-search">
+          <div class="form-group">
+            <label class="form-label" for="search-query">Search for Arabic Content</label>
+            <div class="search-input-wrapper" role="search">
+              <input type="search" id="search-query" class="form-input"
+                     placeholder="e.g., أخبار الاقتصاد, مقابلة سياسية, وثائقي..."
+                     aria-describedby="search-hint"
+                     autocomplete="off">
+              <button class="search-btn" id="search-btn" type="button" aria-label="Search">
+                <span aria-hidden="true">&#128269;</span>
+              </button>
+            </div>
+            <p class="form-hint" id="search-hint">Enter a topic in Arabic or English to find suitable content</p>
+          </div>
+
+          <!-- AI Suggest Button -->
+          <button class="btn btn-secondary btn-sm" id="ai-suggest-btn" style="margin-bottom: 12px; width: 100%;">
+            <span>&#10024;</span> AI Suggest Queries for My Level
+          </button>
+
+          <!-- Suggested Queries -->
+          <div id="suggested-queries" class="suggested-queries hidden">
+            <!-- AI-generated query suggestions -->
+          </div>
+
+          <!-- Search Results -->
+          <div id="search-results" class="video-search-results hidden">
+            <div class="search-results-header">
+              <span id="search-results-count">0 videos found</span>
+              <button class="btn btn-ghost btn-sm" id="clear-search">Clear</button>
+            </div>
+            <div id="search-results-grid" class="search-results-grid">
+              <!-- Video cards populated by JavaScript -->
+            </div>
+          </div>
+
+          <!-- Search Loading State -->
+          <div id="search-loading" class="search-loading hidden">
+            <div class="processing-spinner"></div>
+            <span id="search-loading-text">Searching for Arabic content...</span>
           </div>
         </div>
 
         <!-- Text Input -->
-        <div class="source-content hidden" id="source-text">
+        <div class="source-content hidden" id="source-text" role="tabpanel" aria-labelledby="tab-text">
           <div class="form-group">
             <label class="form-label" for="text-input">Arabic Text</label>
             <textarea id="text-input" class="form-textarea ar"
                       placeholder="الصق النص العربي هنا..."
-                      rows="8"></textarea>
-            <p class="form-hint">Enter the transcript if you already have it</p>
+                      rows="8"
+                      dir="rtl"
+                      lang="ar"
+                      aria-describedby="text-hint"></textarea>
+            <p class="form-hint" id="text-hint">Enter the transcript if you already have it</p>
           </div>
         </div>
       </div>
 
       <!-- Parameters -->
       <div class="panel-section">
-        <h3 class="section-title">Parameters</h3>
+        <h3 class="section-title" id="params-heading">Parameters</h3>
 
         <!-- ILR Level -->
         <div class="field-group">
-          <label for="ilr-slider">Target ILR Level</label>
+          <label for="ilr-slider" id="ilr-label">Target ILR Level</label>
           <input type="range" id="ilr-slider" class="form-range"
-                 min="1" max="3.5" step="0.5" value="2">
-          <div class="ilr-display">
+                 min="1" max="3.5" step="0.5" value="2"
+                 aria-labelledby="ilr-label"
+                 aria-valuemin="1" aria-valuemax="3.5" aria-valuenow="2"
+                 aria-valuetext="ILR Level 2.0 - Limited Working Proficiency">
+          <div class="ilr-display" aria-live="polite">
             <div class="ilr-badge-large" id="ilr-value">2.0</div>
             <div class="ilr-info">
               <h4 id="ilr-name">Limited Working Proficiency</h4>
@@ -120,83 +197,84 @@
         </div>
 
         <!-- Topic -->
-        <div class="field-group">
-          <label>Topic Category</label>
-          <div class="topic-grid">
-            <button class="topic-btn" data-topic="economy">
-              <span class="topic-icon">&#128176;</span>
-              <span class="topic-ar">الاقتصاد</span>
+        <fieldset class="field-group">
+          <legend id="topic-label">Topic Category</legend>
+          <div class="topic-grid" role="radiogroup" aria-labelledby="topic-label">
+            <button class="topic-btn" data-topic="economy" role="radio" aria-checked="false" type="button">
+              <span class="topic-icon" aria-hidden="true">&#128176;</span>
+              <span class="topic-ar" lang="ar">الاقتصاد</span>
               <span class="topic-en">Economy</span>
             </button>
-            <button class="topic-btn" data-topic="politics">
-              <span class="topic-icon">&#127963;</span>
-              <span class="topic-ar">السياسة</span>
+            <button class="topic-btn" data-topic="politics" role="radio" aria-checked="false" type="button">
+              <span class="topic-icon" aria-hidden="true">&#127963;</span>
+              <span class="topic-ar" lang="ar">السياسة</span>
               <span class="topic-en">Politics</span>
             </button>
-            <button class="topic-btn" data-topic="culture">
-              <span class="topic-icon">&#127912;</span>
-              <span class="topic-ar">الثقافة</span>
+            <button class="topic-btn" data-topic="culture" role="radio" aria-checked="false" type="button">
+              <span class="topic-icon" aria-hidden="true">&#127912;</span>
+              <span class="topic-ar" lang="ar">الثقافة</span>
               <span class="topic-en">Culture</span>
             </button>
-            <button class="topic-btn" data-topic="science">
-              <span class="topic-icon">&#128300;</span>
-              <span class="topic-ar">العلوم</span>
+            <button class="topic-btn" data-topic="science" role="radio" aria-checked="false" type="button">
+              <span class="topic-icon" aria-hidden="true">&#128300;</span>
+              <span class="topic-ar" lang="ar">العلوم</span>
               <span class="topic-en">Science</span>
             </button>
-            <button class="topic-btn" data-topic="society">
-              <span class="topic-icon">&#128101;</span>
-              <span class="topic-ar">المجتمع</span>
+            <button class="topic-btn" data-topic="society" role="radio" aria-checked="false" type="button">
+              <span class="topic-icon" aria-hidden="true">&#128101;</span>
+              <span class="topic-ar" lang="ar">المجتمع</span>
               <span class="topic-en">Society</span>
             </button>
-            <button class="topic-btn" data-topic="health">
-              <span class="topic-icon">&#128138;</span>
-              <span class="topic-ar">الصحة</span>
+            <button class="topic-btn" data-topic="health" role="radio" aria-checked="false" type="button">
+              <span class="topic-icon" aria-hidden="true">&#128138;</span>
+              <span class="topic-ar" lang="ar">الصحة</span>
               <span class="topic-en">Health</span>
             </button>
-            <button class="topic-btn active" data-topic="general">
-              <span class="topic-icon">&#128218;</span>
-              <span class="topic-ar">عام</span>
+            <button class="topic-btn active" data-topic="general" role="radio" aria-checked="true" type="button">
+              <span class="topic-icon" aria-hidden="true">&#128218;</span>
+              <span class="topic-ar" lang="ar">عام</span>
               <span class="topic-en">General</span>
             </button>
-            <button class="topic-btn" data-topic="education">
-              <span class="topic-icon">&#127891;</span>
-              <span class="topic-ar">التعليم</span>
+            <button class="topic-btn" data-topic="education" role="radio" aria-checked="false" type="button">
+              <span class="topic-icon" aria-hidden="true">&#127891;</span>
+              <span class="topic-ar" lang="ar">التعليم</span>
               <span class="topic-en">Education</span>
             </button>
           </div>
-        </div>
+        </fieldset>
       </div>
 
       <!-- Generate Button -->
-      <button class="btn btn-primary btn-lg" id="generate-btn" style="width: 100%;">
+      <button class="btn btn-primary btn-lg" id="generate-btn" type="button" style="width: 100%;" aria-describedby="generate-hint">
         Generate Lesson
       </button>
+      <p id="generate-hint" class="visually-hidden">Click to start generating an Arabic listening lesson based on your selected source and parameters</p>
     </aside>
 
     <!-- Main Content Area -->
-    <section class="main-content" id="main-content">
+    <section class="main-content" id="content-area" aria-label="Lesson generation workspace">
       <!-- Step Indicator -->
-      <div class="step-indicator">
-        <div class="step active" data-step="1">
-          <div class="step-number">1</div>
+      <nav class="step-indicator" aria-label="Generation progress">
+        <div class="step active" data-step="1" aria-current="step">
+          <div class="step-number" aria-hidden="true">1</div>
           <span class="step-label">Input</span>
         </div>
-        <div class="step-connector"></div>
+        <div class="step-connector" aria-hidden="true"></div>
         <div class="step" data-step="2">
-          <div class="step-number">2</div>
+          <div class="step-number" aria-hidden="true">2</div>
           <span class="step-label">Process</span>
         </div>
-        <div class="step-connector"></div>
+        <div class="step-connector" aria-hidden="true"></div>
         <div class="step" data-step="3">
-          <div class="step-number">3</div>
+          <div class="step-number" aria-hidden="true">3</div>
           <span class="step-label">Review</span>
         </div>
-        <div class="step-connector"></div>
+        <div class="step-connector" aria-hidden="true"></div>
         <div class="step" data-step="4">
-          <div class="step-number">4</div>
+          <div class="step-number" aria-hidden="true">4</div>
           <span class="step-label">Export</span>
         </div>
-      </div>
+      </nav>
 
       <!-- Content Card - Input State -->
       <div class="content-card" id="input-state">
@@ -217,29 +295,37 @@
         <div class="video-preview hidden" id="video-preview">
           <div class="video-thumbnail">
             <img id="video-thumb" src="" alt="Video thumbnail">
+            <div class="video-play-overlay">
+              <svg width="68" height="48" viewBox="0 0 68 48">
+                <path fill="#f00" d="M66.52,7.74c-0.78-2.93-2.49-5.41-5.42-6.19C55.79,.13,34,0,34,0S12.21,.13,6.9,1.55 C3.97,2.33,2.27,4.81,1.48,7.74C0.06,13.05,0,24,0,24s0.06,10.95,1.48,16.26c0.78,2.93,2.49,5.41,5.42,6.19 C12.21,47.87,34,48,34,48s21.79-0.13,27.1-1.55c2.93-0.78,4.64-3.26,5.42-6.19C67.94,34.95,68,24,68,24S67.94,13.05,66.52,7.74z"/>
+                <path fill="#fff" d="M 45,24 27,14 27,34"/>
+              </svg>
+            </div>
+            <div class="video-duration-badge" id="video-duration-badge"></div>
           </div>
           <div class="video-info">
             <h3 id="video-title"></h3>
+            <p id="video-channel" class="video-channel"></p>
             <div class="video-meta">
-              <span id="video-channel"></span>
               <span id="video-duration"></span>
             </div>
-            <div style="margin-top: 12px;">
+            <div class="video-badges">
               <span class="badge" id="video-captions">Captions available</span>
+              <span class="badge" id="video-language" style="display: none;"></span>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Content Card - Processing State -->
-      <div class="content-card hidden" id="processing-state">
+      <div class="content-card hidden" id="processing-state" role="status" aria-live="polite" aria-atomic="true">
         <div class="processing-container">
-          <div class="processing-spinner"></div>
+          <div class="processing-spinner" aria-hidden="true"></div>
           <div class="processing-status" id="processing-status">Initializing...</div>
           <div class="processing-detail" id="processing-detail">Please wait</div>
 
           <div class="processing-progress">
-            <div class="progress-bar">
+            <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Generation progress">
               <div class="progress-bar-fill" id="progress-fill" style="width: 0%"></div>
             </div>
           </div>
@@ -360,21 +446,21 @@
       </div>
 
       <!-- Action Bar -->
-      <div class="action-bar" id="action-bar">
+      <div class="action-bar" id="action-bar" role="toolbar" aria-label="Lesson actions">
         <div class="action-group">
-          <button class="btn btn-ghost" id="back-btn" disabled>Back</button>
+          <button class="btn btn-ghost" id="back-btn" type="button" disabled aria-disabled="true">Back</button>
         </div>
         <div class="action-group">
-          <button class="btn btn-secondary" id="preview-btn" disabled>Preview</button>
-          <button class="btn btn-primary" id="export-btn" disabled>Export Lesson</button>
+          <button class="btn btn-secondary" id="preview-btn" type="button" disabled aria-disabled="true">Preview</button>
+          <button class="btn btn-primary" id="export-btn" type="button" disabled aria-disabled="true">Export Lesson</button>
         </div>
       </div>
     </section>
 
     <!-- Right Panel: Status & Help -->
-    <aside class="panel panel-right" id="status-panel">
+    <aside class="panel panel-right" id="status-panel" aria-label="Status and help">
       <div class="panel-section">
-        <h3 class="section-title">LLM Quota</h3>
+        <h3 class="section-title" id="quota-heading">LLM Quota</h3>
 
         <div class="status-card">
           <div class="status-header">
@@ -441,23 +527,23 @@
   </main>
 
   <!-- Mobile Toolbar -->
-  <div class="mobile-toolbar">
-    <button class="mobile-toolbar-btn active" data-panel="config">
-      <span style="font-size: 20px;">&#9881;</span>
+  <nav class="mobile-toolbar" role="tablist" aria-label="Mobile panel navigation">
+    <button class="mobile-toolbar-btn active" data-panel="config" role="tab" aria-selected="true" type="button">
+      <span style="font-size: 20px;" aria-hidden="true">&#9881;</span>
       <span>Config</span>
     </button>
-    <button class="mobile-toolbar-btn" data-panel="main">
-      <span style="font-size: 20px;">&#128221;</span>
+    <button class="mobile-toolbar-btn" data-panel="main" role="tab" aria-selected="false" type="button">
+      <span style="font-size: 20px;" aria-hidden="true">&#128221;</span>
       <span>Content</span>
     </button>
-    <button class="mobile-toolbar-btn" data-panel="status">
-      <span style="font-size: 20px;">&#128200;</span>
+    <button class="mobile-toolbar-btn" data-panel="status" role="tab" aria-selected="false" type="button">
+      <span style="font-size: 20px;" aria-hidden="true">&#128200;</span>
       <span>Status</span>
     </button>
-  </div>
+  </nav>
 
   <!-- Toast Container -->
-  <div class="toast-container" id="toast-container"></div>
+  <div class="toast-container" id="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Scripts -->
   <script type="module">
@@ -465,6 +551,21 @@
     import { StateManager } from './js/core/state-manager.js';
     import { Config } from './js/core/config.js';
     import { extractYouTubeId, formatTime, $ } from './js/core/utils.js';
+    import { lessonGeneratorWorkflow } from './js/workflows/lesson-generator-workflow.js';
+
+    // Error handling for module imports
+    window.addEventListener('error', (e) => {
+      if (e.message && e.message.includes('import')) {
+        console.error('Module loading error:', e.message);
+        const container = document.getElementById('toast-container');
+        if (container) {
+          const toast = document.createElement('div');
+          toast.className = 'toast toast-error';
+          toast.innerHTML = '<div class="toast-content"><div class="toast-title">Loading Error</div><div class="toast-message">Failed to load application modules. Please refresh the page.</div></div>';
+          container.appendChild(toast);
+        }
+      }
+    });
 
     // ILR Level data
     const ILR_DATA = {
@@ -582,17 +683,120 @@
       dropZone.classList.remove('hidden');
     });
 
-    // YouTube URL validation
+    // YouTube URL validation and preview
+    let currentVideoId = null;
+
     youtubeInput.addEventListener('input', debounce(async () => {
       const url = youtubeInput.value.trim();
       const videoId = extractYouTubeId(url);
 
-      if (videoId) {
-        StateManager.set('source.url', url);
-        // In production, fetch video metadata here
-        showToast('success', 'Video found', 'Ready to generate lesson');
+      // Hide preview if URL cleared or invalid
+      if (!videoId) {
+        hideVideoPreview();
+        currentVideoId = null;
+        return;
+      }
+
+      // Skip if same video
+      if (videoId === currentVideoId) return;
+      currentVideoId = videoId;
+
+      // Show loading state
+      showVideoLoading();
+
+      try {
+        // Fetch video metadata from worker
+        const response = await fetch(`${Config.WORKER_URL}/api/youtube/metadata?v=${videoId}`);
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        // Update state
+        StateManager.set('source', {
+          type: 'youtube',
+          url: url,
+          videoId: videoId,
+          metadata: data
+        });
+
+        // Display video preview
+        showVideoPreview(data);
+
+        showToast('success', 'Video found', data.captions?.available ? 'Captions available' : 'Will need transcription');
+
+      } catch (error) {
+        console.error('Failed to fetch video:', error);
+        hideVideoPreview();
+        showToast('error', 'Video not found', error.message || 'Could not load video metadata');
+        currentVideoId = null;
       }
     }, 500));
+
+    function showVideoLoading() {
+      const preview = $('#video-preview');
+      const placeholder = preview.previousElementSibling;
+
+      placeholder.classList.add('hidden');
+      preview.classList.remove('hidden');
+
+      $('#video-thumb').src = '';
+      $('#video-thumb').alt = 'Loading...';
+      $('#video-title').textContent = 'Loading video...';
+      $('#video-channel').textContent = '';
+      $('#video-duration').textContent = '';
+      $('#video-captions').textContent = 'Checking captions...';
+      $('#video-captions').className = 'badge';
+    }
+
+    function showVideoPreview(data) {
+      const preview = $('#video-preview');
+      const placeholder = preview.previousElementSibling;
+
+      placeholder.classList.add('hidden');
+      preview.classList.remove('hidden');
+
+      // Set thumbnail
+      $('#video-thumb').src = data.thumbnail || `https://i.ytimg.com/vi/${data.videoId}/hqdefault.jpg`;
+      $('#video-thumb').alt = data.title;
+
+      // Set title and channel
+      $('#video-title').textContent = data.title || 'Untitled Video';
+      $('#video-channel').textContent = data.author || 'Unknown Channel';
+
+      // Set duration
+      if (data.duration) {
+        const mins = Math.floor(data.duration / 60);
+        const secs = data.duration % 60;
+        $('#video-duration').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+
+        // Warning if too long
+        if (data.duration > 600) {
+          showToast('warning', 'Long video', 'Videos over 10 minutes may take a while to process');
+        }
+      } else {
+        $('#video-duration').textContent = '';
+      }
+
+      // Set captions badge
+      const captionsBadge = $('#video-captions');
+      if (data.captions?.available) {
+        captionsBadge.textContent = 'Captions available';
+        captionsBadge.className = 'badge badge-success';
+      } else {
+        captionsBadge.textContent = 'No captions - will transcribe';
+        captionsBadge.className = 'badge badge-warning';
+      }
+    }
+
+    function hideVideoPreview() {
+      const preview = $('#video-preview');
+      const placeholder = preview.previousElementSibling;
+
+      preview.classList.add('hidden');
+      placeholder.classList.remove('hidden');
+    }
 
     function debounce(fn, ms) {
       let timeout;
@@ -609,6 +813,15 @@
       if (sourceType === 'youtube' && !youtubeInput.value.trim()) {
         showToast('error', 'Missing URL', 'Please enter a YouTube URL');
         return;
+      }
+
+      if (sourceType === 'search') {
+        // Check if a video was selected from search
+        const source = StateManager.get('source');
+        if (!source?.videoId) {
+          showToast('error', 'No video selected', 'Please search and select a video');
+          return;
+        }
       }
 
       if (sourceType === 'upload' && !StateManager.get('source.file')) {
@@ -642,50 +855,90 @@
 
     async function simulateProcessing() {
       const steps = ['fetch', 'transcribe', 'analyze', 'questions', 'assemble'];
-      const messages = [
-        { status: 'Fetching content...', detail: 'Connecting to source' },
-        { status: 'Transcribing audio...', detail: 'Using Whisper model' },
-        { status: 'Analyzing content...', detail: 'Calculating ILR level' },
-        { status: 'Generating questions...', detail: 'Creating comprehension exercises' },
-        { status: 'Assembling lesson...', detail: 'Preparing final output' }
-      ];
+      const stepMessages = {
+        fetch: { status: 'Fetching content...', detail: 'Connecting to source' },
+        transcribe: { status: 'Transcribing audio...', detail: 'Using Whisper model' },
+        analyze: { status: 'Analyzing content...', detail: 'Calculating ILR level' },
+        questions: { status: 'Generating questions...', detail: 'Creating comprehension exercises' },
+        assemble: { status: 'Assembling lesson...', detail: 'Preparing final output' }
+      };
 
-      for (let i = 0; i < steps.length; i++) {
-        const step = steps[i];
-        const stepEl = document.querySelector(`[data-step="${step}"]`);
+      // Get source and parameters from state
+      const source = StateManager.get('source');
+      const targetIlr = StateManager.get('params.targetIlr') || 2.0;
+      const topic = StateManager.get('params.topic') || 'general';
 
-        // Mark previous steps as completed
-        steps.slice(0, i).forEach(s => {
-          const el = document.querySelector(`[data-step="${s}"]`);
-          el.classList.remove('active');
-          el.classList.add('completed');
-          el.querySelector('.processing-step-status').textContent = 'Complete';
+      try {
+        // Start the real workflow
+        await lessonGeneratorWorkflow.generate({
+          source,
+          targetIlr,
+          topic,
+          onProgress: (progress) => {
+            const { step, percent, message, stage } = progress;
+
+            // Update current step status
+            const stepEl = document.querySelector(`[data-step="${step}"]`);
+            if (stepEl) {
+              // Mark previous steps as completed
+              const currentIndex = steps.indexOf(step);
+              steps.slice(0, currentIndex).forEach(s => {
+                const el = document.querySelector(`[data-step="${s}"]`);
+                if (el) {
+                  el.classList.remove('active');
+                  el.classList.add('completed');
+                  el.querySelector('.processing-step-status').textContent = 'Complete';
+                }
+              });
+
+              // Mark current step as active
+              stepEl.classList.add('active');
+              stepEl.classList.remove('completed');
+              stepEl.querySelector('.processing-step-status').textContent = 'In progress...';
+            }
+
+            // Update main status text
+            const msg = stepMessages[step];
+            if (msg) {
+              $('#processing-status').textContent = msg.status;
+              $('#processing-detail').textContent = message || stage || msg.detail;
+            }
+
+            // Update progress bar
+            $('#progress-fill').style.width = `${percent}%`;
+
+            // Show streaming transcript if available
+            if (step === 'transcribe' && progress.currentText) {
+              // Could show streaming text here if UI supports it
+              console.log('Transcription progress:', progress.currentText);
+            }
+          }
         });
 
-        // Mark current step as active
-        stepEl.classList.add('active');
-        stepEl.querySelector('.processing-step-status').textContent = 'In progress...';
+        // Mark all steps complete
+        steps.forEach(s => {
+          const el = document.querySelector(`[data-step="${s}"]`);
+          if (el) {
+            el.classList.remove('active');
+            el.classList.add('completed');
+            el.querySelector('.processing-step-status').textContent = 'Complete';
+          }
+        });
 
-        // Update status text
-        $('#processing-status').textContent = messages[i].status;
-        $('#processing-detail').textContent = messages[i].detail;
-        $('#progress-fill').style.width = `${((i + 1) / steps.length) * 100}%`;
+        // Show review state with real data
+        showReviewStateWithLesson();
 
-        // Simulate processing time
-        await new Promise(r => setTimeout(r, 1500));
+      } catch (error) {
+        console.error('Lesson generation failed:', error);
+        showToast('error', 'Generation Failed', error.message);
+
+        // Show error state
+        $('#processing-state').classList.add('hidden');
+        $('#input-state').classList.remove('hidden');
       }
-
-      // Mark last step complete
-      const lastStep = document.querySelector(`[data-step="assemble"]`);
-      lastStep.classList.remove('active');
-      lastStep.classList.add('completed');
-      lastStep.querySelector('.processing-step-status').textContent = 'Complete';
-
-      // Show review state
-      showReviewState();
     }
 
-    function showReviewState() {
+    function showReviewStateWithLesson() {
       $('#processing-state').classList.add('hidden');
       $('#review-state').classList.remove('hidden');
 
@@ -699,9 +952,53 @@
       $('#preview-btn').disabled = false;
       $('#export-btn').disabled = false;
 
-      // Populate sample data (in production, this comes from actual processing)
-      populateSampleData();
+      // Populate with real lesson data
+      const lesson = StateManager.get('lesson');
+      if (lesson) {
+        populateLessonData(lesson);
+      } else {
+        // Fallback to sample data if something went wrong
+        populateSampleData();
+      }
     }
+
+    function populateLessonData(lesson) {
+      // Populate transcript
+      const transcriptHtml = lesson.content.transcript.segments.map(seg => `
+        <div class="transcript-line">
+          <span class="transcript-time">${formatTime(seg.start)}</span>
+          <span class="transcript-text">${seg.text}</span>
+        </div>
+      `).join('');
+      $('#transcript-preview').innerHTML = transcriptHtml;
+
+      // Populate questions
+      ['pre', 'while', 'post'].forEach(phase => {
+        const questions = lesson.content.questions[phase];
+        const container = $(`#${phase}-questions`);
+        const countEl = $(`#${phase}-count`);
+
+        countEl.textContent = questions.length;
+
+        container.innerHTML = questions.map((q, i) => `
+          <div class="question-item">
+            <div class="question-number">${i + 1}</div>
+            <div class="question-content">
+              <div class="question-text">
+                <div class="question-text-ar">${q.question_text.ar}</div>
+                <div class="question-text-en">${q.question_text.en}</div>
+              </div>
+              <span class="question-type">${q.type.replace(/_/g, ' ')}</span>
+            </div>
+          </div>
+        `).join('');
+      });
+
+      // Show success message
+      showToast('success', 'Lesson Generated!', 'Your lesson is ready to preview');
+    }
+
+    // showReviewState removed - now using showReviewStateWithLesson from simulateProcessing
 
     function populateSampleData() {
       // Sample transcript
@@ -757,6 +1054,66 @@
       });
     }
 
+    // Preview button - open lesson in player
+    $('#preview-btn').addEventListener('click', () => {
+      // Use the generated lesson from state
+      const lesson = StateManager.get('lesson');
+      if (!lesson) {
+        showToast('error', 'No lesson', 'Please generate a lesson first');
+        return;
+      }
+
+      // Save to localStorage for player to load
+      localStorage.setItem('tanaghum_current_lesson', JSON.stringify(lesson));
+      window.location.href = 'player.html';
+    });
+
+    // Export button - show export options
+    let exportDialog = null;
+
+    $('#export-btn').addEventListener('click', async () => {
+      const lesson = StateManager.get('lesson');
+      if (!lesson) {
+        showToast('error', 'No lesson', 'Please generate a lesson first');
+        return;
+      }
+
+      // Dynamically load export dialog
+      if (!exportDialog) {
+        try {
+          const module = await import('./js/ui/export-dialog.js');
+          exportDialog = module.exportDialog || new module.ExportDialog();
+        } catch (error) {
+          // Fallback to JSON export if export dialog fails to load
+          console.error('Export dialog failed to load, using JSON fallback:', error);
+          exportAsJson(lesson);
+          return;
+        }
+      }
+
+      exportDialog.show(lesson);
+    });
+
+    // Fallback JSON export function
+    function exportAsJson(lesson) {
+      const json = JSON.stringify(lesson, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      const timestamp = new Date().toISOString().split('T')[0];
+      const title = (lesson.metadata?.title?.en || 'lesson').substring(0, 30).replace(/[^a-zA-Z0-9]/g, '-');
+      a.download = `tanaghum-${title}-${timestamp}.json`;
+      a.click();
+
+      URL.revokeObjectURL(url);
+      showToast('success', 'Exported', 'Lesson JSON downloaded');
+    }
+
+    // Create a lesson object for preview/export
+    // createPreviewLesson removed - now using real lesson data from workflow
+
     // Toast notifications
     function showToast(type, title, message) {
       const container = $('#toast-container');
@@ -779,6 +1136,229 @@
       setTimeout(() => toast.remove(), 4000);
     }
 
+    // Smart Search functionality
+    const searchQuery = $('#search-query');
+    const searchBtn = $('#search-btn');
+    const searchResults = $('#search-results');
+    const searchResultsGrid = $('#search-results-grid');
+    const searchResultsCount = $('#search-results-count');
+    const searchLoading = $('#search-loading');
+    const searchLoadingText = $('#search-loading-text');
+    const clearSearchBtn = $('#clear-search');
+    const aiSuggestBtn = $('#ai-suggest-btn');
+    const suggestedQueries = $('#suggested-queries');
+
+    // Import LLM client for AI evaluation
+    let llmClient = null;
+
+    async function loadLLMClient() {
+      if (!llmClient) {
+        const module = await import('./js/generation/llm-client.js');
+        llmClient = module.llmClient;
+      }
+      return llmClient;
+    }
+
+    async function performSearch() {
+      const query = searchQuery.value.trim();
+      if (!query) {
+        showToast('error', 'Empty search', 'Please enter a search term');
+        return;
+      }
+
+      // Show loading state
+      searchLoading.classList.remove('hidden');
+      searchLoadingText.textContent = 'Searching YouTube...';
+      searchResults.classList.add('hidden');
+      searchBtn.disabled = true;
+
+      try {
+        // Step 1: Get raw search results
+        const response = await fetch(`${Config.WORKER_URL}/api/youtube/search?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        const rawVideos = data.videos || [];
+
+        if (rawVideos.length === 0) {
+          displaySearchResults([]);
+          return;
+        }
+
+        // Step 2: Evaluate with AI
+        searchLoadingText.textContent = 'AI evaluating content quality...';
+
+        const client = await loadLLMClient();
+        const targetIlr = parseFloat(ilrSlider.value);
+        const topic = document.querySelector('.topic-btn.active')?.dataset.topic || 'general';
+
+        const evaluatedVideos = await client.evaluateSearchResults(rawVideos, {
+          targetIlr,
+          topic,
+          maxResults: 8
+        });
+
+        // Display evaluated results
+        displaySearchResults(evaluatedVideos, true);
+        showToast('success', 'AI Search complete', `Found ${evaluatedVideos.length} suitable videos`);
+
+      } catch (error) {
+        console.error('Search failed:', error);
+        showToast('error', 'Search failed', error.message || 'Could not search YouTube');
+      } finally {
+        searchLoading.classList.add('hidden');
+        searchBtn.disabled = false;
+      }
+    }
+
+    function displaySearchResults(videos, hasEvaluation = false) {
+      if (videos.length === 0) {
+        searchResultsCount.textContent = 'No videos found';
+        searchResultsGrid.innerHTML = '<p style="text-align: center; color: var(--color-text-muted); padding: 20px;">Try a different search term</p>';
+        searchResults.classList.remove('hidden');
+        return;
+      }
+
+      searchResultsCount.textContent = hasEvaluation
+        ? `${videos.length} AI-curated videos`
+        : `${videos.length} videos found`;
+
+      searchResultsGrid.innerHTML = videos.map(video => {
+        const evalBadge = video.evaluation
+          ? `<div class="eval-badge" title="${video.evaluation.reason || ''}">
+               <span class="eval-score">${video.evaluation.score}/10</span>
+               <span class="eval-ilr">ILR ~${video.evaluation.estimatedIlr}</span>
+             </div>`
+          : '';
+
+        return `
+          <div class="video-search-card${video.evaluation?.score >= 8 ? ' recommended' : ''}" data-video-id="${video.videoId}" data-video='${JSON.stringify(video).replace(/'/g, "&#39;")}'>
+            <img class="video-thumb-small" src="${video.thumbnail}" alt="${video.title}" loading="lazy">
+            <div class="video-info">
+              <h4>${video.title}</h4>
+              <div class="video-channel">${video.channel}</div>
+              <div class="video-meta-row">
+                <span>${video.duration || ''}</span>
+                ${evalBadge}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      searchResults.classList.remove('hidden');
+
+      // Add click handlers to select videos
+      searchResultsGrid.querySelectorAll('.video-search-card').forEach(card => {
+        card.addEventListener('click', () => selectSearchResult(card));
+      });
+    }
+
+    // AI Suggest queries
+    aiSuggestBtn?.addEventListener('click', async () => {
+      aiSuggestBtn.disabled = true;
+      aiSuggestBtn.innerHTML = '<span class="processing-spinner" style="width:16px;height:16px;border-width:2px;margin-right:8px;"></span> Generating...';
+
+      try {
+        const client = await loadLLMClient();
+        const targetIlr = parseFloat(ilrSlider.value);
+        const topic = document.querySelector('.topic-btn.active')?.dataset.topic || 'general';
+
+        const suggestions = await client.generateSearchQueries({
+          targetIlr,
+          topic,
+          count: 4
+        });
+
+        if (suggestions.length > 0) {
+          displaySuggestedQueries(suggestions);
+        } else {
+          showToast('warning', 'No suggestions', 'Could not generate suggestions');
+        }
+      } catch (error) {
+        console.error('AI suggest failed:', error);
+        showToast('error', 'AI suggest failed', error.message);
+      } finally {
+        aiSuggestBtn.disabled = false;
+        aiSuggestBtn.innerHTML = '<span>&#10024;</span> AI Suggest Queries for My Level';
+      }
+    });
+
+    function displaySuggestedQueries(suggestions) {
+      suggestedQueries.innerHTML = suggestions.map(s => `
+        <button class="suggested-query-btn" data-query="${s.query}">
+          <span class="query-text">${s.query}</span>
+          <span class="query-desc">${s.description || ''}</span>
+        </button>
+      `).join('');
+
+      suggestedQueries.classList.remove('hidden');
+
+      // Add click handlers
+      suggestedQueries.querySelectorAll('.suggested-query-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          searchQuery.value = btn.dataset.query;
+          performSearch();
+        });
+      });
+    }
+
+    async function selectSearchResult(card) {
+      const videoId = card.dataset.videoId;
+      const videoData = JSON.parse(card.dataset.video);
+
+      // Mark as selected
+      searchResultsGrid.querySelectorAll('.video-search-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+
+      // Update state
+      StateManager.set('source', {
+        type: 'youtube',
+        url: `https://www.youtube.com/watch?v=${videoId}`,
+        videoId: videoId,
+        metadata: {
+          title: videoData.title,
+          author: videoData.channel,
+          thumbnail: videoData.thumbnail,
+          duration: videoData.durationSeconds,
+          captions: { available: false } // Will check when processing
+        }
+      });
+
+      // Show preview in main content area
+      showVideoPreview({
+        videoId: videoId,
+        title: videoData.title,
+        author: videoData.channel,
+        thumbnail: videoData.thumbnail,
+        duration: videoData.durationSeconds,
+        captions: { available: false }
+      });
+
+      showToast('success', 'Video selected', 'Ready to generate lesson');
+    }
+
+    // Search on button click
+    searchBtn?.addEventListener('click', performSearch);
+
+    // Search on Enter key
+    searchQuery?.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        performSearch();
+      }
+    });
+
+    // Clear search results
+    clearSearchBtn?.addEventListener('click', () => {
+      searchQuery.value = '';
+      searchResults.classList.add('hidden');
+      searchResultsGrid.innerHTML = '';
+    });
+
     // Mobile panel switching
     document.querySelectorAll('.mobile-toolbar-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -793,6 +1373,33 @@
           $('#config-panel').classList.remove('mobile-open');
         }
       });
+    });
+
+    // Listen for model loading events
+    EventBus.on(Events.MODEL_LOADING, (data) => {
+      if (data.model === 'whisper') {
+        const message = data.file ? `Loading: ${data.file}` : 'Loading Whisper model...';
+        const percent = data.progress || 0;
+        console.log(`Whisper model loading: ${percent}% - ${message}`);
+      }
+    });
+
+    EventBus.on(Events.MODEL_READY, (data) => {
+      if (data.model === 'whisper') {
+        console.log('Whisper model ready');
+      }
+    });
+
+    EventBus.on(Events.MODEL_ERROR, (data) => {
+      if (data.model === 'whisper') {
+        console.error('Whisper model error:', data.error);
+        showToast('error', 'Model Error', data.error);
+      }
+    });
+
+    // Listen for transcription events
+    EventBus.on(Events.TRANSCRIPTION_PROGRESS, (data) => {
+      console.log(`Transcription: ${data.progress}%`);
     });
 
     // Initialize

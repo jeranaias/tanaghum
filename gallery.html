@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Browse and discover community-created Arabic listening comprehension lessons">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://tanaghum.app/gallery.html">
+
+  <!-- Open Graph Meta Tags -->
+  <meta property="og:title" content="Community Gallery | Tanaghum">
+  <meta property="og:description" content="Browse and discover community-created Arabic listening comprehension lessons">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tanaghum.app/gallery.html">
+  <meta property="og:site_name" content="Tanaghum">
+
+  <!-- Twitter Card Meta Tags -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Community Gallery | Tanaghum">
+  <meta name="twitter:description" content="Browse and discover community-created Arabic listening comprehension lessons">
+
+  <title>Community Gallery | Tanaghum</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/gallery.css">
+</head>
+<body>
+  <!-- Skip Navigation Link -->
+  <a href="#main-content" class="skip-link" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:9999;padding:1rem;background:#1a73e8;color:#fff;text-decoration:none;">Skip to main content</a>
+
+  <!-- Header -->
+  <header class="header" role="banner">
+    <div class="header-inner">
+      <a href="index.html" class="logo">
+        <span class="logo-arabic">تناغم</span>
+        <span>Tanaghum</span>
+      </a>
+      <nav class="nav" aria-label="Main navigation">
+        <a href="index.html#features" class="nav-link">Features</a>
+        <a href="index.html#how-it-works" class="nav-link">How It Works</a>
+        <a href="gallery.html" class="nav-link active" aria-current="page">Gallery</a>
+        <a href="generator.html" class="btn btn-primary btn-sm">Create Lesson</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main id="main-content">
+
+  <!-- Gallery Hero -->
+  <section class="gallery-hero">
+    <div class="container">
+      <h1 class="gallery-title">
+        <span class="ar" lang="ar">مكتبة الدروس</span>
+        Community Gallery
+      </h1>
+      <p class="gallery-subtitle">
+        Explore lessons created by educators and learners around the world
+      </p>
+    </div>
+  </section>
+
+  <!-- Search & Filters -->
+  <section class="gallery-controls" aria-label="Search and filter lessons">
+    <div class="container">
+      <!-- Search Bar -->
+      <div class="search-wrapper" role="search">
+        <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
+          <path d="M9 17A8 8 0 1 0 9 1a8 8 0 0 0 0 16zM18 18l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <input
+          type="search"
+          id="gallery-search"
+          class="search-input"
+          placeholder="Search lessons by title, topic, or keyword..."
+          aria-label="Search lessons"
+          autocomplete="off"
+        >
+        <button class="search-clear hidden" id="clear-search" aria-label="Clear search" type="button">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+            <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="filters" role="group" aria-label="Filter options">
+        <!-- ILR Level Filter -->
+        <fieldset class="filter-group">
+          <legend class="filter-label" id="ilr-filter-label">ILR Level</legend>
+          <div class="filter-pills" id="ilr-filters" role="radiogroup" aria-labelledby="ilr-filter-label">
+            <button class="filter-pill active" data-ilr="all" role="radio" aria-checked="true" type="button">All Levels</button>
+            <button class="filter-pill" data-ilr="1" role="radio" aria-checked="false" type="button">1</button>
+            <button class="filter-pill" data-ilr="1.5" role="radio" aria-checked="false" type="button">1+</button>
+            <button class="filter-pill" data-ilr="2" role="radio" aria-checked="false" type="button">2</button>
+            <button class="filter-pill" data-ilr="2.5" role="radio" aria-checked="false" type="button">2+</button>
+            <button class="filter-pill" data-ilr="3" role="radio" aria-checked="false" type="button">3</button>
+          </div>
+        </fieldset>
+
+        <!-- Topic Filter -->
+        <fieldset class="filter-group">
+          <legend class="filter-label" id="topic-filter-label">Topic</legend>
+          <div class="filter-pills" id="topic-filters" role="radiogroup" aria-labelledby="topic-filter-label">
+            <button class="filter-pill active" data-topic="all" role="radio" aria-checked="true" type="button">All Topics</button>
+            <button class="filter-pill" data-topic="economy" role="radio" aria-checked="false" type="button">Economy</button>
+            <button class="filter-pill" data-topic="politics" role="radio" aria-checked="false" type="button">Politics</button>
+            <button class="filter-pill" data-topic="culture" role="radio" aria-checked="false" type="button">Culture</button>
+            <button class="filter-pill" data-topic="science" role="radio" aria-checked="false" type="button">Science</button>
+            <button class="filter-pill" data-topic="education" role="radio" aria-checked="false" type="button">Education</button>
+            <button class="filter-pill" data-topic="sports" role="radio" aria-checked="false" type="button">Sports</button>
+            <button class="filter-pill" data-topic="news" role="radio" aria-checked="false" type="button">News</button>
+          </div>
+        </fieldset>
+
+        <!-- Duration & Sort -->
+        <div class="filter-row">
+          <div class="filter-select-group">
+            <label for="duration-filter" class="filter-label">Duration</label>
+            <select id="duration-filter" class="filter-select">
+              <option value="all">Any Length</option>
+              <option value="short">Short (< 5 min)</option>
+              <option value="medium">Medium (5-15 min)</option>
+              <option value="long">Long (> 15 min)</option>
+            </select>
+          </div>
+
+          <div class="filter-select-group">
+            <label for="sort-filter" class="filter-label">Sort By</label>
+            <select id="sort-filter" class="filter-select">
+              <option value="popular">Most Popular</option>
+              <option value="newest">Newest First</option>
+              <option value="rating">Highest Rated</option>
+              <option value="title">Title (A-Z)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Filters Summary -->
+      <div class="active-filters hidden" id="active-filters" aria-live="polite">
+        <span class="active-filters-label">Active filters:</span>
+        <div class="active-filters-list" id="active-filters-list"></div>
+        <button class="btn-clear-all" id="clear-all-filters" type="button">Clear All</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Gallery Grid -->
+  <section class="gallery-section" aria-label="Lesson gallery">
+    <div class="container">
+      <!-- Results Info -->
+      <div class="results-info" aria-live="polite" aria-atomic="true">
+        <p class="results-count" id="results-count">Loading lessons...</p>
+      </div>
+
+      <!-- Loading Skeleton -->
+      <div class="gallery-grid" id="loading-skeleton">
+        <div class="lesson-card skeleton">
+          <div class="card-thumbnail skeleton-shimmer"></div>
+          <div class="card-body">
+            <div class="skeleton-text skeleton-shimmer"></div>
+            <div class="skeleton-text skeleton-shimmer" style="width: 80%;"></div>
+            <div class="skeleton-text skeleton-shimmer" style="width: 60%;"></div>
+          </div>
+        </div>
+        <div class="lesson-card skeleton">
+          <div class="card-thumbnail skeleton-shimmer"></div>
+          <div class="card-body">
+            <div class="skeleton-text skeleton-shimmer"></div>
+            <div class="skeleton-text skeleton-shimmer" style="width: 80%;"></div>
+            <div class="skeleton-text skeleton-shimmer" style="width: 60%;"></div>
+          </div>
+        </div>
+        <div class="lesson-card skeleton">
+          <div class="card-thumbnail skeleton-shimmer"></div>
+          <div class="card-body">
+            <div class="skeleton-text skeleton-shimmer"></div>
+            <div class="skeleton-text skeleton-shimmer" style="width: 80%;"></div>
+            <div class="skeleton-text skeleton-shimmer" style="width: 60%;"></div>
+          </div>
+        </div>
+        <div class="lesson-card skeleton">
+          <div class="card-thumbnail skeleton-shimmer"></div>
+          <div class="card-body">
+            <div class="skeleton-text skeleton-shimmer"></div>
+            <div class="skeleton-text skeleton-shimmer" style="width: 80%;"></div>
+            <div class="skeleton-text skeleton-shimmer" style="width: 60%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lessons Grid -->
+      <div class="gallery-grid hidden" id="gallery-grid"></div>
+
+      <!-- Empty State -->
+      <div class="empty-state hidden" id="empty-state" role="status">
+        <div class="empty-icon" aria-hidden="true">&#128269;</div>
+        <h3 class="empty-title">No lessons found</h3>
+        <p class="empty-message">Try adjusting your filters or search terms</p>
+        <button class="btn btn-secondary" id="reset-filters" type="button">Reset Filters</button>
+      </div>
+    </div>
+  </section>
+
+  </main>
+
+  <!-- Preview Modal -->
+  <div class="modal-backdrop" id="preview-backdrop" aria-hidden="true"></div>
+  <div class="modal preview-modal" id="preview-modal" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+    <div class="modal-header">
+      <h2 class="modal-title" id="preview-title">Lesson Preview</h2>
+      <button class="modal-close" id="close-preview" aria-label="Close preview" type="button">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body" id="preview-body">
+      <!-- Preview content loaded dynamically -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="close-preview-btn" type="button">Close</button>
+      <button class="btn btn-primary" id="use-lesson-btn" type="button">Use This Lesson</button>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Footer -->
+  <footer class="footer" role="contentinfo">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-logo">
+          <span class="footer-logo-arabic" lang="ar">تناغم</span>
+          <span>Tanaghum</span>
+        </div>
+        <nav class="footer-links" aria-label="Footer navigation">
+          <a href="about.html" class="footer-link">About</a>
+          <a href="docs/user-guide.md" class="footer-link">Documentation</a>
+          <a href="https://github.com/tanaghum/tanaghum" class="footer-link" target="_blank" rel="noopener noreferrer">GitHub<span class="visually-hidden"> (opens in new tab)</span></a>
+        </nav>
+      </div>
+      <p class="footer-copy">
+        Created by SSgt Jesse Morgan, USMC. Free and open source under MIT License.
+      </p>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="js/gallery/lesson-sharing.js" defer></script>
+  <script src="js/gallery/rating-system.js" defer></script>
+  <script src="js/gallery/gallery-manager.js" defer></script>
+</body>
+</html>

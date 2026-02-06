@@ -62,27 +62,14 @@ Students can choose their entry point based on their strengths — using text as
 
 ## Demo
 
-🚧 **Coming Soon** — Live demo at [tanaghum.github.io](https://tanaghum.github.io)
+**🚀 Live Now** — [jeranaias.github.io/tanaghum](https://jeranaias.github.io/tanaghum)
 
-### Screenshots
-
-<details>
-<summary>Landing Page</summary>
-
-![Landing Page](docs/screenshots/landing.png)
-</details>
-
-<details>
-<summary>Lesson Generator</summary>
-
-![Generator](docs/screenshots/generator.png)
-</details>
-
-<details>
-<summary>Lesson Player</summary>
-
-![Player](docs/screenshots/player.png)
-</details>
+### Try It
+1. Visit the [Generator](https://jeranaias.github.io/tanaghum/generator.html)
+2. Paste any Arabic YouTube URL
+3. Select your target ILR level
+4. Click **Generate Lesson**
+5. Preview and export as standalone HTML
 
 ---
 
@@ -90,7 +77,7 @@ Students can choose their entry point based on their strengths — using text as
 
 ### Option 1: Use Online (Recommended)
 
-Visit [tanaghum.github.io](https://tanaghum.github.io) — no installation required.
+Visit [jeranaias.github.io/tanaghum](https://jeranaias.github.io/tanaghum) — no installation required.
 
 ### Option 2: Run Locally
 
@@ -324,7 +311,7 @@ tanaghum/
 |------|---------|--------|
 | **Harakat** | Arabic diacritizer | ✅ Active |
 | **Nahawi** | Arabic grammar analyzer | ✅ Active |
-| **Tanaghum** | Multimodal lesson generator | 🚧 Building |
+| **Tanaghum** | Multimodal lesson generator | ✅ Live |
 
 ---
 

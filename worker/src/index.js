@@ -20,11 +20,18 @@ const CORS_HEADERS = {
 function isAllowedOrigin(origin, env) {
   if (!origin) return false;
 
-  const allowedOrigins = (env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim());
+  const allowedOrigins = (env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
 
-  // Allow localhost in development
-  if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-    return true;
+  // Only allow localhost in development mode (explicitly enabled)
+  if (env.ALLOW_LOCALHOST === 'true') {
+    try {
+      const originUrl = new URL(origin);
+      if (originUrl.hostname === 'localhost' || originUrl.hostname === '127.0.0.1') {
+        return true;
+      }
+    } catch {
+      // Invalid origin URL
+    }
   }
 
   return allowedOrigins.includes(origin);
@@ -122,8 +129,18 @@ export default {
           return errorResponse('Missing text parameter', 400, origin);
         }
 
+        // Validate text length to prevent abuse
+        if (text.length > 500) {
+          return errorResponse('Text too long (max 500 characters)', 400, origin);
+        }
+
+        // Validate language code format (2-5 letter codes like 'ar', 'en', 'zh-CN')
+        if (!/^[a-zA-Z]{2,3}(-[a-zA-Z]{2,3})?$/.test(lang)) {
+          return errorResponse('Invalid language code', 400, origin);
+        }
+
         // Proxy to Google Translate TTS
-        const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${lang}&q=${encodeURIComponent(text)}`;
+        const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${encodeURIComponent(lang)}&q=${encodeURIComponent(text)}`;
         const response = await fetch(ttsUrl);
 
         if (!response.ok) {
@@ -141,7 +158,11 @@ export default {
 
     } catch (error) {
       console.error('Worker error:', error);
-      return errorResponse(error.message || 'Internal server error', 500, origin);
+      // Don't expose internal error details to clients
+      const safeMessage = error.name === 'SyntaxError'
+        ? 'Invalid request format'
+        : 'Internal server error';
+      return errorResponse(safeMessage, 500, origin);
     }
   }
 };

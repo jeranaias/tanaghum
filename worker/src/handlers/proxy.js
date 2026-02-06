@@ -21,18 +21,57 @@ export async function handleProxy(request, env, url, origin) {
     return jsonResponse({ error: 'Invalid URL' }, 400, origin);
   }
 
-  // Block certain domains for security
-  const blockedDomains = [
-    'localhost',
-    '127.0.0.1',
-    '0.0.0.0',
-    '10.',
-    '172.16.',
-    '192.168.'
-  ];
+  // Only allow HTTPS for security
+  if (parsedUrl.protocol !== 'https:') {
+    return jsonResponse({ error: 'Only HTTPS URLs are allowed' }, 400, origin);
+  }
 
-  if (blockedDomains.some(d => parsedUrl.hostname.includes(d))) {
+  // Block private/internal network addresses (SSRF protection)
+  const hostname = parsedUrl.hostname.toLowerCase();
+
+  // Block localhost variations
+  if (hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      hostname === '[::1]' ||
+      hostname.endsWith('.localhost')) {
     return jsonResponse({ error: 'Blocked domain' }, 403, origin);
+  }
+
+  // Block private IPv4 ranges
+  const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const [, a, b, c, d] = ipv4Match.map(Number);
+    if (a === 10 ||                             // 10.0.0.0/8
+        (a === 172 && b >= 16 && b <= 31) ||    // 172.16.0.0/12
+        (a === 192 && b === 168) ||             // 192.168.0.0/16
+        (a === 169 && b === 254) ||             // 169.254.0.0/16 (link-local)
+        a === 127 ||                            // 127.0.0.0/8 (loopback)
+        a === 0) {                              // 0.0.0.0/8
+      return jsonResponse({ error: 'Blocked domain' }, 403, origin);
+    }
+  }
+
+  // Block cloud metadata endpoints
+  const blockedHosts = [
+    'metadata.google.internal',
+    '169.254.169.254',
+    'metadata.azure.com',
+    '100.100.100.200'  // Alibaba Cloud metadata
+  ];
+  if (blockedHosts.includes(hostname)) {
+    return jsonResponse({ error: 'Blocked domain' }, 403, origin);
+  }
+
+  // Whitelist allowed domains for proxy (safer approach)
+  const allowedDomains = [
+    'youtube.com',
+    'www.youtube.com',
+    'i.ytimg.com',
+    'translate.google.com'
+  ];
+  if (!allowedDomains.some(d => hostname === d || hostname.endsWith('.' + d))) {
+    return jsonResponse({ error: 'Domain not in whitelist' }, 403, origin);
   }
 
   try {
@@ -65,7 +104,8 @@ export async function handleProxy(request, env, url, origin) {
 
   } catch (error) {
     console.error('Proxy error:', error);
-    return jsonResponse({ error: 'Proxy request failed', details: error.message }, 500, origin);
+    // Don't expose internal error details
+    return jsonResponse({ error: 'Proxy request failed' }, 502, origin);
   }
 }
 

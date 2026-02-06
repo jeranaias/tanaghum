@@ -144,6 +144,11 @@ const Events = {
   LLM_QUOTA_UPDATE: 'llm:quota:update',
   LLM_PROVIDER_SWITCH: 'llm:provider:switch',
 
+  // Model loading (Whisper, etc.)
+  MODEL_LOADING: 'model:loading',
+  MODEL_READY: 'model:ready',
+  MODEL_ERROR: 'model:error',
+
   // General
   ERROR: 'error',
   LOADING_START: 'loading:start',
