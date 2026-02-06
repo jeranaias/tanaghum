@@ -77,12 +77,6 @@
             <span class="tab-label">Smart Search</span>
             <span class="tab-desc">Find Arabic content for you</span>
           </button>
-
-          <button class="source-tab" data-source="text" role="tab" aria-selected="false" aria-controls="source-text" id="tab-text" type="button">
-            <span class="tab-icon" aria-hidden="true">&#128221;</span>
-            <span class="tab-label">Paste Text</span>
-            <span class="tab-desc">Enter transcript directly</span>
-          </button>
         </div>
 
         <!-- YouTube Input -->
@@ -157,20 +151,6 @@
           <div id="search-loading" class="search-loading hidden">
             <div class="processing-spinner"></div>
             <span id="search-loading-text">Searching for Arabic content...</span>
-          </div>
-        </div>
-
-        <!-- Text Input -->
-        <div class="source-content hidden" id="source-text" role="tabpanel" aria-labelledby="tab-text">
-          <div class="form-group">
-            <label class="form-label" for="text-input">Arabic Text</label>
-            <textarea id="text-input" class="form-textarea ar"
-                      placeholder="الصق النص العربي هنا..."
-                      rows="8"
-                      dir="rtl"
-                      lang="ar"
-                      aria-describedby="text-hint"></textarea>
-            <p class="form-hint" id="text-hint">Enter the transcript if you already have it</p>
           </div>
         </div>
       </div>
@@ -403,10 +383,31 @@
           </div>
         </div>
 
-        <!-- Transcript Preview -->
-        <h3 style="margin-bottom: 12px;">Transcript</h3>
-        <div class="transcript-preview" id="transcript-preview">
-          <!-- Populated by JavaScript -->
+        <!-- Transcript Editor with Confidence -->
+        <div class="transcript-editor">
+          <div class="transcript-editor-header">
+            <span class="transcript-editor-title">Transcript (click to edit)</span>
+            <div class="confidence-legend">
+              <div class="confidence-legend-item">
+                <span class="confidence-dot high"></span>
+                <span>High confidence</span>
+              </div>
+              <div class="confidence-legend-item">
+                <span class="confidence-dot medium"></span>
+                <span>Review suggested</span>
+              </div>
+              <div class="confidence-legend-item">
+                <span class="confidence-dot low"></span>
+                <span>Needs correction</span>
+              </div>
+            </div>
+          </div>
+          <div class="editable-transcript" id="transcript-preview">
+            <!-- Populated by JavaScript with confidence-colored segments -->
+          </div>
+          <div class="transcript-save-status" id="transcript-save-status">
+            <span>Changes auto-saved</span>
+          </div>
         </div>
 
         <!-- Questions Preview -->
@@ -829,11 +830,6 @@
         return;
       }
 
-      if (sourceType === 'text' && !$('#text-input').value.trim()) {
-        showToast('error', 'No text', 'Please enter Arabic text');
-        return;
-      }
-
       // Start processing
       showProcessingState();
     });
@@ -962,15 +958,37 @@
       }
     }
 
+    function getConfidenceClass(confidence) {
+      // Map confidence score to CSS class
+      if (confidence >= 0.85) return 'confidence-high';
+      if (confidence >= 0.6) return 'confidence-medium';
+      return 'confidence-low';
+    }
+
     function populateLessonData(lesson) {
-      // Populate transcript
-      const transcriptHtml = lesson.content.transcript.segments.map(seg => `
-        <div class="transcript-line">
-          <span class="transcript-time">${formatTime(seg.start)}</span>
-          <span class="transcript-text">${seg.text}</span>
-        </div>
-      `).join('');
+      // Populate transcript with confidence-based coloring
+      const transcriptHtml = lesson.content.transcript.segments.map((seg, idx) => {
+        const confidence = seg.confidence || 0.8;
+        const confidenceClass = getConfidenceClass(confidence);
+        const confidencePercent = Math.round(confidence * 100);
+
+        return `
+          <div class="transcript-segment ${confidenceClass}"
+               data-index="${idx}"
+               data-start="${seg.start}"
+               data-end="${seg.end || seg.start + 5}"
+               data-confidence="${confidence}"
+               title="Confidence: ${confidencePercent}%">
+            <span class="segment-time">${formatTime(seg.start)}</span>
+            <span class="segment-text" contenteditable="true" dir="rtl" lang="ar">${seg.text}</span>
+          </div>
+        `;
+      }).join('');
+
       $('#transcript-preview').innerHTML = transcriptHtml;
+
+      // Add edit handlers for transcript segments
+      setupTranscriptEditing(lesson);
 
       // Populate questions
       ['pre', 'while', 'post'].forEach(phase => {
@@ -998,23 +1016,86 @@
       showToast('success', 'Lesson Generated!', 'Your lesson is ready to preview');
     }
 
+    function setupTranscriptEditing(lesson) {
+      const statusEl = $('#transcript-save-status');
+      let saveTimeout = null;
+
+      // Handle edits to transcript segments
+      $('#transcript-preview').addEventListener('input', (e) => {
+        if (e.target.classList.contains('segment-text')) {
+          const segment = e.target.closest('.transcript-segment');
+          const index = parseInt(segment.dataset.index, 10);
+          const newText = e.target.textContent.trim();
+
+          // Update the lesson data
+          if (lesson.content.transcript.segments[index]) {
+            lesson.content.transcript.segments[index].text = newText;
+
+            // Mark as user-corrected (high confidence now)
+            lesson.content.transcript.segments[index].confidence = 1.0;
+            lesson.content.transcript.segments[index].userCorrected = true;
+
+            // Update visual styling to high confidence
+            segment.classList.remove('confidence-low', 'confidence-medium');
+            segment.classList.add('confidence-high');
+            segment.dataset.confidence = '1.0';
+            segment.title = 'Confidence: 100% (corrected)';
+          }
+
+          // Update state
+          StateManager.set('lesson', lesson);
+
+          // Show saving status
+          statusEl.innerHTML = '<span class="saving">Saving...</span>';
+
+          // Debounce the "saved" status
+          clearTimeout(saveTimeout);
+          saveTimeout = setTimeout(() => {
+            statusEl.innerHTML = '<span class="saved">✓ Changes saved</span>';
+          }, 500);
+        }
+      });
+
+      // Handle focus for accessibility
+      $('#transcript-preview').addEventListener('focus', (e) => {
+        if (e.target.classList.contains('segment-text')) {
+          e.target.closest('.transcript-segment').classList.add('editing');
+        }
+      }, true);
+
+      $('#transcript-preview').addEventListener('blur', (e) => {
+        if (e.target.classList.contains('segment-text')) {
+          e.target.closest('.transcript-segment').classList.remove('editing');
+        }
+      }, true);
+    }
+
     // showReviewState removed - now using showReviewStateWithLesson from simulateProcessing
 
     function populateSampleData() {
-      // Sample transcript
+      // Sample transcript with varied confidence levels to demonstrate the feature
       const sampleTranscript = [
-        { time: '0:00', text: 'شهد الاقتصاد العربي نمواً ملحوظاً في السنوات الأخيرة' },
-        { time: '0:08', text: 'وقد ساهمت عدة عوامل في هذا النمو الاقتصادي' },
-        { time: '0:15', text: 'من أهمها ارتفاع أسعار النفط والاستثمارات الأجنبية' },
-        { time: '0:23', text: 'كما لعبت الإصلاحات الاقتصادية دوراً مهماً في تعزيز النمو' }
+        { start: 0, text: 'شهد الاقتصاد العربي نمواً ملحوظاً في السنوات الأخيرة', confidence: 0.95 },
+        { start: 8, text: 'وقد ساهمت عدة عوامل في هذا النمو الاقتصادي', confidence: 0.72 },
+        { start: 15, text: 'من أهمها ارتفاع أسعار النفط والاستثمارات الأجنبية', confidence: 0.45 },
+        { start: 23, text: 'كما لعبت الإصلاحات الاقتصادية دوراً مهماً في تعزيز النمو', confidence: 0.88 }
       ];
 
-      const transcriptHtml = sampleTranscript.map(line => `
-        <div class="transcript-line">
-          <span class="transcript-time">${line.time}</span>
-          <span class="transcript-text">${line.text}</span>
-        </div>
-      `).join('');
+      const transcriptHtml = sampleTranscript.map((seg, idx) => {
+        const confidenceClass = getConfidenceClass(seg.confidence);
+        const confidencePercent = Math.round(seg.confidence * 100);
+
+        return `
+          <div class="transcript-segment ${confidenceClass}"
+               data-index="${idx}"
+               data-start="${seg.start}"
+               data-confidence="${seg.confidence}"
+               title="Confidence: ${confidencePercent}%">
+            <span class="segment-time">${formatTime(seg.start)}</span>
+            <span class="segment-text" contenteditable="true" dir="rtl" lang="ar">${seg.text}</span>
+          </div>
+        `;
+      }).join('');
 
       $('#transcript-preview').innerHTML = transcriptHtml;
 
