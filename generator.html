@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Generate Arabic comprehension lessons with synchronized audio and text">
+
+  <title>Generate Lesson | Tanaghum</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/generator.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-inner">
+      <a href="/" class="logo">
+        <span class="logo-arabic">تناغم</span>
+        <span>Tanaghum</span>
+      </a>
+      <nav class="nav">
+        <a href="/" class="nav-link">Home</a>
+        <a href="generator.html" class="nav-link active">Generate</a>
+        <a href="gallery.html" class="nav-link">Gallery</a>
+        <a href="about.html" class="nav-link">About</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Three-Panel Layout -->
+  <main class="generator-layout">
+    <!-- Left Panel: Configuration -->
+    <aside class="panel panel-left" id="config-panel">
+      <!-- Content Source -->
+      <div class="panel-section">
+        <h3 class="section-title">Content Source</h3>
+
+        <div class="source-tabs">
+          <button class="source-tab active" data-source="youtube">
+            <span class="tab-icon">&#128250;</span>
+            <span class="tab-label">YouTube URL</span>
+            <span class="tab-desc">Paste any Arabic video</span>
+          </button>
+
+          <button class="source-tab" data-source="upload">
+            <span class="tab-icon">&#128193;</span>
+            <span class="tab-label">Upload Audio</span>
+            <span class="tab-desc">MP3, WAV, M4A (max 10 min)</span>
+          </button>
+
+          <button class="source-tab" data-source="text">
+            <span class="tab-icon">&#128221;</span>
+            <span class="tab-label">Paste Text</span>
+            <span class="tab-desc">Enter transcript directly</span>
+          </button>
+        </div>
+
+        <!-- YouTube Input -->
+        <div class="source-content" id="source-youtube">
+          <div class="form-group">
+            <label class="form-label" for="youtube-url">YouTube URL</label>
+            <input type="url" id="youtube-url" class="form-input"
+                   placeholder="https://youtube.com/watch?v=...">
+            <p class="form-hint">Works with any Arabic video that has captions</p>
+          </div>
+        </div>
+
+        <!-- Upload Input -->
+        <div class="source-content hidden" id="source-upload">
+          <div id="drop-zone" class="drop-zone">
+            <span class="drop-icon">&#128193;</span>
+            <span>Drag & drop or click to upload</span>
+            <input type="file" id="file-input" hidden
+                   accept=".mp3,.wav,.m4a,.ogg,.webm,.aac,audio/*">
+          </div>
+          <div id="file-preview" class="file-preview hidden">
+            <span>&#127925;</span>
+            <div class="file-info">
+              <div class="file-name" id="file-name"></div>
+              <div class="file-size" id="file-size"></div>
+            </div>
+            <button class="file-remove" id="file-remove">&times;</button>
+          </div>
+        </div>
+
+        <!-- Text Input -->
+        <div class="source-content hidden" id="source-text">
+          <div class="form-group">
+            <label class="form-label" for="text-input">Arabic Text</label>
+            <textarea id="text-input" class="form-textarea ar"
+                      placeholder="الصق النص العربي هنا..."
+                      rows="8"></textarea>
+            <p class="form-hint">Enter the transcript if you already have it</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Parameters -->
+      <div class="panel-section">
+        <h3 class="section-title">Parameters</h3>
+
+        <!-- ILR Level -->
+        <div class="field-group">
+          <label for="ilr-slider">Target ILR Level</label>
+          <input type="range" id="ilr-slider" class="form-range"
+                 min="1" max="3.5" step="0.5" value="2">
+          <div class="ilr-display">
+            <div class="ilr-badge-large" id="ilr-value">2.0</div>
+            <div class="ilr-info">
+              <h4 id="ilr-name">Limited Working Proficiency</h4>
+              <p id="ilr-desc">Factual news, personal narratives, simple arguments</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Topic -->
+        <div class="field-group">
+          <label>Topic Category</label>
+          <div class="topic-grid">
+            <button class="topic-btn" data-topic="economy">
+              <span class="topic-icon">&#128176;</span>
+              <span class="topic-ar">الاقتصاد</span>
+              <span class="topic-en">Economy</span>
+            </button>
+            <button class="topic-btn" data-topic="politics">
+              <span class="topic-icon">&#127963;</span>
+              <span class="topic-ar">السياسة</span>
+              <span class="topic-en">Politics</span>
+            </button>
+            <button class="topic-btn" data-topic="culture">
+              <span class="topic-icon">&#127912;</span>
+              <span class="topic-ar">الثقافة</span>
+              <span class="topic-en">Culture</span>
+            </button>
+            <button class="topic-btn" data-topic="science">
+              <span class="topic-icon">&#128300;</span>
+              <span class="topic-ar">العلوم</span>
+              <span class="topic-en">Science</span>
+            </button>
+            <button class="topic-btn" data-topic="society">
+              <span class="topic-icon">&#128101;</span>
+              <span class="topic-ar">المجتمع</span>
+              <span class="topic-en">Society</span>
+            </button>
+            <button class="topic-btn" data-topic="health">
+              <span class="topic-icon">&#128138;</span>
+              <span class="topic-ar">الصحة</span>
+              <span class="topic-en">Health</span>
+            </button>
+            <button class="topic-btn active" data-topic="general">
+              <span class="topic-icon">&#128218;</span>
+              <span class="topic-ar">عام</span>
+              <span class="topic-en">General</span>
+            </button>
+            <button class="topic-btn" data-topic="education">
+              <span class="topic-icon">&#127891;</span>
+              <span class="topic-ar">التعليم</span>
+              <span class="topic-en">Education</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Generate Button -->
+      <button class="btn btn-primary btn-lg" id="generate-btn" style="width: 100%;">
+        Generate Lesson
+      </button>
+    </aside>
+
+    <!-- Main Content Area -->
+    <section class="main-content" id="main-content">
+      <!-- Step Indicator -->
+      <div class="step-indicator">
+        <div class="step active" data-step="1">
+          <div class="step-number">1</div>
+          <span class="step-label">Input</span>
+        </div>
+        <div class="step-connector"></div>
+        <div class="step" data-step="2">
+          <div class="step-number">2</div>
+          <span class="step-label">Process</span>
+        </div>
+        <div class="step-connector"></div>
+        <div class="step" data-step="3">
+          <div class="step-number">3</div>
+          <span class="step-label">Review</span>
+        </div>
+        <div class="step-connector"></div>
+        <div class="step" data-step="4">
+          <div class="step-number">4</div>
+          <span class="step-label">Export</span>
+        </div>
+      </div>
+
+      <!-- Content Card - Input State -->
+      <div class="content-card" id="input-state">
+        <div class="content-card-header">
+          <h2 class="content-card-title">Create a New Lesson</h2>
+        </div>
+
+        <div style="text-align: center; padding: 60px 20px;">
+          <div style="font-size: 64px; opacity: 0.3; margin-bottom: 24px;">&#127911;</div>
+          <h3 style="margin-bottom: 12px;">Ready to Generate</h3>
+          <p style="color: var(--color-text-secondary); max-width: 400px; margin: 0 auto;">
+            Select a content source from the left panel, set your target ILR level and topic,
+            then click "Generate Lesson" to begin.
+          </p>
+        </div>
+
+        <!-- Video Preview (shown when YouTube URL entered) -->
+        <div class="video-preview hidden" id="video-preview">
+          <div class="video-thumbnail">
+            <img id="video-thumb" src="" alt="Video thumbnail">
+          </div>
+          <div class="video-info">
+            <h3 id="video-title"></h3>
+            <div class="video-meta">
+              <span id="video-channel"></span>
+              <span id="video-duration"></span>
+            </div>
+            <div style="margin-top: 12px;">
+              <span class="badge" id="video-captions">Captions available</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content Card - Processing State -->
+      <div class="content-card hidden" id="processing-state">
+        <div class="processing-container">
+          <div class="processing-spinner"></div>
+          <div class="processing-status" id="processing-status">Initializing...</div>
+          <div class="processing-detail" id="processing-detail">Please wait</div>
+
+          <div class="processing-progress">
+            <div class="progress-bar">
+              <div class="progress-bar-fill" id="progress-fill" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div class="processing-steps" id="processing-steps">
+            <div class="processing-step" data-step="fetch">
+              <div class="processing-step-icon">&#128250;</div>
+              <div class="processing-step-text">
+                <div class="processing-step-name">Fetch Content</div>
+                <div class="processing-step-status">Waiting...</div>
+              </div>
+            </div>
+            <div class="processing-step" data-step="transcribe">
+              <div class="processing-step-icon">&#128221;</div>
+              <div class="processing-step-text">
+                <div class="processing-step-name">Transcribe Audio</div>
+                <div class="processing-step-status">Waiting...</div>
+              </div>
+            </div>
+            <div class="processing-step" data-step="analyze">
+              <div class="processing-step-icon">&#128200;</div>
+              <div class="processing-step-text">
+                <div class="processing-step-name">Analyze Content</div>
+                <div class="processing-step-status">Waiting...</div>
+              </div>
+            </div>
+            <div class="processing-step" data-step="questions">
+              <div class="processing-step-icon">&#10067;</div>
+              <div class="processing-step-text">
+                <div class="processing-step-name">Generate Questions</div>
+                <div class="processing-step-status">Waiting...</div>
+              </div>
+            </div>
+            <div class="processing-step" data-step="assemble">
+              <div class="processing-step-icon">&#128230;</div>
+              <div class="processing-step-text">
+                <div class="processing-step-name">Assemble Lesson</div>
+                <div class="processing-step-status">Waiting...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content Card - Review State -->
+      <div class="content-card hidden" id="review-state">
+        <div class="content-card-header">
+          <h2 class="content-card-title">Review Lesson</h2>
+          <div>
+            <button class="btn btn-secondary btn-sm" id="edit-transcript-btn">Edit Transcript</button>
+          </div>
+        </div>
+
+        <!-- Analysis Summary -->
+        <div class="analysis-grid">
+          <div class="analysis-card">
+            <div class="analysis-label">ILR Level</div>
+            <div class="analysis-value" id="result-ilr">2.0</div>
+            <div class="analysis-detail" id="result-ilr-name">Limited Working</div>
+          </div>
+          <div class="analysis-card">
+            <div class="analysis-label">Duration</div>
+            <div class="analysis-value" id="result-duration">3:45</div>
+            <div class="analysis-detail">minutes</div>
+          </div>
+          <div class="analysis-card">
+            <div class="analysis-label">Words</div>
+            <div class="analysis-value" id="result-words">342</div>
+            <div class="analysis-detail" id="result-unique">187 unique</div>
+          </div>
+          <div class="analysis-card">
+            <div class="analysis-label">Dialect</div>
+            <div class="analysis-value" id="result-dialect">MSA</div>
+            <div class="analysis-detail">Modern Standard</div>
+          </div>
+        </div>
+
+        <!-- Transcript Preview -->
+        <h3 style="margin-bottom: 12px;">Transcript</h3>
+        <div class="transcript-preview" id="transcript-preview">
+          <!-- Populated by JavaScript -->
+        </div>
+
+        <!-- Questions Preview -->
+        <div style="margin-top: 24px;">
+          <h3 style="margin-bottom: 12px;">Generated Questions</h3>
+
+          <div class="questions-section">
+            <h4>
+              <span>Pre-Listening</span>
+              <span class="question-count" id="pre-count">2</span>
+            </h4>
+            <div id="pre-questions">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+
+          <div class="questions-section">
+            <h4>
+              <span>While-Listening</span>
+              <span class="question-count" id="while-count">8</span>
+            </h4>
+            <div id="while-questions">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+
+          <div class="questions-section">
+            <h4>
+              <span>Post-Listening</span>
+              <span class="question-count" id="post-count">4</span>
+            </h4>
+            <div id="post-questions">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Bar -->
+      <div class="action-bar" id="action-bar">
+        <div class="action-group">
+          <button class="btn btn-ghost" id="back-btn" disabled>Back</button>
+        </div>
+        <div class="action-group">
+          <button class="btn btn-secondary" id="preview-btn" disabled>Preview</button>
+          <button class="btn btn-primary" id="export-btn" disabled>Export Lesson</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Panel: Status & Help -->
+    <aside class="panel panel-right" id="status-panel">
+      <div class="panel-section">
+        <h3 class="section-title">LLM Quota</h3>
+
+        <div class="status-card">
+          <div class="status-header">
+            <div class="status-indicator"></div>
+            <span class="status-title">Google AI Studio</span>
+          </div>
+          <div class="quota-bar">
+            <div class="quota-fill" style="width: 100%"></div>
+          </div>
+          <div class="quota-text">250 / 250 requests remaining today</div>
+        </div>
+
+        <div class="status-card">
+          <div class="status-header">
+            <div class="status-indicator"></div>
+            <span class="status-title">Groq</span>
+          </div>
+          <div class="quota-bar">
+            <div class="quota-fill" style="width: 100%"></div>
+          </div>
+          <div class="quota-text">1,000 / 1,000 requests remaining</div>
+        </div>
+
+        <div class="status-card">
+          <div class="status-header">
+            <div class="status-indicator"></div>
+            <span class="status-title">OpenRouter</span>
+          </div>
+          <div class="quota-bar">
+            <div class="quota-fill" style="width: 100%"></div>
+          </div>
+          <div class="quota-text">50 / 50 requests remaining</div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h3 class="section-title">Tips</h3>
+
+        <div class="tips-card">
+          <div class="tips-title">Getting the Best Results</div>
+          <ul class="tips-list">
+            <li>Choose videos with clear audio and minimal background noise</li>
+            <li>YouTube videos with existing captions work best</li>
+            <li>Keep duration under 5 minutes for faster processing</li>
+            <li>Select the appropriate ILR level for your students</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h3 class="section-title">About ILR Levels</h3>
+
+        <div class="status-card">
+          <p style="font-size: var(--text-sm); color: var(--color-text-secondary); margin-bottom: 12px;">
+            The Interagency Language Roundtable (ILR) scale is the standard grading scale for
+            language proficiency in the US government.
+          </p>
+          <a href="about.html#ilr" class="btn btn-ghost btn-sm" style="width: 100%;">
+            Learn More
+          </a>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Mobile Toolbar -->
+  <div class="mobile-toolbar">
+    <button class="mobile-toolbar-btn active" data-panel="config">
+      <span style="font-size: 20px;">&#9881;</span>
+      <span>Config</span>
+    </button>
+    <button class="mobile-toolbar-btn" data-panel="main">
+      <span style="font-size: 20px;">&#128221;</span>
+      <span>Content</span>
+    </button>
+    <button class="mobile-toolbar-btn" data-panel="status">
+      <span style="font-size: 20px;">&#128200;</span>
+      <span>Status</span>
+    </button>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script type="module">
+    import { EventBus, Events } from './js/core/event-bus.js';
+    import { StateManager } from './js/core/state-manager.js';
+    import { Config } from './js/core/config.js';
+    import { extractYouTubeId, formatTime, $ } from './js/core/utils.js';
+
+    // ILR Level data
+    const ILR_DATA = {
+      '1': { name: 'Elementary', desc: 'Short, simple texts with familiar vocabulary' },
+      '1.5': { name: 'Elementary+', desc: 'Simple conversations on routine topics' },
+      '2': { name: 'Limited Working', desc: 'Factual news, personal narratives, simple arguments' },
+      '2.5': { name: 'Limited Working+', desc: 'Standard news, formal speeches, extended arguments' },
+      '3': { name: 'General Professional', desc: 'Political analysis, technical discussions' },
+      '3.5': { name: 'General Professional+', desc: 'Complex argumentation, nuanced content' }
+    };
+
+    // DOM elements
+    const sourceTabs = document.querySelectorAll('.source-tab');
+    const sourceContents = document.querySelectorAll('.source-content');
+    const topicBtns = document.querySelectorAll('.topic-btn');
+    const ilrSlider = $('#ilr-slider');
+    const generateBtn = $('#generate-btn');
+    const youtubeInput = $('#youtube-url');
+    const dropZone = $('#drop-zone');
+    const fileInput = $('#file-input');
+
+    // Source tab switching
+    sourceTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        sourceTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        const source = tab.dataset.source;
+        sourceContents.forEach(content => {
+          content.classList.toggle('hidden', !content.id.includes(source));
+        });
+
+        StateManager.set('source.type', source);
+      });
+    });
+
+    // Topic selection
+    topicBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        topicBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        StateManager.set('params.topic', btn.dataset.topic);
+      });
+    });
+
+    // ILR slider
+    ilrSlider.addEventListener('input', () => {
+      const value = ilrSlider.value;
+      const data = ILR_DATA[value];
+      $('#ilr-value').textContent = parseFloat(value).toFixed(1);
+      $('#ilr-name').textContent = data.name;
+      $('#ilr-desc').textContent = data.desc;
+      StateManager.set('params.targetIlr', parseFloat(value));
+    });
+
+    // File upload
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('drag-over');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length) {
+        handleFile(fileInput.files[0]);
+      }
+    });
+
+    function handleFile(file) {
+      // Validate file type
+      const validTypes = ['audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/m4a', 'audio/ogg', 'audio/webm'];
+      if (!validTypes.includes(file.type) && !file.name.match(/\.(mp3|wav|m4a|ogg|webm|aac)$/i)) {
+        showToast('error', 'Invalid file type', 'Please upload an audio file');
+        return;
+      }
+
+      // Check file size (100MB max)
+      if (file.size > 100 * 1024 * 1024) {
+        showToast('error', 'File too large', 'Maximum file size is 100MB');
+        return;
+      }
+
+      // Show preview
+      $('#file-name').textContent = file.name;
+      $('#file-size').textContent = formatBytes(file.size);
+      $('#file-preview').classList.remove('hidden');
+      dropZone.classList.add('hidden');
+
+      StateManager.set('source.file', file);
+    }
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    $('#file-remove')?.addEventListener('click', () => {
+      StateManager.set('source.file', null);
+      fileInput.value = '';
+      $('#file-preview').classList.add('hidden');
+      dropZone.classList.remove('hidden');
+    });
+
+    // YouTube URL validation
+    youtubeInput.addEventListener('input', debounce(async () => {
+      const url = youtubeInput.value.trim();
+      const videoId = extractYouTubeId(url);
+
+      if (videoId) {
+        StateManager.set('source.url', url);
+        // In production, fetch video metadata here
+        showToast('success', 'Video found', 'Ready to generate lesson');
+      }
+    }, 500));
+
+    function debounce(fn, ms) {
+      let timeout;
+      return (...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => fn(...args), ms);
+      };
+    }
+
+    // Generate button
+    generateBtn.addEventListener('click', async () => {
+      const sourceType = StateManager.get('source.type');
+
+      if (sourceType === 'youtube' && !youtubeInput.value.trim()) {
+        showToast('error', 'Missing URL', 'Please enter a YouTube URL');
+        return;
+      }
+
+      if (sourceType === 'upload' && !StateManager.get('source.file')) {
+        showToast('error', 'No file', 'Please upload an audio file');
+        return;
+      }
+
+      if (sourceType === 'text' && !$('#text-input').value.trim()) {
+        showToast('error', 'No text', 'Please enter Arabic text');
+        return;
+      }
+
+      // Start processing
+      showProcessingState();
+    });
+
+    function showProcessingState() {
+      $('#input-state').classList.add('hidden');
+      $('#processing-state').classList.remove('hidden');
+
+      // Update step indicator
+      document.querySelectorAll('.step').forEach(step => {
+        step.classList.remove('active', 'completed');
+      });
+      document.querySelector('[data-step="1"]').classList.add('completed');
+      document.querySelector('[data-step="2"]').classList.add('active');
+
+      // Simulate processing (in production, this would be real)
+      simulateProcessing();
+    }
+
+    async function simulateProcessing() {
+      const steps = ['fetch', 'transcribe', 'analyze', 'questions', 'assemble'];
+      const messages = [
+        { status: 'Fetching content...', detail: 'Connecting to source' },
+        { status: 'Transcribing audio...', detail: 'Using Whisper model' },
+        { status: 'Analyzing content...', detail: 'Calculating ILR level' },
+        { status: 'Generating questions...', detail: 'Creating comprehension exercises' },
+        { status: 'Assembling lesson...', detail: 'Preparing final output' }
+      ];
+
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        const stepEl = document.querySelector(`[data-step="${step}"]`);
+
+        // Mark previous steps as completed
+        steps.slice(0, i).forEach(s => {
+          const el = document.querySelector(`[data-step="${s}"]`);
+          el.classList.remove('active');
+          el.classList.add('completed');
+          el.querySelector('.processing-step-status').textContent = 'Complete';
+        });
+
+        // Mark current step as active
+        stepEl.classList.add('active');
+        stepEl.querySelector('.processing-step-status').textContent = 'In progress...';
+
+        // Update status text
+        $('#processing-status').textContent = messages[i].status;
+        $('#processing-detail').textContent = messages[i].detail;
+        $('#progress-fill').style.width = `${((i + 1) / steps.length) * 100}%`;
+
+        // Simulate processing time
+        await new Promise(r => setTimeout(r, 1500));
+      }
+
+      // Mark last step complete
+      const lastStep = document.querySelector(`[data-step="assemble"]`);
+      lastStep.classList.remove('active');
+      lastStep.classList.add('completed');
+      lastStep.querySelector('.processing-step-status').textContent = 'Complete';
+
+      // Show review state
+      showReviewState();
+    }
+
+    function showReviewState() {
+      $('#processing-state').classList.add('hidden');
+      $('#review-state').classList.remove('hidden');
+
+      // Update step indicator
+      document.querySelector('[data-step="2"]').classList.remove('active');
+      document.querySelector('[data-step="2"]').classList.add('completed');
+      document.querySelector('[data-step="3"]').classList.add('active');
+
+      // Enable buttons
+      $('#back-btn').disabled = false;
+      $('#preview-btn').disabled = false;
+      $('#export-btn').disabled = false;
+
+      // Populate sample data (in production, this comes from actual processing)
+      populateSampleData();
+    }
+
+    function populateSampleData() {
+      // Sample transcript
+      const sampleTranscript = [
+        { time: '0:00', text: 'شهد الاقتصاد العربي نمواً ملحوظاً في السنوات الأخيرة' },
+        { time: '0:08', text: 'وقد ساهمت عدة عوامل في هذا النمو الاقتصادي' },
+        { time: '0:15', text: 'من أهمها ارتفاع أسعار النفط والاستثمارات الأجنبية' },
+        { time: '0:23', text: 'كما لعبت الإصلاحات الاقتصادية دوراً مهماً في تعزيز النمو' }
+      ];
+
+      const transcriptHtml = sampleTranscript.map(line => `
+        <div class="transcript-line">
+          <span class="transcript-time">${line.time}</span>
+          <span class="transcript-text">${line.text}</span>
+        </div>
+      `).join('');
+
+      $('#transcript-preview').innerHTML = transcriptHtml;
+
+      // Sample questions
+      const sampleQuestions = {
+        pre: [
+          { ar: 'ماذا تتوقع أن يناقش هذا التسجيل؟', en: 'What do you expect this recording to discuss?', type: 'multiple_choice' },
+          { ar: 'ما هي معلوماتك السابقة عن الاقتصاد العربي؟', en: 'What do you already know about the Arab economy?', type: 'open_ended' }
+        ],
+        while: [
+          { ar: 'ما الفكرة الرئيسية لهذا التسجيل؟', en: 'What is the main idea of this recording?', type: 'multiple_choice' },
+          { ar: 'ذكر المتحدث عدة عوامل. صح أم خطأ؟', en: 'The speaker mentioned several factors. True or false?', type: 'true_false' }
+        ],
+        post: [
+          { ar: 'ما موقف المتحدث من الموضوع؟', en: "What is the speaker's attitude toward the topic?", type: 'multiple_choice' },
+          { ar: 'لخص الفكرة الرئيسية في جملة واحدة', en: 'Summarize the main idea in one sentence', type: 'open_ended' }
+        ]
+      };
+
+      Object.entries(sampleQuestions).forEach(([phase, questions]) => {
+        const container = $(`#${phase}-questions`);
+        const countEl = $(`#${phase}-count`);
+        countEl.textContent = questions.length;
+
+        container.innerHTML = questions.map((q, i) => `
+          <div class="question-item">
+            <div class="question-number">${i + 1}</div>
+            <div class="question-content">
+              <div class="question-text">
+                <div class="question-text-ar">${q.ar}</div>
+                <div class="question-text-en">${q.en}</div>
+              </div>
+              <span class="question-type">${q.type.replace('_', ' ')}</span>
+            </div>
+          </div>
+        `).join('');
+      });
+    }
+
+    // Toast notifications
+    function showToast(type, title, message) {
+      const container = $('#toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      toast.innerHTML = `
+        <div class="toast-content">
+          <div class="toast-title">${title}</div>
+          <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close">&times;</button>
+      `;
+
+      container.appendChild(toast);
+
+      toast.querySelector('.toast-close').addEventListener('click', () => {
+        toast.remove();
+      });
+
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    // Mobile panel switching
+    document.querySelectorAll('.mobile-toolbar-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.mobile-toolbar-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Handle panel switching for mobile
+        const panel = btn.dataset.panel;
+        if (panel === 'config') {
+          $('#config-panel').classList.add('mobile-open');
+        } else {
+          $('#config-panel').classList.remove('mobile-open');
+        }
+      });
+    });
+
+    // Initialize
+    StateManager.set('source.type', 'youtube');
+    console.log('Tanaghum Generator initialized');
+  </script>
+</body>
+</html>

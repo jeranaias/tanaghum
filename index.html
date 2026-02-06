@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Tanaghum - Free Arabic multimodal learning material generator. Create professional listening comprehension lessons with synchronized audio and text.">
+  <meta name="keywords" content="Arabic, listening, comprehension, ILR, language learning, multimodal">
+  <meta name="author" content="SSgt Jesse Morgan, USMC">
+
+  <title>Tanaghum | Arabic Multimodal Learning Generator</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/main.css">
+
+  <style>
+    /* Landing Page Specific Styles */
+    .hero {
+      min-height: calc(100vh - var(--header-height));
+      display: flex;
+      align-items: center;
+      background: linear-gradient(135deg, var(--color-bg) 0%, var(--color-bg-alt) 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -20%;
+      width: 80%;
+      height: 150%;
+      background: radial-gradient(circle, rgba(26, 95, 74, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      max-width: 700px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-4);
+      background: rgba(26, 95, 74, 0.1);
+      border: 1px solid rgba(26, 95, 74, 0.2);
+      border-radius: var(--radius-full);
+      font-size: var(--text-sm);
+      color: var(--color-primary);
+      margin-bottom: var(--space-6);
+    }
+
+    .hero-title {
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      font-weight: 700;
+      line-height: 1.1;
+      margin-bottom: var(--space-6);
+    }
+
+    .hero-title-arabic {
+      font-family: var(--font-arabic);
+      color: var(--color-primary);
+      display: block;
+      font-size: 0.75em;
+      margin-bottom: var(--space-2);
+    }
+
+    .hero-subtitle {
+      font-size: var(--text-xl);
+      color: var(--color-text-secondary);
+      margin-bottom: var(--space-8);
+      max-width: 550px;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-4);
+    }
+
+    .hero-visual {
+      position: absolute;
+      right: 5%;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 45%;
+      max-width: 500px;
+      opacity: 0.9;
+    }
+
+    @media (max-width: 1024px) {
+      .hero-visual {
+        display: none;
+      }
+    }
+
+    /* Features Section */
+    .features {
+      padding: var(--space-24) 0;
+      background: var(--color-surface);
+    }
+
+    .section-header {
+      text-align: center;
+      max-width: 600px;
+      margin: 0 auto var(--space-16);
+    }
+
+    .section-title {
+      font-size: var(--text-3xl);
+      margin-bottom: var(--space-4);
+    }
+
+    .section-subtitle {
+      color: var(--color-text-secondary);
+      font-size: var(--text-lg);
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: var(--space-8);
+    }
+
+    .feature-card {
+      padding: var(--space-8);
+      background: var(--color-bg);
+      border-radius: var(--radius-xl);
+      transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+    }
+
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .feature-icon {
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--color-primary);
+      color: white;
+      border-radius: var(--radius-lg);
+      font-size: var(--text-2xl);
+      margin-bottom: var(--space-5);
+    }
+
+    .feature-title {
+      font-size: var(--text-xl);
+      font-weight: 600;
+      margin-bottom: var(--space-3);
+    }
+
+    .feature-desc {
+      color: var(--color-text-secondary);
+      line-height: var(--line-height-relaxed);
+    }
+
+    /* How It Works */
+    .how-it-works {
+      padding: var(--space-24) 0;
+      background: var(--color-bg);
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: var(--space-8);
+      margin-top: var(--space-12);
+    }
+
+    .step {
+      text-align: center;
+      padding: var(--space-6);
+    }
+
+    .step-number {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto var(--space-5);
+      background: var(--color-primary);
+      color: white;
+      border-radius: 50%;
+      font-size: var(--text-xl);
+      font-weight: 700;
+    }
+
+    .step-title {
+      font-size: var(--text-lg);
+      font-weight: 600;
+      margin-bottom: var(--space-3);
+    }
+
+    .step-desc {
+      color: var(--color-text-secondary);
+      font-size: var(--text-sm);
+    }
+
+    /* Multimodal Section */
+    .multimodal {
+      padding: var(--space-24) 0;
+      background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 100%);
+      color: white;
+    }
+
+    .multimodal .section-title {
+      color: white;
+    }
+
+    .multimodal .section-subtitle {
+      color: rgba(255, 255, 255, 0.85);
+    }
+
+    .multimodal-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-12);
+      align-items: center;
+      margin-top: var(--space-12);
+    }
+
+    @media (max-width: 768px) {
+      .multimodal-content {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .multimodal-text h3 {
+      font-size: var(--text-2xl);
+      margin-bottom: var(--space-4);
+    }
+
+    .multimodal-text p {
+      color: rgba(255, 255, 255, 0.85);
+      margin-bottom: var(--space-6);
+      line-height: var(--line-height-relaxed);
+    }
+
+    .multimodal-list {
+      list-style: none;
+    }
+
+    .multimodal-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    .multimodal-list li::before {
+      content: '\2713';
+      flex-shrink: 0;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      font-size: var(--text-sm);
+    }
+
+    .multimodal-visual {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-xl);
+      padding: var(--space-8);
+      text-align: center;
+    }
+
+    .multimodal-visual-arabic {
+      font-family: var(--font-arabic);
+      font-size: var(--text-3xl);
+      line-height: var(--line-height-arabic);
+      direction: rtl;
+      padding: var(--space-4);
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius-lg);
+      margin-bottom: var(--space-4);
+    }
+
+    .multimodal-visual-label {
+      font-size: var(--text-sm);
+      opacity: 0.7;
+    }
+
+    /* CTA Section */
+    .cta {
+      padding: var(--space-24) 0;
+      text-align: center;
+      background: var(--color-surface);
+    }
+
+    .cta-title {
+      font-size: var(--text-3xl);
+      margin-bottom: var(--space-4);
+    }
+
+    .cta-subtitle {
+      color: var(--color-text-secondary);
+      font-size: var(--text-lg);
+      margin-bottom: var(--space-8);
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* Footer */
+    .footer {
+      padding: var(--space-12) 0;
+      background: var(--color-bg-alt);
+      border-top: 1px solid var(--color-border-light);
+    }
+
+    .footer-content {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-6);
+    }
+
+    .footer-logo {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .footer-logo-arabic {
+      font-family: var(--font-arabic);
+      font-size: var(--text-xl);
+      color: var(--color-primary);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: var(--space-6);
+    }
+
+    .footer-link {
+      color: var(--color-text-secondary);
+      font-size: var(--text-sm);
+    }
+
+    .footer-link:hover {
+      color: var(--color-primary);
+    }
+
+    .footer-copy {
+      width: 100%;
+      text-align: center;
+      padding-top: var(--space-6);
+      margin-top: var(--space-6);
+      border-top: 1px solid var(--color-border);
+      color: var(--color-text-muted);
+      font-size: var(--text-sm);
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-inner">
+      <a href="/" class="logo">
+        <span class="logo-arabic">تناغم</span>
+        <span>Tanaghum</span>
+      </a>
+      <nav class="nav">
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#how-it-works" class="nav-link">How It Works</a>
+        <a href="gallery.html" class="nav-link">Gallery</a>
+        <a href="generator.html" class="btn btn-primary btn-sm">Create Lesson</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-content">
+        <div class="hero-badge">
+          <span>100% Free</span>
+          <span>&bull;</span>
+          <span>No Account Required</span>
+        </div>
+        <h1 class="hero-title">
+          <span class="hero-title-arabic">تناغم الصوت والنص</span>
+          Arabic Learning in Perfect Harmony
+        </h1>
+        <p class="hero-subtitle">
+          Generate professional Arabic comprehension lessons with synchronized audio and text.
+          Multimodal learning powered by AI, completely free forever.
+        </p>
+        <div class="hero-actions">
+          <a href="generator.html" class="btn btn-primary btn-lg">
+            Start Creating
+          </a>
+          <a href="gallery.html" class="btn btn-secondary btn-lg">
+            Browse Gallery
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section id="features" class="features">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Built for Real Learning</h2>
+        <p class="section-subtitle">
+          Every feature designed with language acquisition research in mind
+        </p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">&#127911;</div>
+          <h3 class="feature-title">Multimodal Sync</h3>
+          <p class="feature-desc">
+            Audio and text perfectly synchronized. Students see highlighted words as they hear them,
+            strengthening phoneme-grapheme connections.
+          </p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#128218;</div>
+          <h3 class="feature-title">ILR Calibrated</h3>
+          <p class="feature-desc">
+            Automatic difficulty assessment using official ILR criteria.
+            Target levels 1+ through 3 with precision.
+          </p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#128300;</div>
+          <h3 class="feature-title">AI-Generated Questions</h3>
+          <p class="feature-desc">
+            Smart comprehension questions across pre, while, and post-listening phases.
+            Multiple choice, true/false, fill-in-blank, and open-ended.
+          </p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#127760;</div>
+          <h3 class="feature-title">Any Arabic Source</h3>
+          <p class="feature-desc">
+            YouTube videos, uploaded audio files, or paste text directly.
+            Supports MSA and major dialects.
+          </p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#128241;</div>
+          <h3 class="feature-title">Works Everywhere</h3>
+          <p class="feature-desc">
+            Responsive design for desktop, tablet, and mobile.
+            Export standalone HTML files that work offline.
+          </p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#128274;</div>
+          <h3 class="feature-title">Private & Free</h3>
+          <p class="feature-desc">
+            No account, no tracking, no cost. Everything runs in your browser.
+            Your content stays yours.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section id="how-it-works" class="how-it-works">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Create a Lesson in Minutes</h2>
+        <p class="section-subtitle">
+          From content to complete lesson in four simple steps
+        </p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <h3 class="step-title">Add Content</h3>
+          <p class="step-desc">
+            Paste a YouTube URL, upload an audio file, or enter text directly
+          </p>
+        </div>
+        <div class="step">
+          <div class="step-number">2</div>
+          <h3 class="step-title">Set Parameters</h3>
+          <p class="step-desc">
+            Choose target ILR level, topic category, and learning objectives
+          </p>
+        </div>
+        <div class="step">
+          <div class="step-number">3</div>
+          <h3 class="step-title">Generate</h3>
+          <p class="step-desc">
+            AI transcribes, analyzes, and creates comprehension questions
+          </p>
+        </div>
+        <div class="step">
+          <div class="step-number">4</div>
+          <h3 class="step-title">Share</h3>
+          <p class="step-desc">
+            Preview, edit if needed, then export or publish to the gallery
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Multimodal Section -->
+  <section class="multimodal">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">The Science of Multimodal Learning</h2>
+        <p class="section-subtitle">
+          Dual-channel processing increases comprehension by 40-60%
+        </p>
+      </div>
+      <div class="multimodal-content">
+        <div class="multimodal-text">
+          <h3>Eyes and Ears Working Together</h3>
+          <p>
+            Research shows that presenting audio and text simultaneously creates stronger
+            memory encoding. Tanaghum leverages this through precise word-level synchronization.
+          </p>
+          <ul class="multimodal-list">
+            <li>Highlighted text follows along with audio playback</li>
+            <li>Click any word to jump to that moment in the audio</li>
+            <li>Vocabulary tooltips with definitions and pronunciation</li>
+            <li>Adjustable playback speed for challenging passages</li>
+            <li>Loop sections for focused practice</li>
+          </ul>
+        </div>
+        <div class="multimodal-visual">
+          <div class="multimodal-visual-arabic">
+            <span style="background: rgba(255,255,255,0.3); padding: 2px 8px; border-radius: 4px;">شهد</span>
+            الاقتصاد العربي نمواً ملحوظاً في السنوات الأخيرة
+          </div>
+          <p class="multimodal-visual-label">
+            Current word highlighted as audio plays
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="cta">
+    <div class="container">
+      <h2 class="cta-title">Ready to Create Your First Lesson?</h2>
+      <p class="cta-subtitle">
+        No sign-up required. Start generating professional Arabic lessons in minutes.
+      </p>
+      <a href="generator.html" class="btn btn-primary btn-lg">
+        Open Generator
+      </a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-logo">
+          <span class="footer-logo-arabic">تناغم</span>
+          <span>Tanaghum</span>
+        </div>
+        <div class="footer-links">
+          <a href="about.html" class="footer-link">About</a>
+          <a href="docs/user-guide.md" class="footer-link">Documentation</a>
+          <a href="https://github.com/tanaghum/tanaghum" class="footer-link" target="_blank">GitHub</a>
+        </div>
+      </div>
+      <p class="footer-copy">
+        Created by SSgt Jesse Morgan, USMC. Free and open source under MIT License.
+        <br>
+        Part of the Arabic learning toolkit: <a href="#">Harakat</a> &bull; <a href="#">Nahawi</a> &bull; Tanaghum
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    // Smooth scroll for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function(e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+  </script>
+</body>
+</html>

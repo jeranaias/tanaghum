@@ -1,0 +1,22 @@
+# Tanaghum Cloudflare Worker Configuration
+name = "tanaghum-worker"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# Account settings (fill in after creating account)
+# account_id = "your-account-id"
+
+# Environment variables (secrets should be set via wrangler secret put)
+[vars]
+ALLOWED_ORIGINS = "https://tanaghum.github.io,http://localhost:8000,http://127.0.0.1:8000"
+
+# Production environment
+[env.production]
+name = "tanaghum-worker"
+routes = [
+  { pattern = "tanaghum-worker.your-subdomain.workers.dev", custom_domain = false }
+]
+
+# Development environment
+[env.dev]
+name = "tanaghum-worker-dev"
