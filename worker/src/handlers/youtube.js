@@ -226,7 +226,11 @@ export async function handleYouTube(request, env, url, origin) {
       if (!query) {
         return jsonResponse({ error: 'Missing search query' }, 400, origin);
       }
-      return await searchVideos(query, origin);
+      const options = {
+        minDuration: url.searchParams.get('minDuration'),
+        maxDuration: url.searchParams.get('maxDuration')
+      };
+      return await searchVideos(query, origin, options);
     }
 
     // Other endpoints require video ID
@@ -738,7 +742,7 @@ function formatVTTTime(seconds) {
 /**
  * Search for Arabic YouTube videos
  */
-async function searchVideos(query, origin) {
+async function searchVideos(query, origin, options = {}) {
   // Validate and sanitize query
   if (typeof query !== 'string' || query.length === 0) {
     return jsonResponse({ error: 'Invalid search query' }, 400, origin);
@@ -751,10 +755,15 @@ async function searchVideos(query, origin) {
     return jsonResponse({ error: 'Search query cannot be empty' }, 400, origin);
   }
 
+  // Duration filter options
+  const minDuration = parseInt(options.minDuration) || 0;
+  const maxDuration = parseInt(options.maxDuration) || 0;
+
   // Add Arabic-focused search modifiers
   const searchQuery = encodeURIComponent(sanitizedQuery + ' arabic');
 
   // Use YouTube's search results page
+  // sp parameter: EgIQAQ = Videos only
   const searchUrl = `https://www.youtube.com/results?search_query=${searchQuery}&sp=EgIQAQ%253D%253D`;
 
   const response = await fetch(searchUrl, {
@@ -813,6 +822,10 @@ async function searchVideos(query, origin) {
                            (parseInt(parts[1]) || 0) * 60 +
                            (parseInt(parts[2]) || 0) * 3600;
         }
+
+        // Apply duration filter if specified
+        if (minDuration > 0 && durationSeconds < minDuration) continue;
+        if (maxDuration > 0 && durationSeconds > maxDuration) continue;
 
         videos.push({
           videoId,

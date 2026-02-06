@@ -119,6 +119,18 @@
             </button>
           </div>
 
+          <!-- Duration Filter -->
+          <div class="duration-filter">
+            <label class="duration-label">Video Length:</label>
+            <div class="duration-options">
+              <button class="duration-btn active" data-min="0" data-max="0" type="button">Any</button>
+              <button class="duration-btn" data-min="0" data-max="60" type="button">&lt;1 min</button>
+              <button class="duration-btn" data-min="60" data-max="300" type="button">1-5 min</button>
+              <button class="duration-btn" data-min="300" data-max="900" type="button">5-15 min</button>
+              <button class="duration-btn" data-min="900" data-max="0" type="button">&gt;15 min</button>
+            </div>
+          </div>
+
           <!-- Custom Search (collapsed by default) -->
           <details class="custom-search-details">
             <summary class="custom-search-toggle">Custom search...</summary>
@@ -1542,6 +1554,9 @@
       return llmClient;
     }
 
+    // Duration filter state
+    let durationFilter = { min: 0, max: 0 };
+
     async function performSearch(queryOverride = null) {
       // Cancel any existing search
       if (currentSearchController) {
@@ -1562,9 +1577,14 @@
       if (searchBtn) searchBtn.disabled = true;
 
       try {
+        // Build search URL with duration filter
+        let searchUrl = `${Config.WORKER_URL}/api/youtube/search?q=${encodeURIComponent(query)}`;
+        if (durationFilter.min > 0) searchUrl += `&minDuration=${durationFilter.min}`;
+        if (durationFilter.max > 0) searchUrl += `&maxDuration=${durationFilter.max}`;
+
         // Get search results (no AI evaluation - saves requests)
         const response = await fetch(
-          `${Config.WORKER_URL}/api/youtube/search?q=${encodeURIComponent(query)}`,
+          searchUrl,
           { signal: currentSearchController.signal }
         );
         const data = await response.json();
@@ -1746,6 +1766,27 @@
       searchLoading.classList.add('hidden');
       document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('loading'));
       showToast('info', 'Search stopped', 'Search was cancelled');
+    });
+
+    // Duration filter buttons
+    document.querySelectorAll('.duration-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        // Update active state
+        document.querySelectorAll('.duration-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Update filter state
+        durationFilter.min = parseInt(btn.dataset.min) || 0;
+        durationFilter.max = parseInt(btn.dataset.max) || 0;
+
+        // Re-run search if there's an active topic
+        const activeTopic = document.querySelector('.topic-btn.active');
+        if (activeTopic) {
+          const topic = activeTopic.dataset.topic;
+          const query = topicQueries[topic] || topic;
+          performSearch(query);
+        }
+      });
     });
 
     // Mobile panel switching
