@@ -1795,13 +1795,25 @@
         document.querySelectorAll('.mobile-toolbar-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 
-        // Handle panel switching for mobile
         const panel = btn.dataset.panel;
+        const configPanel = $('#config-panel');
+        const statusPanel = $('#status-panel');
+        const mainContent = $('.main-content');
+
+        // Close all panels first
+        configPanel.classList.remove('mobile-open');
+        statusPanel.classList.remove('mobile-open');
+        mainContent.classList.remove('mobile-hidden');
+
+        // Open the selected panel
         if (panel === 'config') {
-          $('#config-panel').classList.add('mobile-open');
-        } else {
-          $('#config-panel').classList.remove('mobile-open');
+          configPanel.classList.add('mobile-open');
+          mainContent.classList.add('mobile-hidden');
+        } else if (panel === 'status') {
+          statusPanel.classList.add('mobile-open');
+          mainContent.classList.add('mobile-hidden');
         }
+        // 'main' panel shows the main content (default state)
       });
     });
 
