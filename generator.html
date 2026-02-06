@@ -60,58 +60,37 @@
         <h3 class="section-title" id="source-heading">Content Source</h3>
 
         <div class="source-tabs" role="tablist" aria-labelledby="source-heading">
-          <button class="source-tab active" data-source="youtube" role="tab" aria-selected="true" aria-controls="source-youtube" id="tab-youtube" type="button">
+          <button class="source-tab active" data-source="search" role="tab" aria-selected="true" aria-controls="source-search" id="tab-search" type="button">
+            <span class="tab-icon" aria-hidden="true">&#128269;</span>
+            <span class="tab-label">Find Videos</span>
+            <span class="tab-desc">Search Arabic content by topic</span>
+          </button>
+
+          <button class="source-tab" data-source="youtube" role="tab" aria-selected="false" aria-controls="source-youtube" id="tab-youtube" type="button">
             <span class="tab-icon" aria-hidden="true">&#128250;</span>
             <span class="tab-label">YouTube URL</span>
-            <span class="tab-desc">Paste any Arabic video</span>
+            <span class="tab-desc">Have a specific video? Paste URL</span>
           </button>
 
           <button class="source-tab" data-source="upload" role="tab" aria-selected="false" aria-controls="source-upload" id="tab-upload" type="button">
             <span class="tab-icon" aria-hidden="true">&#128193;</span>
             <span class="tab-label">Upload Audio</span>
-            <span class="tab-desc">MP3, WAV, M4A (max 10 min)</span>
-          </button>
-
-          <button class="source-tab" data-source="search" role="tab" aria-selected="false" aria-controls="source-search" id="tab-search" type="button">
-            <span class="tab-icon" aria-hidden="true">&#128269;</span>
-            <span class="tab-label">Smart Search</span>
-            <span class="tab-desc">Find Arabic content for you</span>
+            <span class="tab-desc">Upload your own audio file</span>
           </button>
         </div>
 
-        <!-- YouTube Input -->
-        <div class="source-content" id="source-youtube" role="tabpanel" aria-labelledby="tab-youtube">
-          <div class="form-group">
-            <label class="form-label" for="youtube-url">YouTube URL</label>
-            <input type="url" id="youtube-url" class="form-input"
-                   placeholder="https://youtube.com/watch?v=..."
-                   pattern="https?://(www\.)?(youtube\.com|youtu\.be)/.+"
-                   aria-describedby="youtube-hint">
-            <p class="form-hint" id="youtube-hint">Works with any Arabic video that has captions</p>
+        <!-- Find Videos (Search) - DEFAULT -->
+        <div class="source-content" id="source-search" role="tabpanel" aria-labelledby="tab-search">
+          <!-- Topic Quick Filters -->
+          <div class="topic-filters">
+            <button class="topic-filter-btn" data-topic="news" type="button">News</button>
+            <button class="topic-filter-btn" data-topic="politics" type="button">Politics</button>
+            <button class="topic-filter-btn" data-topic="economy" type="button">Economy</button>
+            <button class="topic-filter-btn" data-topic="culture" type="button">Culture</button>
+            <button class="topic-filter-btn" data-topic="sports" type="button">Sports</button>
+            <button class="topic-filter-btn" data-topic="science" type="button">Science</button>
           </div>
-        </div>
 
-        <!-- Upload Input -->
-        <div class="source-content hidden" id="source-upload" role="tabpanel" aria-labelledby="tab-upload">
-          <div id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-label="Upload audio file. Drag and drop or click to upload">
-            <span class="drop-icon" aria-hidden="true">&#128193;</span>
-            <span>Drag & drop or click to upload</span>
-            <input type="file" id="file-input" hidden
-                   accept=".mp3,.wav,.m4a,.ogg,.webm,.aac,audio/*"
-                   aria-label="Select audio file">
-          </div>
-          <div id="file-preview" class="file-preview hidden" role="status" aria-live="polite">
-            <span aria-hidden="true">&#127925;</span>
-            <div class="file-info">
-              <div class="file-name" id="file-name"></div>
-              <div class="file-size" id="file-size"></div>
-            </div>
-            <button class="file-remove" id="file-remove" type="button" aria-label="Remove file">&times;</button>
-          </div>
-        </div>
-
-        <!-- Smart Search Input -->
-        <div class="source-content hidden" id="source-search" role="tabpanel" aria-labelledby="tab-search">
           <div class="form-group">
             <label class="form-label" for="search-query">Search for Arabic Content</label>
             <div class="search-input-wrapper" role="search">
@@ -123,7 +102,7 @@
                 <span aria-hidden="true">&#128269;</span>
               </button>
             </div>
-            <p class="form-hint" id="search-hint">Enter a topic in Arabic or English to find suitable content</p>
+            <p class="form-hint" id="search-hint">Select a topic above or type your own search</p>
           </div>
 
           <!-- AI Suggest Button -->
@@ -151,6 +130,37 @@
           <div id="search-loading" class="search-loading hidden">
             <div class="processing-spinner"></div>
             <span id="search-loading-text">Searching for Arabic content...</span>
+          </div>
+        </div>
+
+        <!-- YouTube URL Input (Secondary) -->
+        <div class="source-content hidden" id="source-youtube" role="tabpanel" aria-labelledby="tab-youtube">
+          <div class="form-group">
+            <label class="form-label" for="youtube-url">YouTube URL</label>
+            <input type="url" id="youtube-url" class="form-input"
+                   placeholder="https://youtube.com/watch?v=..."
+                   pattern="https?://(www\.)?(youtube\.com|youtu\.be)/.+"
+                   aria-describedby="youtube-hint">
+            <p class="form-hint" id="youtube-hint">Works with any Arabic video that has captions</p>
+          </div>
+        </div>
+
+        <!-- Upload Input -->
+        <div class="source-content hidden" id="source-upload" role="tabpanel" aria-labelledby="tab-upload">
+          <div id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-label="Upload audio file. Drag and drop or click to upload">
+            <span class="drop-icon" aria-hidden="true">&#128193;</span>
+            <span>Drag & drop or click to upload</span>
+            <input type="file" id="file-input" hidden
+                   accept=".mp3,.wav,.m4a,.ogg,.webm,.aac,audio/*"
+                   aria-label="Select audio file">
+          </div>
+          <div id="file-preview" class="file-preview hidden" role="status" aria-live="polite">
+            <span aria-hidden="true">&#127925;</span>
+            <div class="file-info">
+              <div class="file-name" id="file-name"></div>
+              <div class="file-size" id="file-size"></div>
+            </div>
+            <button class="file-remove" id="file-remove" type="button" aria-label="Remove file">&times;</button>
           </div>
         </div>
       </div>
@@ -1438,6 +1448,35 @@
       searchQuery.value = '';
       searchResults.classList.add('hidden');
       searchResultsGrid.innerHTML = '';
+      // Clear active topic filter
+      document.querySelectorAll('.topic-filter-btn').forEach(b => b.classList.remove('active'));
+    });
+
+    // Topic quick filter buttons
+    document.querySelectorAll('.topic-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const topic = btn.dataset.topic;
+
+        // Update active state
+        document.querySelectorAll('.topic-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Build search query based on topic
+        const topicQueries = {
+          news: 'أخبار عربية arabic news',
+          politics: 'سياسة عربية مقابلة arabic politics interview',
+          economy: 'اقتصاد عربي arabic economy business',
+          culture: 'ثقافة عربية تراث arabic culture documentary',
+          sports: 'رياضة عربية كرة القدم arabic sports',
+          science: 'علوم عربية وثائقي arabic science documentary'
+        };
+
+        const query = topicQueries[topic] || topic;
+        searchQuery.value = query;
+
+        // Auto-execute search
+        performSearch();
+      });
     });
 
     // Mobile panel switching
@@ -1483,8 +1522,8 @@
       console.log(`Transcription: ${data.progress}%`);
     });
 
-    // Initialize
-    StateManager.set('source.type', 'youtube');
+    // Initialize - default to search/discovery mode
+    StateManager.set('source.type', 'search');
     console.log('Tanaghum Generator initialized');
   </script>
 </body>
