@@ -448,8 +448,8 @@ async function searchVideos(query, origin) {
  * Uses yt-dlp service on Render.com for reliable extraction
  */
 async function getVideoAudio(videoId, origin, env) {
-  // yt-dlp service URL (set via environment variable or use default)
-  const ytdlpServiceUrl = env?.YTDLP_SERVICE_URL || 'https://tanaghum-ytdlp.onrender.com';
+  // yt-dlp service URL (Fly.io deployment)
+  const ytdlpServiceUrl = env?.YTDLP_SERVICE_URL || 'https://tanaghum-ytdlp.fly.dev';
 
   try {
     // Try yt-dlp service first (most reliable)
