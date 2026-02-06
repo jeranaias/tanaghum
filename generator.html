@@ -209,59 +209,7 @@
           </div>
         </div>
 
-        <!-- Topic -->
-        <fieldset class="field-group">
-          <legend id="topic-label">Topic Category</legend>
-          <div class="topic-grid" role="radiogroup" aria-labelledby="topic-label">
-            <button class="topic-btn" data-topic="economy" role="radio" aria-checked="false" type="button">
-              <span class="topic-icon" aria-hidden="true">&#128176;</span>
-              <span class="topic-ar" lang="ar">الاقتصاد</span>
-              <span class="topic-en">Economy</span>
-            </button>
-            <button class="topic-btn" data-topic="politics" role="radio" aria-checked="false" type="button">
-              <span class="topic-icon" aria-hidden="true">&#127963;</span>
-              <span class="topic-ar" lang="ar">السياسة</span>
-              <span class="topic-en">Politics</span>
-            </button>
-            <button class="topic-btn" data-topic="culture" role="radio" aria-checked="false" type="button">
-              <span class="topic-icon" aria-hidden="true">&#127912;</span>
-              <span class="topic-ar" lang="ar">الثقافة</span>
-              <span class="topic-en">Culture</span>
-            </button>
-            <button class="topic-btn" data-topic="science" role="radio" aria-checked="false" type="button">
-              <span class="topic-icon" aria-hidden="true">&#128300;</span>
-              <span class="topic-ar" lang="ar">العلوم</span>
-              <span class="topic-en">Science</span>
-            </button>
-            <button class="topic-btn" data-topic="society" role="radio" aria-checked="false" type="button">
-              <span class="topic-icon" aria-hidden="true">&#128101;</span>
-              <span class="topic-ar" lang="ar">المجتمع</span>
-              <span class="topic-en">Society</span>
-            </button>
-            <button class="topic-btn" data-topic="health" role="radio" aria-checked="false" type="button">
-              <span class="topic-icon" aria-hidden="true">&#128138;</span>
-              <span class="topic-ar" lang="ar">الصحة</span>
-              <span class="topic-en">Health</span>
-            </button>
-            <button class="topic-btn active" data-topic="general" role="radio" aria-checked="true" type="button">
-              <span class="topic-icon" aria-hidden="true">&#128218;</span>
-              <span class="topic-ar" lang="ar">عام</span>
-              <span class="topic-en">General</span>
-            </button>
-            <button class="topic-btn" data-topic="education" role="radio" aria-checked="false" type="button">
-              <span class="topic-icon" aria-hidden="true">&#127891;</span>
-              <span class="topic-ar" lang="ar">التعليم</span>
-              <span class="topic-en">Education</span>
-            </button>
-          </div>
-        </fieldset>
       </div>
-
-      <!-- Generate Button -->
-      <button class="btn btn-primary btn-lg" id="generate-btn" type="button" style="width: 100%;" aria-describedby="generate-hint">
-        Generate Lesson
-      </button>
-      <p id="generate-hint" class="visually-hidden">Click to start generating an Arabic listening lesson based on your selected source and parameters</p>
     </aside>
 
     <!-- Main Content Area -->
@@ -626,7 +574,6 @@
     const sourceContents = document.querySelectorAll('.source-content');
     const topicBtns = document.querySelectorAll('.topic-btn');
     const ilrSlider = $('#ilr-slider');
-    const generateBtn = $('#generate-btn');
     const youtubeInput = $('#youtube-url');
     const dropZone = $('#drop-zone');
     const fileInput = $('#file-input');
@@ -867,11 +814,6 @@
         timeout = setTimeout(() => fn(...args), ms);
       };
     }
-
-    // Generate button - handles all source types
-    generateBtn.addEventListener('click', async () => {
-      startGeneration();
-    });
 
     function startGeneration() {
       const source = StateManager.get('source');
