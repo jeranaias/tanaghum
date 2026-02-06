@@ -445,9 +445,133 @@ async function searchVideos(query, origin) {
 
 /**
  * Get audio stream URL for a YouTube video
- * Returns the audio URL that can be fetched directly by the client
+ * Uses YouTube InnerTube API (Android client) for reliable audio extraction
  */
 async function getVideoAudio(videoId, origin) {
+  // Use Android client which often has direct URLs without cipher
+  const innertubePayload = {
+    videoId: videoId,
+    context: {
+      client: {
+        clientName: 'ANDROID',
+        clientVersion: '19.09.37',
+        androidSdkVersion: 30,
+        hl: 'en',
+        gl: 'US',
+        utcOffsetMinutes: 0
+      }
+    },
+    playbackContext: {
+      contentPlaybackContext: {
+        html5Preference: 'HTML5_PREF_WANTS'
+      }
+    },
+    contentCheckOk: true,
+    racyCheckOk: true
+  };
+
+  try {
+    const response = await fetch(
+      'https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
+          'X-Youtube-Client-Name': '3',
+          'X-Youtube-Client-Version': '19.09.37'
+        },
+        body: JSON.stringify(innertubePayload)
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`InnerTube API returned ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // Check playability
+    if (data.playabilityStatus?.status !== 'OK') {
+      const reason = data.playabilityStatus?.reason || 'Video not available';
+      return jsonResponse({
+        videoId,
+        available: false,
+        error: reason
+      }, 200, origin);
+    }
+
+    // Get streaming data
+    const streamingData = data.streamingData;
+    if (!streamingData) {
+      return jsonResponse({
+        videoId,
+        available: false,
+        error: 'No streaming data available'
+      }, 200, origin);
+    }
+
+    // Find audio formats (prefer adaptiveFormats)
+    const adaptiveFormats = streamingData.adaptiveFormats || [];
+    const audioFormats = adaptiveFormats.filter(f =>
+      f.mimeType?.startsWith('audio/') && f.url
+    );
+
+    if (audioFormats.length === 0) {
+      // Check combined formats as fallback
+      const formats = streamingData.formats || [];
+      const combinedWithAudio = formats.filter(f => f.url);
+
+      if (combinedWithAudio.length > 0) {
+        // Use combined format (has both audio and video)
+        const best = combinedWithAudio.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+        return jsonResponse({
+          videoId,
+          available: true,
+          audioUrl: best.url,
+          mimeType: best.mimeType,
+          bitrate: best.bitrate,
+          duration: parseInt(data.videoDetails?.lengthSeconds || 0),
+          title: data.videoDetails?.title,
+          source: 'innertube-combined'
+        }, 200, origin);
+      }
+
+      return jsonResponse({
+        videoId,
+        available: false,
+        error: 'No audio formats available. The video may be protected.'
+      }, 200, origin);
+    }
+
+    // Sort by bitrate (prefer higher quality)
+    audioFormats.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+    const bestAudio = audioFormats[0];
+
+    return jsonResponse({
+      videoId,
+      available: true,
+      audioUrl: bestAudio.url,
+      mimeType: bestAudio.mimeType,
+      bitrate: bestAudio.bitrate,
+      contentLength: bestAudio.contentLength,
+      duration: parseInt(data.videoDetails?.lengthSeconds || 0),
+      title: data.videoDetails?.title,
+      source: 'innertube-android'
+    }, 200, origin);
+
+  } catch (e) {
+    console.error('InnerTube API failed:', e.message);
+  }
+
+  // Fallback to web extraction
+  return await getVideoAudioDirect(videoId, origin);
+}
+
+/**
+ * Direct YouTube audio extraction (fallback)
+ */
+async function getVideoAudioDirect(videoId, origin) {
   const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
   const response = await fetch(watchUrl, {
@@ -458,33 +582,30 @@ async function getVideoAudio(videoId, origin) {
   });
 
   if (!response.ok) {
-    return jsonResponse({ error: 'Failed to fetch video page' }, 500, origin);
+    return jsonResponse({
+      videoId,
+      available: false,
+      error: 'Failed to fetch video page'
+    }, 200, origin);
   }
 
   const html = await response.text();
 
   // Extract ytInitialPlayerResponse
   let playerResponse = null;
-
-  // Method 1: Direct variable
   const playerMatch = html.match(/var ytInitialPlayerResponse\s*=\s*({.+?});/s);
   if (playerMatch) {
     try {
       playerResponse = JSON.parse(playerMatch[1]);
-    } catch (e) {
-      console.error('Failed to parse player response:', e);
-    }
+    } catch (e) {}
   }
 
-  // Method 2: In script with different format
   if (!playerResponse) {
     const altMatch = html.match(/ytInitialPlayerResponse\s*=\s*({.+?});/s);
     if (altMatch) {
       try {
         playerResponse = JSON.parse(altMatch[1]);
-      } catch (e) {
-        console.error('Failed to parse alt player response:', e);
-      }
+      } catch (e) {}
     }
   }
 
@@ -492,7 +613,7 @@ async function getVideoAudio(videoId, origin) {
     return jsonResponse({
       videoId,
       available: false,
-      error: 'Could not extract player response'
+      error: 'Could not extract video data. Try uploading the audio instead.'
     }, 200, origin);
   }
 
@@ -502,7 +623,7 @@ async function getVideoAudio(videoId, origin) {
     return jsonResponse({
       videoId,
       available: false,
-      error: playability?.reason || 'Video not playable'
+      error: playability?.reason || 'Video not available'
     }, 200, origin);
   }
 
@@ -516,45 +637,23 @@ async function getVideoAudio(videoId, origin) {
     }, 200, origin);
   }
 
-  // Find audio-only formats (adaptiveFormats)
+  // Find audio-only formats
   const adaptiveFormats = streamingData.adaptiveFormats || [];
-
-  // Audio format itags: 139 (48k m4a), 140 (128k m4a), 249/250/251 (opus)
-  // Prefer 140 (m4a 128kbps) or 251 (opus 160kbps)
   const audioFormats = adaptiveFormats.filter(f =>
     f.mimeType?.startsWith('audio/') && f.url
   );
 
   if (audioFormats.length === 0) {
-    // Check if formats require deciphering (signatureCipher)
-    const cipheredFormats = adaptiveFormats.filter(f =>
-      f.mimeType?.startsWith('audio/') && f.signatureCipher
-    );
-
-    if (cipheredFormats.length > 0) {
-      return jsonResponse({
-        videoId,
-        available: false,
-        error: 'Audio requires signature decryption (not supported)',
-        hint: 'Try a different video or use the upload option'
-      }, 200, origin);
-    }
-
     return jsonResponse({
       videoId,
       available: false,
-      error: 'No accessible audio formats found'
+      error: 'Audio extraction blocked by YouTube. Try uploading the audio file instead.'
     }, 200, origin);
   }
 
-  // Sort by bitrate (higher is better)
+  // Sort by bitrate
   audioFormats.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
-
-  // Get best audio format
   const bestAudio = audioFormats[0];
-
-  // Get video duration
-  const duration = parseInt(playerResponse.videoDetails?.lengthSeconds || 0);
 
   return jsonResponse({
     videoId,
@@ -562,25 +661,9 @@ async function getVideoAudio(videoId, origin) {
     audioUrl: bestAudio.url,
     mimeType: bestAudio.mimeType,
     bitrate: bestAudio.bitrate,
-    contentLength: bestAudio.contentLength,
-    duration,
-    quality: bestAudio.audioQuality || 'UNKNOWN',
-    // Include expiry info
-    expiresAt: extractExpiryFromUrl(bestAudio.url)
+    duration: parseInt(playerResponse.videoDetails?.lengthSeconds || 0),
+    source: 'youtube-direct'
   }, 200, origin);
-}
-
-/**
- * Extract expiry timestamp from YouTube URL
- */
-function extractExpiryFromUrl(url) {
-  try {
-    const expireMatch = url.match(/expire=(\d+)/);
-    if (expireMatch) {
-      return parseInt(expireMatch[1]) * 1000; // Convert to milliseconds
-    }
-  } catch (e) {}
-  return null;
 }
 
 /**
