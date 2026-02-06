@@ -281,7 +281,7 @@
           </p>
         </div>
 
-        <!-- Video Preview (shown when YouTube URL entered) -->
+        <!-- Video Preview (shown when video selected) -->
         <div class="video-preview hidden" id="video-preview">
           <div class="video-thumbnail">
             <img id="video-thumb" src="" alt="Video thumbnail">
@@ -303,6 +303,15 @@
               <span class="badge" id="video-captions">Captions available</span>
               <span class="badge" id="video-language" style="display: none;"></span>
             </div>
+          </div>
+          <!-- Generate button in preview -->
+          <div class="video-preview-actions">
+            <button class="btn btn-primary btn-lg" id="preview-generate-btn" type="button">
+              Generate Lesson
+            </button>
+            <button class="btn btn-secondary" id="preview-change-btn" type="button">
+              Choose Different Video
+            </button>
           </div>
         </div>
       </div>
@@ -817,32 +826,36 @@
       };
     }
 
-    // Generate button
+    // Generate button - handles all source types
     generateBtn.addEventListener('click', async () => {
-      const sourceType = StateManager.get('source.type');
+      startGeneration();
+    });
 
-      if (sourceType === 'youtube' && !youtubeInput.value.trim()) {
-        showToast('error', 'Missing URL', 'Please enter a YouTube URL');
-        return;
-      }
+    function startGeneration() {
+      const source = StateManager.get('source');
+      const sourceType = source?.type;
 
-      if (sourceType === 'search') {
-        // Check if a video was selected from search
-        const source = StateManager.get('source');
-        if (!source?.videoId) {
-          showToast('error', 'No video selected', 'Please search and select a video');
+      // Check if we have a valid source
+      if (sourceType === 'youtube' || sourceType === 'search') {
+        // For YouTube/search, we need either a videoId or a URL in the input
+        if (!source?.videoId && !youtubeInput.value.trim()) {
+          showToast('error', 'No video selected', 'Please select a video or enter a YouTube URL');
           return;
+        }
+        // If we have input but no videoId, use the input URL
+        if (!source?.videoId && youtubeInput.value.trim()) {
+          // Will be processed by the workflow
         }
       }
 
-      if (sourceType === 'upload' && !StateManager.get('source.file')) {
+      if (sourceType === 'upload' && !source?.file) {
         showToast('error', 'No file', 'Please upload an audio file');
         return;
       }
 
       // Start processing
       showProcessingState();
-    });
+    }
 
     function showProcessingState() {
       $('#input-state').classList.add('hidden');
@@ -1520,6 +1533,22 @@
     // Listen for transcription events
     EventBus.on(Events.TRANSCRIPTION_PROGRESS, (data) => {
       console.log(`Transcription: ${data.progress}%`);
+    });
+
+    // Preview Generate button (in center column)
+    $('#preview-generate-btn')?.addEventListener('click', () => {
+      startGeneration();
+    });
+
+    // Preview Change button (clear selection)
+    $('#preview-change-btn')?.addEventListener('click', () => {
+      hideVideoPreview();
+      // Clear the source videoId but keep type
+      StateManager.set('source.videoId', null);
+      StateManager.set('source.url', null);
+      StateManager.set('source.metadata', null);
+      // Clear selection highlight
+      searchResultsGrid?.querySelectorAll('.video-search-card').forEach(c => c.classList.remove('selected'));
     });
 
     // Initialize - default to search/discovery mode
