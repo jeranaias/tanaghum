@@ -3,9 +3,6 @@
  * Extracts captions and metadata from YouTube videos
  */
 
-const INNERTUBE_API_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
-const INNERTUBE_CLIENT_VERSION = '2.20240101.00.00';
-
 /**
  * Handle YouTube API requests
  */
@@ -15,6 +12,11 @@ export async function handleYouTube(request, env, url, origin) {
 
   if (!videoId) {
     return jsonResponse({ error: 'Missing video ID' }, 400, origin);
+  }
+
+  // Validate video ID format
+  if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+    return jsonResponse({ error: 'Invalid video ID format' }, 400, origin);
   }
 
   try {
@@ -35,101 +37,98 @@ export async function handleYouTube(request, env, url, origin) {
 }
 
 /**
- * Get video metadata using InnerTube API
+ * Get video metadata using oEmbed API (more reliable)
  */
 async function getVideoMetadata(videoId, origin) {
-  const response = await fetch('https://www.youtube.com/youtubei/v1/player', {
-    method: 'POST',
+  // First try oEmbed for basic metadata
+  const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
+
+  const oembedResponse = await fetch(oembedUrl);
+
+  if (!oembedResponse.ok) {
+    return jsonResponse({ error: 'Video not found or unavailable' }, 404, origin);
+  }
+
+  const oembed = await oembedResponse.json();
+
+  // Get additional data from watch page for captions info
+  const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const watchResponse = await fetch(watchUrl, {
     headers: {
-      'Content-Type': 'application/json',
-      'X-YouTube-Client-Name': '1',
-      'X-YouTube-Client-Version': INNERTUBE_CLIENT_VERSION
-    },
-    body: JSON.stringify({
-      videoId,
-      context: {
-        client: {
-          clientName: 'WEB',
-          clientVersion: INNERTUBE_CLIENT_VERSION,
-          hl: 'en',
-          gl: 'US'
-        }
-      }
-    })
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8'
+    }
   });
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch video metadata');
+  let captionsAvailable = false;
+  let duration = 0;
+
+  if (watchResponse.ok) {
+    const html = await watchResponse.text();
+
+    // Check for captions
+    captionsAvailable = html.includes('"captions"') || html.includes('timedtext');
+
+    // Try to extract duration
+    const durationMatch = html.match(/"lengthSeconds":"(\d+)"/);
+    if (durationMatch) {
+      duration = parseInt(durationMatch[1], 10);
+    }
   }
-
-  const data = await response.json();
-
-  if (data.playabilityStatus?.status !== 'OK') {
-    throw new Error(data.playabilityStatus?.reason || 'Video unavailable');
-  }
-
-  const videoDetails = data.videoDetails || {};
-  const captions = data.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-
-  // Find Arabic captions
-  const arabicCaption = captions.find(c =>
-    c.languageCode === 'ar' ||
-    c.languageCode.startsWith('ar-')
-  );
 
   return jsonResponse({
     videoId,
-    title: videoDetails.title,
-    author: videoDetails.author,
-    channelId: videoDetails.channelId,
-    lengthSeconds: parseInt(videoDetails.lengthSeconds, 10),
-    viewCount: parseInt(videoDetails.viewCount, 10),
-    thumbnail: videoDetails.thumbnail?.thumbnails?.slice(-1)[0]?.url,
+    title: oembed.title,
+    author: oembed.author_name,
+    authorUrl: oembed.author_url,
+    thumbnail: oembed.thumbnail_url,
+    thumbnailWidth: oembed.thumbnail_width,
+    thumbnailHeight: oembed.thumbnail_height,
+    duration,
     captions: {
-      available: captions.length > 0,
-      arabic: !!arabicCaption,
-      languages: captions.map(c => ({
-        code: c.languageCode,
-        name: c.name?.simpleText || c.languageCode,
-        url: c.baseUrl
-      }))
+      available: captionsAvailable
     }
   }, 200, origin);
 }
 
 /**
- * Get video captions
+ * Get video captions using timedtext API
  */
 async function getVideoCaptions(videoId, origin) {
-  // First get metadata to find caption URL
-  const metaResponse = await fetch('https://www.youtube.com/youtubei/v1/player', {
-    method: 'POST',
+  // Fetch the watch page to get caption tracks
+  const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const watchResponse = await fetch(watchUrl, {
     headers: {
-      'Content-Type': 'application/json',
-      'X-YouTube-Client-Name': '1',
-      'X-YouTube-Client-Version': INNERTUBE_CLIENT_VERSION
-    },
-    body: JSON.stringify({
-      videoId,
-      context: {
-        client: {
-          clientName: 'WEB',
-          clientVersion: INNERTUBE_CLIENT_VERSION,
-          hl: 'en',
-          gl: 'US'
-        }
-      }
-    })
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8'
+    }
   });
 
-  if (!metaResponse.ok) {
-    throw new Error('Failed to fetch video data');
+  if (!watchResponse.ok) {
+    return jsonResponse({ error: 'Failed to fetch video page' }, 500, origin);
   }
 
-  const data = await metaResponse.json();
-  const captions = data.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+  const html = await watchResponse.text();
 
-  if (captions.length === 0) {
+  // Extract caption tracks from the page
+  const captionTracksMatch = html.match(/"captionTracks":\s*(\[.*?\])/);
+
+  if (!captionTracksMatch) {
+    // Try alternative pattern
+    const playerResponseMatch = html.match(/var ytInitialPlayerResponse\s*=\s*(\{.+?\});/);
+    if (playerResponseMatch) {
+      try {
+        const playerResponse = JSON.parse(playerResponseMatch[1]);
+        const tracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+
+        if (tracks && tracks.length > 0) {
+          return await fetchCaptionTrack(tracks, videoId, origin);
+        }
+      } catch (e) {
+        console.error('Failed to parse player response:', e);
+      }
+    }
+
     return jsonResponse({
       videoId,
       available: false,
@@ -137,24 +136,60 @@ async function getVideoCaptions(videoId, origin) {
     }, 200, origin);
   }
 
-  // Prefer Arabic captions, fall back to auto-generated, then first available
-  let captionTrack = captions.find(c => c.languageCode === 'ar');
-  if (!captionTrack) {
-    captionTrack = captions.find(c => c.languageCode.startsWith('ar-'));
+  try {
+    const captionTracks = JSON.parse(captionTracksMatch[1]);
+    return await fetchCaptionTrack(captionTracks, videoId, origin);
+  } catch (e) {
+    return jsonResponse({
+      videoId,
+      available: false,
+      error: 'Failed to parse caption tracks'
+    }, 200, origin);
   }
-  if (!captionTrack) {
-    captionTrack = captions.find(c => c.kind === 'asr'); // Auto-generated
+}
+
+/**
+ * Fetch and parse a caption track
+ */
+async function fetchCaptionTrack(tracks, videoId, origin) {
+  if (!tracks || tracks.length === 0) {
+    return jsonResponse({
+      videoId,
+      available: false,
+      error: 'No caption tracks found'
+    }, 200, origin);
   }
-  if (!captionTrack) {
-    captionTrack = captions[0];
+
+  // Prefer Arabic, then auto-generated, then first available
+  let track = tracks.find(t => t.languageCode === 'ar');
+  if (!track) {
+    track = tracks.find(t => t.languageCode?.startsWith('ar-'));
+  }
+  if (!track) {
+    track = tracks.find(t => t.kind === 'asr');
+  }
+  if (!track) {
+    track = tracks[0];
   }
 
   // Fetch the caption content
-  const captionUrl = captionTrack.baseUrl + '&fmt=json3';
-  const captionResponse = await fetch(captionUrl);
+  let captionUrl = track.baseUrl;
+  if (!captionUrl.includes('fmt=')) {
+    captionUrl += (captionUrl.includes('?') ? '&' : '?') + 'fmt=json3';
+  }
+
+  const captionResponse = await fetch(captionUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+  });
 
   if (!captionResponse.ok) {
-    throw new Error('Failed to fetch captions');
+    return jsonResponse({
+      videoId,
+      available: false,
+      error: 'Failed to fetch caption content'
+    }, 200, origin);
   }
 
   const captionData = await captionResponse.json();
@@ -167,11 +202,12 @@ async function getVideoCaptions(videoId, origin) {
       const text = event.segs
         .map(seg => seg.utf8 || '')
         .join('')
+        .replace(/\n/g, ' ')
         .trim();
 
       return {
         start: event.tStartMs / 1000,
-        duration: (event.dDurationMs || 0) / 1000,
+        duration: (event.dDurationMs || 2000) / 1000,
         text
       };
     })
@@ -186,9 +222,14 @@ async function getVideoCaptions(videoId, origin) {
   return jsonResponse({
     videoId,
     available: true,
-    language: captionTrack.languageCode,
-    languageName: captionTrack.name?.simpleText,
-    isAutoGenerated: captionTrack.kind === 'asr',
+    language: track.languageCode,
+    languageName: track.name?.simpleText || track.name?.runs?.[0]?.text || track.languageCode,
+    isAutoGenerated: track.kind === 'asr',
+    trackCount: tracks.length,
+    availableLanguages: tracks.map(t => ({
+      code: t.languageCode,
+      name: t.name?.simpleText || t.name?.runs?.[0]?.text || t.languageCode
+    })),
     segments,
     vtt,
     fullText,
