@@ -334,12 +334,21 @@ class LLMClient {
 
   /**
    * Generate with JSON output
+   * @param {string|Object} promptOrOptions - Prompt string or options object with prompt
+   * @param {Object} options - Additional options (if first arg is string)
    */
-  async json(prompt, options = {}) {
+  async json(promptOrOptions, options = {}) {
+    // Support both json(prompt, options) and json({prompt, ...options})
+    let finalOptions;
+    if (typeof promptOrOptions === 'string') {
+      finalOptions = { prompt: promptOrOptions, ...options };
+    } else {
+      finalOptions = promptOrOptions;
+    }
+
     const result = await this.request({
-      prompt,
-      jsonMode: true,
-      ...options
+      ...finalOptions,
+      jsonMode: true
     });
 
     // Parse JSON from response
