@@ -1,0 +1,513 @@
+/**
+ * Tanaghum LLM Client
+ * Multi-provider LLM client with automatic fallback and quota tracking
+ */
+
+import { Config } from '../core/config.js';
+import { EventBus, Events } from '../core/event-bus.js';
+import { StateManager } from '../core/state-manager.js';
+import { retry, createLogger } from '../core/utils.js';
+
+const log = createLogger('LLM');
+
+/**
+ * Provider configurations
+ */
+const PROVIDERS = {
+  google: {
+    name: 'Google AI Studio',
+    endpoint: '/api/llm/google',
+    model: 'gemini-2.0-flash',
+    dailyLimit: 250,
+    supportsJson: true,
+    priority: 1
+  },
+  groq: {
+    name: 'Groq',
+    endpoint: '/api/llm/groq',
+    model: 'llama-3.3-70b-versatile',
+    dailyLimit: 1000,
+    supportsJson: true,
+    priority: 2
+  },
+  openrouter: {
+    name: 'OpenRouter',
+    endpoint: '/api/llm/openrouter',
+    model: 'google/gemini-2.0-flash-exp:free',
+    dailyLimit: 1000,
+    supportsJson: false,
+    priority: 3
+  }
+};
+
+/**
+ * Storage key for quota tracking
+ */
+const QUOTA_STORAGE_KEY = 'tanaghum_llm_quotas';
+
+/**
+ * LLM Client class
+ */
+class LLMClient {
+  constructor() {
+    this.workerUrl = Config.WORKER_URL;
+    this.quotas = this.loadQuotas();
+    this.currentProvider = this.selectBestProvider();
+  }
+
+  /**
+   * Load quotas from localStorage
+   */
+  loadQuotas() {
+    try {
+      const stored = localStorage.getItem(QUOTA_STORAGE_KEY);
+      if (stored) {
+        const data = JSON.parse(stored);
+
+        // Check if quotas are from today
+        const today = new Date().toDateString();
+        if (data.date === today) {
+          return data.quotas;
+        }
+      }
+    } catch (e) {
+      log.warn('Failed to load quotas:', e);
+    }
+
+    // Return fresh quotas
+    return {
+      google: PROVIDERS.google.dailyLimit,
+      groq: PROVIDERS.groq.dailyLimit,
+      openrouter: PROVIDERS.openrouter.dailyLimit
+    };
+  }
+
+  /**
+   * Save quotas to localStorage
+   */
+  saveQuotas() {
+    try {
+      localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify({
+        date: new Date().toDateString(),
+        quotas: this.quotas
+      }));
+    } catch (e) {
+      log.warn('Failed to save quotas:', e);
+    }
+
+    // Update state and emit event
+    StateManager.set('llm.quotaRemaining', { ...this.quotas });
+    EventBus.emit(Events.LLM_QUOTA_UPDATE, this.quotas);
+  }
+
+  /**
+   * Select the best available provider based on quota and priority
+   */
+  selectBestProvider() {
+    const available = Object.entries(PROVIDERS)
+      .filter(([id]) => this.quotas[id] > 0)
+      .sort((a, b) => a[1].priority - b[1].priority);
+
+    if (available.length === 0) {
+      log.error('All providers exhausted!');
+      return null;
+    }
+
+    const [providerId] = available[0];
+    StateManager.set('llm.provider', providerId);
+    return providerId;
+  }
+
+  /**
+   * Decrement quota for a provider
+   */
+  decrementQuota(providerId) {
+    if (this.quotas[providerId] > 0) {
+      this.quotas[providerId]--;
+      this.saveQuotas();
+    }
+
+    // Switch provider if exhausted
+    if (this.quotas[providerId] <= 0 && this.currentProvider === providerId) {
+      const newProvider = this.selectBestProvider();
+      if (newProvider && newProvider !== providerId) {
+        log.log(`Switching from ${providerId} to ${newProvider}`);
+        EventBus.emit(Events.LLM_PROVIDER_SWITCH, {
+          from: providerId,
+          to: newProvider
+        });
+      }
+    }
+  }
+
+  /**
+   * Get current quota status
+   */
+  getQuotaStatus() {
+    return {
+      current: this.currentProvider,
+      quotas: { ...this.quotas },
+      providers: Object.fromEntries(
+        Object.entries(PROVIDERS).map(([id, config]) => [
+          id,
+          {
+            name: config.name,
+            remaining: this.quotas[id],
+            limit: config.dailyLimit,
+            percent: Math.round((this.quotas[id] / config.dailyLimit) * 100)
+          }
+        ])
+      )
+    };
+  }
+
+  /**
+   * Make a request to the LLM API
+   * @param {Object} options - Request options
+   * @returns {Promise<Object>} Response data
+   */
+  async request(options) {
+    const {
+      prompt,
+      systemPrompt,
+      temperature = 0.7,
+      maxTokens = 2048,
+      jsonMode = false,
+      provider = null, // Force specific provider
+      retries = 2
+    } = options;
+
+    // Select provider
+    let providerId = provider || this.currentProvider;
+    if (!providerId || this.quotas[providerId] <= 0) {
+      providerId = this.selectBestProvider();
+    }
+
+    if (!providerId) {
+      throw new Error('No LLM providers available. Daily quotas exhausted.');
+    }
+
+    const providerConfig = PROVIDERS[providerId];
+
+    // Build request body
+    const body = {
+      prompt,
+      model: providerConfig.model,
+      temperature,
+      maxTokens,
+      jsonMode: jsonMode && providerConfig.supportsJson
+    };
+
+    if (systemPrompt) {
+      body.systemPrompt = systemPrompt;
+    }
+
+    // Make request with retry
+    const makeRequest = async () => {
+      const response = await fetch(`${this.workerUrl}${providerConfig.endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+      }
+
+      return response.json();
+    };
+
+    try {
+      const result = await retry(makeRequest, retries, 1000);
+
+      // Decrement quota on success
+      this.decrementQuota(providerId);
+
+      log.debug(`${providerConfig.name} response:`, result);
+
+      return {
+        text: result.text,
+        provider: providerId,
+        model: result.model,
+        usage: result.usage
+      };
+
+    } catch (error) {
+      log.error(`${providerConfig.name} failed:`, error.message);
+
+      // Try fallback provider
+      if (!provider) { // Only fallback if not forcing a specific provider
+        this.quotas[providerId] = 0; // Mark as exhausted for this session
+        this.saveQuotas();
+
+        const fallbackProvider = this.selectBestProvider();
+        if (fallbackProvider && fallbackProvider !== providerId) {
+          log.log(`Falling back to ${fallbackProvider}`);
+          return this.request({ ...options, provider: fallbackProvider });
+        }
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Generate text completion
+   */
+  async complete(prompt, options = {}) {
+    return this.request({ prompt, ...options });
+  }
+
+  /**
+   * Generate with JSON output
+   */
+  async json(prompt, options = {}) {
+    const result = await this.request({
+      prompt,
+      jsonMode: true,
+      ...options
+    });
+
+    // Parse JSON from response
+    try {
+      // Try to extract JSON from the response
+      let jsonText = result.text;
+
+      // Handle markdown code blocks
+      const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonMatch) {
+        jsonText = jsonMatch[1];
+      }
+
+      result.data = JSON.parse(jsonText.trim());
+    } catch (e) {
+      log.warn('Failed to parse JSON response:', e);
+      result.data = null;
+    }
+
+    return result;
+  }
+
+  /**
+   * Correct Arabic transcript using LLM
+   */
+  async correctTranscript(transcript, options = {}) {
+    const systemPrompt = `You are an expert Arabic linguist. Your task is to correct transcription errors in Arabic text.
+
+Rules:
+- Fix spelling errors and typos
+- Add missing diacritics where essential for meaning
+- Correct word boundaries
+- Preserve the original meaning exactly
+- Do not add or remove content
+- Return ONLY the corrected Arabic text, nothing else`;
+
+    const prompt = `Correct this Arabic transcript:\n\n${transcript}`;
+
+    const result = await this.request({
+      prompt,
+      systemPrompt,
+      temperature: 0.1, // Low temperature for accuracy
+      ...options
+    });
+
+    return result.text;
+  }
+
+  /**
+   * Translate Arabic to English
+   */
+  async translate(arabicText, options = {}) {
+    const systemPrompt = `You are an expert Arabic-English translator. Translate the Arabic text to natural, fluent English.
+
+Rules:
+- Preserve the meaning and tone
+- Use appropriate English idioms where applicable
+- Return ONLY the English translation, nothing else`;
+
+    const prompt = `Translate to English:\n\n${arabicText}`;
+
+    const result = await this.request({
+      prompt,
+      systemPrompt,
+      temperature: 0.3,
+      ...options
+    });
+
+    return result.text;
+  }
+
+  /**
+   * Analyze content for ILR level
+   */
+  async analyzeILR(transcript, options = {}) {
+    const systemPrompt = `You are an expert in Arabic language proficiency assessment using the ILR (Interagency Language Roundtable) scale.
+
+Analyze the given Arabic text and provide:
+1. ILR level (1.0, 1.5, 2.0, 2.5, 3.0, or 3.5)
+2. Confidence score (0.0 to 1.0)
+3. Key factors that determined the level
+
+Consider:
+- Vocabulary complexity and frequency
+- Sentence structure complexity
+- Topic abstraction level
+- Discourse markers and cohesion`;
+
+    const prompt = `Analyze this Arabic text for ILR proficiency level. Return JSON with keys: level (number), confidence (number), factors (array of strings).
+
+Text:
+${transcript}`;
+
+    const result = await this.json({
+      prompt,
+      systemPrompt,
+      temperature: 0.2,
+      ...options
+    });
+
+    return result.data || {
+      level: 2.0,
+      confidence: 0.5,
+      factors: ['Unable to parse analysis']
+    };
+  }
+
+  /**
+   * Generate comprehension questions
+   */
+  async generateQuestions(transcript, options = {}) {
+    const {
+      phase = 'while', // 'pre' | 'while' | 'post'
+      count = 5,
+      ilrLevel = 2.0,
+      topic = 'general',
+      existingQuestions = []
+    } = options;
+
+    const phaseDescriptions = {
+      pre: 'Pre-listening questions activate prior knowledge and set expectations. Focus on prediction and schema activation.',
+      while: 'While-listening questions test comprehension during the audio. Focus on main ideas, details, sequence, and inference.',
+      post: 'Post-listening questions assess deeper understanding. Focus on vocabulary in context, speaker attitude, synthesis, and evaluation.'
+    };
+
+    const questionTypes = {
+      pre: ['prediction', 'schema_activation', 'vocabulary_preview'],
+      while: ['main_idea', 'details', 'sequence', 'inference'],
+      post: ['vocabulary_in_context', 'speaker_attitude', 'synthesis', 'evaluation']
+    };
+
+    const systemPrompt = `You are an expert Arabic language teacher creating comprehension questions for ILR level ${ilrLevel} learners.
+
+${phaseDescriptions[phase]}
+
+Question types for this phase: ${questionTypes[phase].join(', ')}
+
+Rules:
+- Questions must be directly answerable from the text
+- Include both Arabic and English versions
+- For multiple choice, provide 4 options with exactly 1 correct answer
+- Vary question types
+- Match difficulty to ILR ${ilrLevel}`;
+
+    const prompt = `Create ${count} ${phase}-listening comprehension questions for this Arabic text about "${topic}".
+
+${existingQuestions.length > 0 ? `Avoid these topics already covered: ${existingQuestions.map(q => q.skill).join(', ')}\n` : ''}
+
+Return JSON array where each question has:
+- type: "multiple_choice" | "true_false" | "fill_blank" | "open_ended"
+- skill: one of ${JSON.stringify(questionTypes[phase])}
+- question_ar: Arabic question text
+- question_en: English translation
+- options: array of {id, text_ar, text_en, is_correct} (for multiple_choice)
+- correct_answer: boolean (for true_false)
+- sentence_ar, sentence_en, word_bank, correct_word (for fill_blank)
+- rubric: array of criteria strings (for open_ended)
+- explanation_ar, explanation_en: explanation of correct answer
+${phase === 'while' ? '- timestamp_percent: number 0-1 indicating when in audio this appears' : ''}
+
+Text:
+${transcript}`;
+
+    const result = await this.json({
+      prompt,
+      systemPrompt,
+      temperature: 0.7,
+      maxTokens: 4096,
+      ...options
+    });
+
+    // Validate and clean up questions
+    let questions = result.data || [];
+
+    if (!Array.isArray(questions)) {
+      questions = [];
+    }
+
+    // Add IDs and ensure required fields
+    questions = questions.map((q, i) => ({
+      id: `${phase}-${i + 1}`,
+      type: q.type || 'multiple_choice',
+      timing: phase,
+      skill: q.skill || questionTypes[phase][0],
+      question_text: {
+        ar: q.question_ar || q.question_text?.ar || '',
+        en: q.question_en || q.question_text?.en || ''
+      },
+      options: q.options || [],
+      correct_answer: q.correct_answer,
+      explanation: {
+        ar: q.explanation_ar || q.explanation?.ar || '',
+        en: q.explanation_en || q.explanation?.en || ''
+      },
+      timestamp_percent: q.timestamp_percent,
+      ...q
+    }));
+
+    return questions;
+  }
+
+  /**
+   * Extract key vocabulary from text
+   */
+  async extractVocabulary(transcript, options = {}) {
+    const { count = 10, ilrLevel = 2.0 } = options;
+
+    const systemPrompt = `You are an expert Arabic vocabulary instructor. Extract key vocabulary items that are:
+1. Important for understanding the text
+2. Appropriate for ILR ${ilrLevel} learners
+3. Likely to be new or challenging`;
+
+    const prompt = `Extract ${count} key vocabulary items from this Arabic text.
+
+Return JSON array where each item has:
+- word_ar: the Arabic word
+- word_en: English translation
+- root: Arabic root (e.g., "ك-ت-ب")
+- pos: part of speech
+- definition_ar: brief Arabic definition
+- definition_en: brief English definition
+- example_ar: example sentence from the text
+- example_en: English translation of example
+
+Text:
+${transcript}`;
+
+    const result = await this.json({
+      prompt,
+      systemPrompt,
+      temperature: 0.3,
+      ...options
+    });
+
+    return result.data || [];
+  }
+}
+
+// Singleton instance
+const llmClient = new LLMClient();
+
+export { llmClient, LLMClient, PROVIDERS };
