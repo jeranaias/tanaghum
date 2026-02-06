@@ -445,127 +445,45 @@ async function searchVideos(query, origin) {
 
 /**
  * Get audio stream URL for a YouTube video
- * Uses YouTube InnerTube API (Android client) for reliable audio extraction
+ * Note: YouTube actively blocks server-side extraction.
+ * For videos without captions, users should upload the audio file.
  */
 async function getVideoAudio(videoId, origin) {
-  // Use Android client which often has direct URLs without cipher
-  const innertubePayload = {
-    videoId: videoId,
-    context: {
-      client: {
-        clientName: 'ANDROID',
-        clientVersion: '19.09.37',
-        androidSdkVersion: 30,
-        hl: 'en',
-        gl: 'US',
-        utcOffsetMinutes: 0
-      }
-    },
-    playbackContext: {
-      contentPlaybackContext: {
-        html5Preference: 'HTML5_PREF_WANTS'
-      }
-    },
-    contentCheckOk: true,
-    racyCheckOk: true
-  };
+  // First, check if captions are available (preferred path)
+  const captionsResult = await getVideoCaptions(videoId, origin);
+  const captionsData = await captionsResult.json();
 
-  try {
-    const response = await fetch(
-      'https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
-          'X-Youtube-Client-Name': '3',
-          'X-Youtube-Client-Version': '19.09.37'
-        },
-        body: JSON.stringify(innertubePayload)
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`InnerTube API returned ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    // Check playability
-    if (data.playabilityStatus?.status !== 'OK') {
-      const reason = data.playabilityStatus?.reason || 'Video not available';
-      return jsonResponse({
-        videoId,
-        available: false,
-        error: reason
-      }, 200, origin);
-    }
-
-    // Get streaming data
-    const streamingData = data.streamingData;
-    if (!streamingData) {
-      return jsonResponse({
-        videoId,
-        available: false,
-        error: 'No streaming data available'
-      }, 200, origin);
-    }
-
-    // Find audio formats (prefer adaptiveFormats)
-    const adaptiveFormats = streamingData.adaptiveFormats || [];
-    const audioFormats = adaptiveFormats.filter(f =>
-      f.mimeType?.startsWith('audio/') && f.url
-    );
-
-    if (audioFormats.length === 0) {
-      // Check combined formats as fallback
-      const formats = streamingData.formats || [];
-      const combinedWithAudio = formats.filter(f => f.url);
-
-      if (combinedWithAudio.length > 0) {
-        // Use combined format (has both audio and video)
-        const best = combinedWithAudio.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
-        return jsonResponse({
-          videoId,
-          available: true,
-          audioUrl: best.url,
-          mimeType: best.mimeType,
-          bitrate: best.bitrate,
-          duration: parseInt(data.videoDetails?.lengthSeconds || 0),
-          title: data.videoDetails?.title,
-          source: 'innertube-combined'
-        }, 200, origin);
-      }
-
-      return jsonResponse({
-        videoId,
-        available: false,
-        error: 'No audio formats available. The video may be protected.'
-      }, 200, origin);
-    }
-
-    // Sort by bitrate (prefer higher quality)
-    audioFormats.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
-    const bestAudio = audioFormats[0];
-
+  if (captionsData.available) {
     return jsonResponse({
       videoId,
-      available: true,
-      audioUrl: bestAudio.url,
-      mimeType: bestAudio.mimeType,
-      bitrate: bestAudio.bitrate,
-      contentLength: bestAudio.contentLength,
-      duration: parseInt(data.videoDetails?.lengthSeconds || 0),
-      title: data.videoDetails?.title,
-      source: 'innertube-android'
+      available: false,
+      hasCaptions: true,
+      message: 'This video has captions available. Use captions instead of audio transcription for better accuracy.',
+      captionsLanguage: captionsData.language
     }, 200, origin);
-
-  } catch (e) {
-    console.error('InnerTube API failed:', e.message);
   }
 
-  // Fallback to web extraction
-  return await getVideoAudioDirect(videoId, origin);
+  // Try direct extraction (works for some videos)
+  const directResult = await getVideoAudioDirect(videoId, origin);
+  const directData = await directResult.json();
+
+  if (directData.available) {
+    return jsonResponse(directData, 200, origin);
+  }
+
+  // Audio extraction failed - provide helpful message
+  return jsonResponse({
+    videoId,
+    available: false,
+    hasCaptions: false,
+    error: 'Audio extraction unavailable for this video.',
+    suggestion: 'This video has no captions and audio cannot be extracted directly. Please download the audio using a tool like yt-dlp and upload it to Tanaghum.',
+    alternatives: [
+      'Use a video that has Arabic captions',
+      'Download the audio with yt-dlp: yt-dlp -x --audio-format mp3 "https://youtube.com/watch?v=' + videoId + '"',
+      'Use the Upload Audio option in Tanaghum'
+    ]
+  }, 200, origin);
 }
 
 /**
