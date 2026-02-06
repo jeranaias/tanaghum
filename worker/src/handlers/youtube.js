@@ -37,6 +37,9 @@ export async function handleYouTube(request, env, url, origin) {
       case 'captions':
         return await getVideoCaptions(videoId, origin);
 
+      case 'audio':
+        return await getVideoAudio(videoId, origin);
+
       default:
         return jsonResponse({ error: 'Unknown YouTube endpoint' }, 404, origin);
     }
@@ -438,6 +441,146 @@ async function searchVideos(query, origin) {
     console.error('Search parse error:', e);
     return jsonResponse({ error: 'Failed to parse search results' }, 500, origin);
   }
+}
+
+/**
+ * Get audio stream URL for a YouTube video
+ * Returns the audio URL that can be fetched directly by the client
+ */
+async function getVideoAudio(videoId, origin) {
+  const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+  const response = await fetch(watchUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8'
+    }
+  });
+
+  if (!response.ok) {
+    return jsonResponse({ error: 'Failed to fetch video page' }, 500, origin);
+  }
+
+  const html = await response.text();
+
+  // Extract ytInitialPlayerResponse
+  let playerResponse = null;
+
+  // Method 1: Direct variable
+  const playerMatch = html.match(/var ytInitialPlayerResponse\s*=\s*({.+?});/s);
+  if (playerMatch) {
+    try {
+      playerResponse = JSON.parse(playerMatch[1]);
+    } catch (e) {
+      console.error('Failed to parse player response:', e);
+    }
+  }
+
+  // Method 2: In script with different format
+  if (!playerResponse) {
+    const altMatch = html.match(/ytInitialPlayerResponse\s*=\s*({.+?});/s);
+    if (altMatch) {
+      try {
+        playerResponse = JSON.parse(altMatch[1]);
+      } catch (e) {
+        console.error('Failed to parse alt player response:', e);
+      }
+    }
+  }
+
+  if (!playerResponse) {
+    return jsonResponse({
+      videoId,
+      available: false,
+      error: 'Could not extract player response'
+    }, 200, origin);
+  }
+
+  // Check playability
+  const playability = playerResponse.playabilityStatus;
+  if (playability?.status !== 'OK') {
+    return jsonResponse({
+      videoId,
+      available: false,
+      error: playability?.reason || 'Video not playable'
+    }, 200, origin);
+  }
+
+  // Get streaming data
+  const streamingData = playerResponse.streamingData;
+  if (!streamingData) {
+    return jsonResponse({
+      videoId,
+      available: false,
+      error: 'No streaming data available'
+    }, 200, origin);
+  }
+
+  // Find audio-only formats (adaptiveFormats)
+  const adaptiveFormats = streamingData.adaptiveFormats || [];
+
+  // Audio format itags: 139 (48k m4a), 140 (128k m4a), 249/250/251 (opus)
+  // Prefer 140 (m4a 128kbps) or 251 (opus 160kbps)
+  const audioFormats = adaptiveFormats.filter(f =>
+    f.mimeType?.startsWith('audio/') && f.url
+  );
+
+  if (audioFormats.length === 0) {
+    // Check if formats require deciphering (signatureCipher)
+    const cipheredFormats = adaptiveFormats.filter(f =>
+      f.mimeType?.startsWith('audio/') && f.signatureCipher
+    );
+
+    if (cipheredFormats.length > 0) {
+      return jsonResponse({
+        videoId,
+        available: false,
+        error: 'Audio requires signature decryption (not supported)',
+        hint: 'Try a different video or use the upload option'
+      }, 200, origin);
+    }
+
+    return jsonResponse({
+      videoId,
+      available: false,
+      error: 'No accessible audio formats found'
+    }, 200, origin);
+  }
+
+  // Sort by bitrate (higher is better)
+  audioFormats.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+
+  // Get best audio format
+  const bestAudio = audioFormats[0];
+
+  // Get video duration
+  const duration = parseInt(playerResponse.videoDetails?.lengthSeconds || 0);
+
+  return jsonResponse({
+    videoId,
+    available: true,
+    audioUrl: bestAudio.url,
+    mimeType: bestAudio.mimeType,
+    bitrate: bestAudio.bitrate,
+    contentLength: bestAudio.contentLength,
+    duration,
+    quality: bestAudio.audioQuality || 'UNKNOWN',
+    // Include expiry info
+    expiresAt: extractExpiryFromUrl(bestAudio.url)
+  }, 200, origin);
+}
+
+/**
+ * Extract expiry timestamp from YouTube URL
+ */
+function extractExpiryFromUrl(url) {
+  try {
+    const expireMatch = url.match(/expire=(\d+)/);
+    if (expireMatch) {
+      return parseInt(expireMatch[1]) * 1000; // Convert to milliseconds
+    }
+  } catch (e) {}
+  return null;
 }
 
 /**
