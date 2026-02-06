@@ -81,39 +81,54 @@
 
         <!-- Find Videos (Search) - DEFAULT -->
         <div class="source-content" id="source-search" role="tabpanel" aria-labelledby="tab-search">
-          <!-- Topic Quick Filters -->
-          <div class="topic-filters">
-            <button class="topic-filter-btn" data-topic="news" type="button">News</button>
-            <button class="topic-filter-btn" data-topic="politics" type="button">Politics</button>
-            <button class="topic-filter-btn" data-topic="economy" type="button">Economy</button>
-            <button class="topic-filter-btn" data-topic="culture" type="button">Culture</button>
-            <button class="topic-filter-btn" data-topic="sports" type="button">Sports</button>
-            <button class="topic-filter-btn" data-topic="science" type="button">Science</button>
+          <p class="section-hint">Choose a topic to find Arabic videos:</p>
+
+          <!-- Topic Buttons (Primary Search Method) -->
+          <div class="topic-grid">
+            <button class="topic-btn" data-topic="news" type="button">
+              <span class="topic-icon">📰</span>
+              <span class="topic-label">News</span>
+            </button>
+            <button class="topic-btn" data-topic="politics" type="button">
+              <span class="topic-icon">🏛️</span>
+              <span class="topic-label">Politics</span>
+            </button>
+            <button class="topic-btn" data-topic="economy" type="button">
+              <span class="topic-icon">💰</span>
+              <span class="topic-label">Economy</span>
+            </button>
+            <button class="topic-btn" data-topic="culture" type="button">
+              <span class="topic-icon">🎭</span>
+              <span class="topic-label">Culture</span>
+            </button>
+            <button class="topic-btn" data-topic="sports" type="button">
+              <span class="topic-icon">⚽</span>
+              <span class="topic-label">Sports</span>
+            </button>
+            <button class="topic-btn" data-topic="science" type="button">
+              <span class="topic-icon">🔬</span>
+              <span class="topic-label">Science</span>
+            </button>
+            <button class="topic-btn" data-topic="religion" type="button">
+              <span class="topic-icon">🕌</span>
+              <span class="topic-label">Religion</span>
+            </button>
+            <button class="topic-btn" data-topic="history" type="button">
+              <span class="topic-icon">📜</span>
+              <span class="topic-label">History</span>
+            </button>
           </div>
 
-          <div class="form-group">
-            <label class="form-label" for="search-query">Search for Arabic Content</label>
-            <div class="search-input-wrapper" role="search">
+          <!-- Custom Search (collapsed by default) -->
+          <details class="custom-search-details">
+            <summary class="custom-search-toggle">Custom search...</summary>
+            <div class="custom-search-input">
               <input type="search" id="search-query" class="form-input"
-                     placeholder="e.g., أخبار الاقتصاد, مقابلة سياسية, وثائقي..."
-                     aria-describedby="search-hint"
+                     placeholder="Type your own search..."
                      autocomplete="off">
-              <button class="search-btn" id="search-btn" type="button" aria-label="Search">
-                <span aria-hidden="true">&#128269;</span>
-              </button>
+              <button class="btn btn-primary btn-sm" id="search-btn" type="button">Search</button>
             </div>
-            <p class="form-hint" id="search-hint">Select a topic above or type your own search</p>
-          </div>
-
-          <!-- AI Suggest Button -->
-          <button class="btn btn-secondary btn-sm" id="ai-suggest-btn" style="margin-bottom: 12px; width: 100%;">
-            <span>&#10024;</span> AI Suggest Queries for My Level
-          </button>
-
-          <!-- Suggested Queries -->
-          <div id="suggested-queries" class="suggested-queries hidden">
-            <!-- AI-generated query suggestions -->
-          </div>
+          </details>
 
           <!-- Search Results -->
           <div id="search-results" class="video-search-results hidden">
@@ -126,10 +141,11 @@
             </div>
           </div>
 
-          <!-- Search Loading State -->
+          <!-- Search Loading State (with Stop button) -->
           <div id="search-loading" class="search-loading hidden">
             <div class="processing-spinner"></div>
-            <span id="search-loading-text">Searching for Arabic content...</span>
+            <span id="search-loading-text">Searching...</span>
+            <button class="btn btn-ghost btn-sm" id="stop-search-btn" type="button">Stop</button>
           </div>
         </div>
 
@@ -1249,11 +1265,10 @@
     const searchLoading = $('#search-loading');
     const searchLoadingText = $('#search-loading-text');
     const clearSearchBtn = $('#clear-search');
-    const aiSuggestBtn = $('#ai-suggest-btn');
-    const suggestedQueries = $('#suggested-queries');
 
-    // Import LLM client for AI evaluation
+    // Import LLM client for AI evaluation (lazy load)
     let llmClient = null;
+    let currentSearchController = null;
 
     async function loadLLMClient() {
       if (!llmClient) {
@@ -1263,8 +1278,14 @@
       return llmClient;
     }
 
-    async function performSearch() {
-      const query = searchQuery.value.trim();
+    async function performSearch(queryOverride = null) {
+      // Cancel any existing search
+      if (currentSearchController) {
+        currentSearchController.abort();
+      }
+      currentSearchController = new AbortController();
+
+      const query = queryOverride || (searchQuery?.value?.trim() || '');
       if (!query) {
         showToast('error', 'Empty search', 'Please enter a search term');
         return;
@@ -1274,139 +1295,70 @@
       searchLoading.classList.remove('hidden');
       searchLoadingText.textContent = 'Searching YouTube...';
       searchResults.classList.add('hidden');
-      searchBtn.disabled = true;
+      if (searchBtn) searchBtn.disabled = true;
 
       try {
-        // Step 1: Get raw search results
-        const response = await fetch(`${Config.WORKER_URL}/api/youtube/search?q=${encodeURIComponent(query)}`);
+        // Get search results (no AI evaluation - saves requests)
+        const response = await fetch(
+          `${Config.WORKER_URL}/api/youtube/search?q=${encodeURIComponent(query)}`,
+          { signal: currentSearchController.signal }
+        );
         const data = await response.json();
 
         if (data.error) {
           throw new Error(data.error);
         }
 
-        const rawVideos = data.videos || [];
+        const videos = data.videos || [];
+        displaySearchResults(videos, false);
 
-        if (rawVideos.length === 0) {
-          displaySearchResults([]);
-          return;
+        if (videos.length > 0) {
+          showToast('success', 'Videos found', `${videos.length} videos available`);
         }
 
-        // Step 2: Evaluate with AI
-        searchLoadingText.textContent = 'AI evaluating content quality...';
-
-        const client = await loadLLMClient();
-        const targetIlr = parseFloat(ilrSlider.value);
-        const topic = document.querySelector('.topic-btn.active')?.dataset.topic || 'general';
-
-        const evaluatedVideos = await client.evaluateSearchResults(rawVideos, {
-          targetIlr,
-          topic,
-          maxResults: 8
-        });
-
-        // Display evaluated results
-        displaySearchResults(evaluatedVideos, true);
-        showToast('success', 'AI Search complete', `Found ${evaluatedVideos.length} suitable videos`);
-
       } catch (error) {
+        if (error.name === 'AbortError') {
+          console.log('Search aborted');
+          return;
+        }
         console.error('Search failed:', error);
         showToast('error', 'Search failed', error.message || 'Could not search YouTube');
       } finally {
         searchLoading.classList.add('hidden');
-        searchBtn.disabled = false;
+        if (searchBtn) searchBtn.disabled = false;
+        currentSearchController = null;
       }
     }
 
-    function displaySearchResults(videos, hasEvaluation = false) {
+    function displaySearchResults(videos) {
       if (videos.length === 0) {
         searchResultsCount.textContent = 'No videos found';
-        searchResultsGrid.innerHTML = '<p style="text-align: center; color: var(--color-text-muted); padding: 20px;">Try a different search term</p>';
+        searchResultsGrid.innerHTML = '<p style="text-align: center; color: var(--color-text-muted); padding: 20px;">Try a different topic</p>';
         searchResults.classList.remove('hidden');
         return;
       }
 
-      searchResultsCount.textContent = hasEvaluation
-        ? `${videos.length} AI-curated videos`
-        : `${videos.length} videos found`;
+      searchResultsCount.textContent = `${videos.length} videos found`;
 
-      searchResultsGrid.innerHTML = videos.map(video => {
-        const evalBadge = video.evaluation
-          ? `<div class="eval-badge" title="${video.evaluation.reason || ''}">
-               <span class="eval-score">${video.evaluation.score}/10</span>
-               <span class="eval-ilr">ILR ~${video.evaluation.estimatedIlr}</span>
-             </div>`
-          : '';
-
-        return `
-          <div class="video-search-card${video.evaluation?.score >= 8 ? ' recommended' : ''}" data-video-id="${video.videoId}" data-video='${JSON.stringify(video).replace(/'/g, "&#39;")}'>
-            <img class="video-thumb-small" src="${video.thumbnail}" alt="${video.title}" loading="lazy">
-            <div class="video-info">
-              <h4>${video.title}</h4>
-              <div class="video-channel">${video.channel}</div>
-              <div class="video-meta-row">
-                <span>${video.duration || ''}</span>
-                ${evalBadge}
-              </div>
+      searchResultsGrid.innerHTML = videos.map(video => `
+        <div class="video-search-card" data-video-id="${video.videoId}" data-video='${JSON.stringify(video).replace(/'/g, "&#39;")}'>
+          <img class="video-thumb-small" src="${video.thumbnail}" alt="${video.title}" loading="lazy">
+          <div class="video-info">
+            <h4>${video.title}</h4>
+            <div class="video-channel">${video.channel}</div>
+            <div class="video-meta-row">
+              <span>${video.duration || ''}</span>
+              <span>${video.views || ''}</span>
             </div>
           </div>
-        `;
-      }).join('');
+        </div>
+      `).join('');
 
       searchResults.classList.remove('hidden');
 
       // Add click handlers to select videos
       searchResultsGrid.querySelectorAll('.video-search-card').forEach(card => {
         card.addEventListener('click', () => selectSearchResult(card));
-      });
-    }
-
-    // AI Suggest queries
-    aiSuggestBtn?.addEventListener('click', async () => {
-      aiSuggestBtn.disabled = true;
-      aiSuggestBtn.innerHTML = '<span class="processing-spinner" style="width:16px;height:16px;border-width:2px;margin-right:8px;"></span> Generating...';
-
-      try {
-        const client = await loadLLMClient();
-        const targetIlr = parseFloat(ilrSlider.value);
-        const topic = document.querySelector('.topic-btn.active')?.dataset.topic || 'general';
-
-        const suggestions = await client.generateSearchQueries({
-          targetIlr,
-          topic,
-          count: 4
-        });
-
-        if (suggestions.length > 0) {
-          displaySuggestedQueries(suggestions);
-        } else {
-          showToast('warning', 'No suggestions', 'Could not generate suggestions');
-        }
-      } catch (error) {
-        console.error('AI suggest failed:', error);
-        showToast('error', 'AI suggest failed', error.message);
-      } finally {
-        aiSuggestBtn.disabled = false;
-        aiSuggestBtn.innerHTML = '<span>&#10024;</span> AI Suggest Queries for My Level';
-      }
-    });
-
-    function displaySuggestedQueries(suggestions) {
-      suggestedQueries.innerHTML = suggestions.map(s => `
-        <button class="suggested-query-btn" data-query="${s.query}">
-          <span class="query-text">${s.query}</span>
-          <span class="query-desc">${s.description || ''}</span>
-        </button>
-      `).join('');
-
-      suggestedQueries.classList.remove('hidden');
-
-      // Add click handlers
-      suggestedQueries.querySelectorAll('.suggested-query-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          searchQuery.value = btn.dataset.query;
-          performSearch();
-        });
       });
     }
 
@@ -1445,8 +1397,11 @@
       showToast('success', 'Video selected', 'Ready to generate lesson');
     }
 
-    // Search on button click
-    searchBtn?.addEventListener('click', performSearch);
+    // Search on button click (custom search)
+    searchBtn?.addEventListener('click', () => {
+      const query = searchQuery?.value?.trim();
+      if (query) performSearch(query);
+    });
 
     // Search on Enter key
     searchQuery?.addEventListener('keypress', (e) => {
@@ -1458,38 +1413,53 @@
 
     // Clear search results
     clearSearchBtn?.addEventListener('click', () => {
-      searchQuery.value = '';
+      if (searchQuery) searchQuery.value = '';
       searchResults.classList.add('hidden');
       searchResultsGrid.innerHTML = '';
-      // Clear active topic filter
-      document.querySelectorAll('.topic-filter-btn').forEach(b => b.classList.remove('active'));
+      // Clear active topic
+      document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('active'));
     });
 
-    // Topic quick filter buttons
-    document.querySelectorAll('.topic-filter-btn').forEach(btn => {
+    // Topic grid buttons (primary search method)
+    const topicQueries = {
+      news: 'أخبار عربية arabic news',
+      politics: 'سياسة عربية مقابلة arabic politics interview',
+      economy: 'اقتصاد عربي arabic economy business',
+      culture: 'ثقافة عربية تراث arabic culture documentary',
+      sports: 'رياضة عربية كرة القدم arabic sports',
+      science: 'علوم عربية وثائقي arabic science documentary',
+      religion: 'إسلام دين عربي arabic islam religion',
+      history: 'تاريخ عربي وثائقي arabic history documentary'
+    };
+
+    document.querySelectorAll('.topic-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const topic = btn.dataset.topic;
 
         // Update active state
-        document.querySelectorAll('.topic-filter-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
+        btn.classList.add('loading');
 
-        // Build search query based on topic
-        const topicQueries = {
-          news: 'أخبار عربية arabic news',
-          politics: 'سياسة عربية مقابلة arabic politics interview',
-          economy: 'اقتصاد عربي arabic economy business',
-          culture: 'ثقافة عربية تراث arabic culture documentary',
-          sports: 'رياضة عربية كرة القدم arabic sports',
-          science: 'علوم عربية وثائقي arabic science documentary'
-        };
-
+        // Get query for topic
         const query = topicQueries[topic] || topic;
-        searchQuery.value = query;
 
-        // Auto-execute search
-        performSearch();
+        // Execute search
+        performSearch(query).finally(() => {
+          btn.classList.remove('loading');
+        });
       });
+    });
+
+    // Stop search button
+    $('#stop-search-btn')?.addEventListener('click', () => {
+      if (currentSearchController) {
+        currentSearchController.abort();
+        currentSearchController = null;
+      }
+      searchLoading.classList.add('hidden');
+      document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('loading'));
+      showToast('info', 'Search stopped', 'Search was cancelled');
     });
 
     // Mobile panel switching
