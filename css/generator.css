@@ -176,6 +176,12 @@
   display: none;
 }
 
+/* Hidden state overrides for elements with explicit display values */
+.search-loading.hidden,
+.video-preview.hidden {
+  display: none;
+}
+
 /* Drop Zone */
 .drop-zone {
   border: 3px dashed var(--color-border);
@@ -582,6 +588,12 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* Hide broken/empty image and show placeholder */
+.video-thumbnail img[src=""],
+.video-thumbnail img:not([src]) {
+  visibility: hidden;
 }
 
 .video-play-overlay {
