@@ -5,7 +5,7 @@
 
 const Config = {
   // Cloudflare Worker URL (update after deployment)
-  WORKER_URL: 'https://tanaghum-worker.YOUR_SUBDOMAIN.workers.dev',
+  WORKER_URL: 'https://tanaghum-worker.jmathdog.workers.dev',
 
   // API Endpoints (via Worker)
   API: {

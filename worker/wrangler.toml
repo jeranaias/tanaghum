@@ -3,8 +3,8 @@ name = "tanaghum-worker"
 main = "src/index.js"
 compatibility_date = "2024-01-01"
 
-# Account settings (fill in after creating account)
-# account_id = "your-account-id"
+# Account settings
+account_id = "8346e1ae1d3a90d45bc75ecd87af86e2"
 
 # Environment variables (secrets should be set via wrangler secret put)
 [vars]
@@ -14,7 +14,7 @@ ALLOWED_ORIGINS = "https://tanaghum.github.io,http://localhost:8000,http://127.0
 [env.production]
 name = "tanaghum-worker"
 routes = [
-  { pattern = "tanaghum-worker.your-subdomain.workers.dev", custom_domain = false }
+  { pattern = "tanaghum-worker.jmathdog.workers.dev", custom_domain = false }
 ]
 
 # Development environment
