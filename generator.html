@@ -1862,6 +1862,47 @@
 
     // Initialize - default to search/discovery mode
     StateManager.set('source.type', 'search');
+
+    // Mobile initialization - show Config panel by default
+    function initMobileView() {
+      const isMobile = window.innerWidth <= 768;
+      if (isMobile) {
+        $('#config-panel').classList.add('mobile-open');
+        $('.main-content').classList.add('mobile-hidden');
+      }
+    }
+
+    // Auto-navigate to Content when video is selected (mobile)
+    function autoNavigateOnSelection() {
+      const isMobile = window.innerWidth <= 768;
+      if (isMobile) {
+        // Switch to Content view
+        document.querySelectorAll('.mobile-toolbar-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector('[data-panel="main"]').classList.add('active');
+        $('#config-panel').classList.remove('mobile-open');
+        $('#status-panel').classList.remove('mobile-open');
+        $('.main-content').classList.remove('mobile-hidden');
+      }
+    }
+
+    // Hook into video selection to auto-navigate
+    const originalSelectSearchResult = selectSearchResult;
+    selectSearchResult = async function(card) {
+      await originalSelectSearchResult(card);
+      autoNavigateOnSelection();
+    };
+
+    // Run mobile init
+    initMobileView();
+    window.addEventListener('resize', () => {
+      // Reset mobile classes if switching to desktop
+      if (window.innerWidth > 768) {
+        $('#config-panel').classList.remove('mobile-open');
+        $('#status-panel').classList.remove('mobile-open');
+        $('.main-content').classList.remove('mobile-hidden');
+      }
+    });
+
     console.log('Tanaghum Generator initialized');
   </script>
 </body>
