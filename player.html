@@ -283,8 +283,25 @@
       }
 
       if (!lesson.content) {
-        console.warn('initPlayer: lesson.content is missing');
-        lesson.content = {};
+        console.warn('initPlayer: lesson.content is missing - creating empty structure');
+        lesson.content = {
+          transcript: { text: '', segments: [] },
+          questions: { pre: [], while: [], post: [] },
+          vocabulary: { items: [] }
+        };
+      }
+      // Ensure all sub-objects exist
+      if (!lesson.content.transcript) {
+        console.warn('Missing transcript in lesson.content');
+        lesson.content.transcript = { text: '', segments: [] };
+      }
+      if (!lesson.content.questions) {
+        console.warn('Missing questions in lesson.content');
+        lesson.content.questions = { pre: [], while: [], post: [] };
+      }
+      if (!lesson.content.vocabulary) {
+        console.warn('Missing vocabulary in lesson.content');
+        lesson.content.vocabulary = { items: [] };
       }
 
       // Update UI with lesson info
@@ -370,7 +387,14 @@
       // Ensure content.transcript exists and has segments
       const transcriptSegments = lesson.content?.transcript?.segments || [];
       const translationSegments = lesson.content?.translation?.segments || [];
-      console.log('Loading transcript with', transcriptSegments.length, 'segments');
+      console.log('=== LOADING PANELS ===');
+      console.log('Transcript container exists:', !!transcriptContainer);
+      console.log('Quiz container exists:', !!quizContainer);
+      console.log('Vocabulary container exists:', !!vocabularyContainer);
+      console.log('Transcript segments to load:', transcriptSegments.length);
+      if (transcriptSegments.length > 0) {
+        console.log('First segment:', transcriptSegments[0]);
+      }
 
       transcriptSync = new TranscriptSync(transcriptContainer, {
         showTranslation: $('#toggle-translation').checked,
@@ -674,6 +698,32 @@
     const urlParams = new URLSearchParams(window.location.search);
     const lessonFromState = StateManager.get('lesson');
     const lessonFromStorage = localStorage.getItem('tanaghum_current_lesson');
+
+    // DEBUG: Log what we found
+    console.log('=== PLAYER LOADING DEBUG ===');
+    console.log('lessonFromState:', lessonFromState ? 'found' : 'null');
+    console.log('lessonFromStorage:', lessonFromStorage ? `found (${lessonFromStorage.length} chars)` : 'null');
+    if (lessonFromStorage) {
+      try {
+        const parsed = JSON.parse(lessonFromStorage);
+        console.log('Parsed lesson structure:', {
+          id: parsed?.id,
+          hasMetadata: !!parsed?.metadata,
+          hasContent: !!parsed?.content,
+          hasTranscript: !!parsed?.content?.transcript,
+          transcriptSegments: parsed?.content?.transcript?.segments?.length || 0,
+          transcriptText: parsed?.content?.transcript?.text?.substring(0, 100) || 'EMPTY',
+          hasQuestions: !!parsed?.content?.questions,
+          preQuestions: parsed?.content?.questions?.pre?.length || 0,
+          whileQuestions: parsed?.content?.questions?.while?.length || 0,
+          postQuestions: parsed?.content?.questions?.post?.length || 0,
+          hasVocabulary: !!parsed?.content?.vocabulary,
+          vocabularyItems: parsed?.content?.vocabulary?.items?.length || 0
+        });
+      } catch(e) {
+        console.error('Failed to parse lessonFromStorage:', e);
+      }
+    }
     const lessonIdFromHash = window.location.hash.slice(1);
 
     /**

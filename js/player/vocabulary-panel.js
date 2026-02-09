@@ -41,6 +41,12 @@ class VocabularyPanel {
    * @param {Object} vocabulary - Vocabulary data
    */
   load(vocabulary) {
+    console.log('VocabularyPanel.load() called with:', {
+      vocabularyType: typeof vocabulary,
+      vocabularyValue: vocabulary,
+      isArray: Array.isArray(vocabulary),
+      hasItems: !!vocabulary?.items
+    });
     // Handle both {items: [...]} structure and direct array
     // Ensure we always have an array, even if vocabulary is undefined or empty object
     if (Array.isArray(vocabulary)) {

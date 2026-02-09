@@ -31,6 +31,13 @@ class QuizPanel {
    * @param {Object} questions - Questions by phase
    */
   load(questions) {
+    console.log('QuizPanel.load() called with:', {
+      questionsType: typeof questions,
+      questionsValue: questions,
+      hasPre: !!questions?.pre,
+      hasWhile: !!questions?.while,
+      hasPost: !!questions?.post
+    });
     // Ensure we have arrays for each phase, handling undefined/null gracefully
     const q = questions || {};
     this.questions = {
