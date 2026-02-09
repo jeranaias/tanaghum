@@ -427,6 +427,7 @@
         <div class="action-group">
           <button class="btn btn-ghost" id="back-btn" type="button" disabled aria-disabled="true">Back</button>
           <button class="btn btn-danger" id="start-over-btn" type="button" title="Clear everything and start fresh">Start Over</button>
+          <button class="btn btn-ghost" id="reset-quota-btn" type="button" title="Reset LLM quotas if you ran out">Reset LLM Quota</button>
         </div>
         <div class="action-group">
           <button class="btn btn-secondary" id="preview-btn" type="button" disabled aria-disabled="true">Preview</button>
@@ -1203,6 +1204,19 @@
 
       // Show toast
       showToast('success', 'Reset Complete', 'Ready to start a new lesson');
+    });
+
+    // Reset LLM Quota button
+    $('#reset-quota-btn').addEventListener('click', async () => {
+      try {
+        const { llmClient } = await import('./js/generation/llm-client.js');
+        const status = llmClient.resetQuotas();
+        console.log('LLM quotas reset:', status);
+        showToast('success', 'Quotas Reset', `LLM quotas restored. Current provider: ${status.current}`);
+      } catch (error) {
+        console.error('Failed to reset quotas:', error);
+        showToast('error', 'Reset Failed', error.message);
+      }
     });
 
     // Preview button - open lesson in player
