@@ -83,7 +83,7 @@ class YouTubeFetcher {
   }
 
   /**
-   * Fetch video captions - tries client-side first, then worker fallback
+   * Fetch video captions - tries client-side first, then worker fallback with retries
    * @param {string} urlOrId - YouTube URL or video ID
    * @returns {Promise<Object>} Captions data
    */
@@ -116,28 +116,48 @@ class YouTubeFetcher {
       log.warn('Client-side caption fetch failed:', e.message);
     }
 
-    // Method 2: Fall back to worker
+    // Method 2: Fall back to worker with retries (worker results can be intermittent)
     log.log('Falling back to worker for captions');
-    const response = await fetch(
-      `${this.workerUrl}/api/youtube/captions?v=${videoId}`
-    );
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || `Failed to fetch captions: ${response.status}`);
+    const maxRetries = 3;
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(
+          `${this.workerUrl}/api/youtube/captions?v=${videoId}`
+        );
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          lastError = error.error || `Failed to fetch captions: ${response.status}`;
+          continue;
+        }
+
+        const data = await response.json();
+
+        if (data.available && data.segments && data.segments.length > 0) {
+          log.log(`Got captions from worker on attempt ${attempt}`);
+          // Cache result
+          this.cache.set(cacheKey, data);
+          this.updateStateWithCaptions(data);
+          return data;
+        }
+
+        lastError = data.error || 'No captions available';
+        log.warn(`Worker attempt ${attempt} returned no captions: ${lastError}`);
+
+        // Small delay before retry
+        if (attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, 500));
+        }
+      } catch (e) {
+        lastError = e.message;
+        log.warn(`Worker attempt ${attempt} failed: ${e.message}`);
+      }
     }
 
-    const data = await response.json();
-
-    if (!data.available) {
-      throw new Error(data.error || 'No captions available for this video');
-    }
-
-    // Cache result
-    this.cache.set(cacheKey, data);
-    this.updateStateWithCaptions(data);
-
-    return data;
+    throw new Error(lastError || 'No captions available for this video');
   }
 
   /**
@@ -240,7 +260,8 @@ class YouTubeFetcher {
         return {
           start: event.tStartMs / 1000,
           duration: (event.dDurationMs || 2000) / 1000,
-          text
+          text,
+          confidence: 0.75 // YouTube auto-captions are reasonably accurate
         };
       })
       .filter(seg => seg.text.length > 0);

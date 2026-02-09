@@ -33,14 +33,15 @@
 </head>
 <body>
   <!-- Skip Navigation Link -->
-  <a href="#main-content" class="skip-link" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:9999;padding:1rem;background:#1a73e8;color:#fff;text-decoration:none;">Skip to main content</a>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
 
   <!-- Header -->
   <header class="header" role="banner">
     <div class="header-inner">
       <a href="index.html" class="logo">
-        <span class="logo-arabic" lang="ar">تناغم</span>
-        <span>Tanaghum</span>
+        <h1 class="sr-only">Tanaghum - Generate Arabic Lesson</h1>
+        <span class="logo-arabic" lang="ar" aria-hidden="true">تناغم</span>
+        <span aria-hidden="true">Tanaghum</span>
       </a>
       <nav class="nav" aria-label="Main navigation">
         <a href="index.html" class="nav-link">Home</a>
@@ -52,71 +53,41 @@
   </header>
 
   <!-- Three-Panel Layout -->
-  <main class="generator-layout" id="main-content">
+  <main class="generator-layout" id="main-content" tabindex="-1">
     <!-- Left Panel: Configuration -->
     <aside class="panel panel-left" id="config-panel" aria-label="Lesson configuration">
       <!-- Content Source -->
       <div class="panel-section">
-        <h3 class="section-title" id="source-heading">Content Source</h3>
+        <h2 class="section-title" id="source-heading">Content Source</h2>
 
-        <div class="source-tabs" role="tablist" aria-labelledby="source-heading">
-          <button class="source-tab active" data-source="search" role="tab" aria-selected="true" aria-controls="source-search" id="tab-search" type="button">
-            <span class="tab-icon" aria-hidden="true">&#128269;</span>
-            <span class="tab-label">Find Videos</span>
-            <span class="tab-desc">Search Arabic content by topic</span>
-          </button>
-
-          <button class="source-tab" data-source="youtube" role="tab" aria-selected="false" aria-controls="source-youtube" id="tab-youtube" type="button">
-            <span class="tab-icon" aria-hidden="true">&#128250;</span>
-            <span class="tab-label">YouTube URL</span>
-            <span class="tab-desc">Have a specific video? Paste URL</span>
-          </button>
-
-          <button class="source-tab" data-source="upload" role="tab" aria-selected="false" aria-controls="source-upload" id="tab-upload" type="button">
-            <span class="tab-icon" aria-hidden="true">&#128193;</span>
-            <span class="tab-label">Upload Audio</span>
-            <span class="tab-desc">Upload your own audio file</span>
-          </button>
+        <!-- Source Dropdown -->
+        <div class="form-group">
+          <label for="source-select" class="form-label sr-only">Content source</label>
+          <select id="source-select" class="form-select source-select">
+            <option value="search">🔍 Find Videos</option>
+            <option value="youtube">📺 YouTube URL</option>
+            <option value="upload">📁 Upload Audio</option>
+          </select>
         </div>
 
         <!-- Find Videos (Search) - DEFAULT -->
         <div class="source-content" id="source-search" role="tabpanel" aria-labelledby="tab-search">
-          <p class="section-hint">Choose a topic to find Arabic videos:</p>
-
-          <!-- Topic Buttons (Primary Search Method) -->
-          <div class="topic-grid">
-            <button class="topic-btn" data-topic="news" type="button">
-              <span class="topic-icon">📰</span>
-              <span class="topic-label">News</span>
-            </button>
-            <button class="topic-btn" data-topic="politics" type="button">
-              <span class="topic-icon">🏛️</span>
-              <span class="topic-label">Politics</span>
-            </button>
-            <button class="topic-btn" data-topic="economy" type="button">
-              <span class="topic-icon">💰</span>
-              <span class="topic-label">Economy</span>
-            </button>
-            <button class="topic-btn" data-topic="culture" type="button">
-              <span class="topic-icon">🎭</span>
-              <span class="topic-label">Culture</span>
-            </button>
-            <button class="topic-btn" data-topic="sports" type="button">
-              <span class="topic-icon">⚽</span>
-              <span class="topic-label">Sports</span>
-            </button>
-            <button class="topic-btn" data-topic="science" type="button">
-              <span class="topic-icon">🔬</span>
-              <span class="topic-label">Science</span>
-            </button>
-            <button class="topic-btn" data-topic="religion" type="button">
-              <span class="topic-icon">🕌</span>
-              <span class="topic-label">Religion</span>
-            </button>
-            <button class="topic-btn" data-topic="history" type="button">
-              <span class="topic-icon">📜</span>
-              <span class="topic-label">History</span>
-            </button>
+          <!-- Topic Dropdown -->
+          <div class="form-group">
+            <label for="topic-select" class="form-label">Topic</label>
+            <select id="topic-select" class="form-select">
+              <option value="">Select a topic...</option>
+              <option value="news">📰 News</option>
+              <option value="politics">🏛️ Politics</option>
+              <option value="economy">💰 Economy</option>
+              <option value="culture">🎭 Culture</option>
+              <option value="sports">⚽ Sports</option>
+              <option value="science">🔬 Science</option>
+              <option value="religion">🕌 Religion</option>
+              <option value="history">📜 History</option>
+              <option value="health">💊 Health</option>
+              <option value="education">📚 Education</option>
+            </select>
           </div>
 
           <!-- Duration Filter -->
@@ -135,9 +106,11 @@
           <details class="custom-search-details">
             <summary class="custom-search-toggle">Custom search...</summary>
             <div class="custom-search-input">
+              <label for="search-query" class="sr-only">Search query</label>
               <input type="search" id="search-query" class="form-input"
                      placeholder="Type your own search..."
-                     autocomplete="off">
+                     autocomplete="off"
+                     aria-label="Custom search query">
               <button class="btn btn-primary btn-sm" id="search-btn" type="button">Search</button>
             </div>
           </details>
@@ -161,8 +134,8 @@
           </div>
 
           <!-- Search Loading State (with Stop button) -->
-          <div id="search-loading" class="search-loading hidden">
-            <div class="processing-spinner"></div>
+          <div id="search-loading" class="search-loading hidden" role="status" aria-live="polite" aria-busy="true">
+            <div class="processing-spinner" aria-hidden="true"></div>
             <span id="search-loading-text">Searching...</span>
             <button class="btn btn-ghost btn-sm" id="stop-search-btn" type="button">Stop</button>
           </div>
@@ -202,7 +175,7 @@
 
       <!-- Parameters -->
       <div class="panel-section">
-        <h3 class="section-title" id="params-heading">Parameters</h3>
+        <h2 class="section-title" id="params-heading">Parameters</h3>
 
         <!-- ILR Level -->
         <div class="field-group">
@@ -215,7 +188,7 @@
           <div class="ilr-display" aria-live="polite">
             <div class="ilr-badge-large" id="ilr-value">2.0</div>
             <div class="ilr-info">
-              <h4 id="ilr-name">Limited Working Proficiency</h4>
+              <h3 id="ilr-name">Limited Working Proficiency</h3>
               <p id="ilr-desc">Factual news, personal narratives, simple arguments</p>
             </div>
           </div>
@@ -255,9 +228,9 @@
           <h2 class="content-card-title">Create a New Lesson</h2>
         </div>
 
-        <div style="text-align: center; padding: 60px 20px;">
-          <div style="font-size: 64px; opacity: 0.3; margin-bottom: 24px;">&#127911;</div>
-          <h3 style="margin-bottom: 12px;">Ready to Generate</h3>
+        <div id="video-input-state" style="text-align: center; padding: 60px 20px;">
+          <div style="font-size: 64px; opacity: 0.3; margin-bottom: 24px;" aria-hidden="true">&#127911;</div>
+          <p style="margin-bottom: 12px; font-size: 1.25rem; font-weight: 600;">Ready to Generate</p>
           <p style="color: var(--color-text-secondary); max-width: 400px; margin: 0 auto;">
             Select a content source from the left panel, set your target ILR level and topic,
             then click "Generate Lesson" to begin.
@@ -464,44 +437,44 @@
     <!-- Right Panel: Status & Help -->
     <aside class="panel panel-right" id="status-panel" aria-label="Status and help">
       <div class="panel-section">
-        <h3 class="section-title" id="quota-heading">LLM Quota</h3>
+        <h2 class="section-title" id="quota-heading">LLM Quota</h3>
 
-        <div class="status-card">
+        <div class="status-card" data-provider="google">
           <div class="status-header">
             <div class="status-indicator"></div>
             <span class="status-title">Google AI Studio</span>
           </div>
           <div class="quota-bar">
-            <div class="quota-fill" style="width: 100%"></div>
+            <div class="quota-fill" id="quota-fill-google" style="width: 100%"></div>
           </div>
-          <div class="quota-text">250 / 250 requests remaining today</div>
+          <div class="quota-text" id="quota-text-google">250 / 250 requests remaining today</div>
         </div>
 
-        <div class="status-card">
+        <div class="status-card" data-provider="groq">
           <div class="status-header">
             <div class="status-indicator"></div>
             <span class="status-title">Groq</span>
           </div>
           <div class="quota-bar">
-            <div class="quota-fill" style="width: 100%"></div>
+            <div class="quota-fill" id="quota-fill-groq" style="width: 100%"></div>
           </div>
-          <div class="quota-text">1,000 / 1,000 requests remaining</div>
+          <div class="quota-text" id="quota-text-groq">1,000 / 1,000 requests remaining</div>
         </div>
 
-        <div class="status-card">
+        <div class="status-card" data-provider="openrouter">
           <div class="status-header">
             <div class="status-indicator"></div>
             <span class="status-title">OpenRouter</span>
           </div>
           <div class="quota-bar">
-            <div class="quota-fill" style="width: 100%"></div>
+            <div class="quota-fill" id="quota-fill-openrouter" style="width: 100%"></div>
           </div>
-          <div class="quota-text">50 / 50 requests remaining</div>
+          <div class="quota-text" id="quota-text-openrouter">50 / 50 requests remaining</div>
         </div>
       </div>
 
       <div class="panel-section">
-        <h3 class="section-title">Tips</h3>
+        <h2 class="section-title">Tips</h3>
 
         <div class="tips-card">
           <div class="tips-title">Getting the Best Results</div>
@@ -515,7 +488,7 @@
       </div>
 
       <div class="panel-section">
-        <h3 class="section-title">About ILR Levels</h3>
+        <h2 class="section-title">About ILR Levels</h3>
 
         <div class="status-card">
           <p style="font-size: var(--text-sm); color: var(--color-text-secondary); margin-bottom: 12px;">
@@ -582,36 +555,31 @@
     };
 
     // DOM elements
-    const sourceTabs = document.querySelectorAll('.source-tab');
+    const sourceSelect = $('#source-select');
     const sourceContents = document.querySelectorAll('.source-content');
-    const topicBtns = document.querySelectorAll('.topic-btn');
+    const topicSelect = $('#topic-select');
     const ilrSlider = $('#ilr-slider');
     const youtubeInput = $('#youtube-url');
     const dropZone = $('#drop-zone');
     const fileInput = $('#file-input');
 
-    // Source tab switching
-    sourceTabs.forEach(tab => {
-      tab.addEventListener('click', () => {
-        sourceTabs.forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-
-        const source = tab.dataset.source;
-        sourceContents.forEach(content => {
-          content.classList.toggle('hidden', !content.id.includes(source));
-        });
-
-        StateManager.set('source.type', source);
+    // Source dropdown switching
+    sourceSelect.addEventListener('change', () => {
+      const source = sourceSelect.value;
+      sourceContents.forEach(content => {
+        content.classList.toggle('hidden', !content.id.includes(source));
       });
+      StateManager.set('source.type', source);
     });
 
-    // Topic selection
-    topicBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        topicBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        StateManager.set('params.topic', btn.dataset.topic);
-      });
+    // Topic dropdown selection
+    topicSelect.addEventListener('change', () => {
+      const topic = topicSelect.value;
+      if (topic) {
+        StateManager.set('params.topic', topic);
+        // Auto-search when topic is selected
+        performTopicSearch(topic);
+      }
     });
 
     // ILR slider
@@ -1726,7 +1694,7 @@
       document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('active'));
     });
 
-    // Topic grid buttons (primary search method)
+    // Topic search queries
     const topicQueries = {
       news: 'أخبار عربية arabic news',
       politics: 'سياسة عربية مقابلة arabic politics interview',
@@ -1735,27 +1703,17 @@
       sports: 'رياضة عربية كرة القدم arabic sports',
       science: 'علوم عربية وثائقي arabic science documentary',
       religion: 'إسلام دين عربي arabic islam religion',
-      history: 'تاريخ عربي وثائقي arabic history documentary'
+      history: 'تاريخ عربي وثائقي arabic history documentary',
+      health: 'صحة عربي طبي arabic health medical',
+      education: 'تعليم عربي arabic education learning'
     };
 
-    document.querySelectorAll('.topic-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const topic = btn.dataset.topic;
-
-        // Update active state
-        document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        btn.classList.add('loading');
-
-        // Get query for topic
-        const query = topicQueries[topic] || topic;
-
-        // Execute search
-        performSearch(query).finally(() => {
-          btn.classList.remove('loading');
-        });
-      });
-    });
+    // Perform search based on topic dropdown selection
+    function performTopicSearch(topic) {
+      if (!topic) return;
+      const query = topicQueries[topic] || topic;
+      performSearch(query);
+    }
 
     // Stop search button
     $('#stop-search-btn')?.addEventListener('click', () => {
@@ -1764,7 +1722,6 @@
         currentSearchController = null;
       }
       searchLoading.classList.add('hidden');
-      document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('loading'));
       showToast('info', 'Search stopped', 'Search was cancelled');
     });
 
@@ -1779,12 +1736,10 @@
         durationFilter.min = parseInt(btn.dataset.min) || 0;
         durationFilter.max = parseInt(btn.dataset.max) || 0;
 
-        // Re-run search if there's an active topic
-        const activeTopic = document.querySelector('.topic-btn.active');
-        if (activeTopic) {
-          const topic = activeTopic.dataset.topic;
-          const query = topicQueries[topic] || topic;
-          performSearch(query);
+        // Re-run search if there's a selected topic
+        const selectedTopic = topicSelect?.value;
+        if (selectedTopic) {
+          performTopicSearch(selectedTopic);
         }
       });
     });
@@ -1844,6 +1799,37 @@
       console.log(`Transcription: ${data.progress}%`);
     });
 
+    // Listen for LLM quota updates
+    EventBus.on(Events.LLM_QUOTA_UPDATE, (quotas) => {
+      console.log('LLM quotas updated:', quotas);
+
+      const limits = { google: 250, groq: 1000, openrouter: 50 };
+
+      for (const [provider, remaining] of Object.entries(quotas)) {
+        const limit = limits[provider] || 100;
+        const fillEl = $(`#quota-fill-${provider}`);
+        const textEl = $(`#quota-text-${provider}`);
+
+        if (fillEl) {
+          const percent = Math.round((remaining / limit) * 100);
+          fillEl.style.width = `${percent}%`;
+
+          // Color based on remaining
+          if (percent <= 10) {
+            fillEl.style.backgroundColor = 'var(--color-error)';
+          } else if (percent <= 30) {
+            fillEl.style.backgroundColor = 'var(--color-warning)';
+          } else {
+            fillEl.style.backgroundColor = '';
+          }
+        }
+
+        if (textEl) {
+          textEl.textContent = `${remaining.toLocaleString()} / ${limit.toLocaleString()} requests remaining`;
+        }
+      }
+    });
+
     // Preview Generate button (in center column)
     $('#preview-generate-btn')?.addEventListener('click', () => {
       startGeneration();
@@ -1860,8 +1846,56 @@
       searchResultsGrid?.querySelectorAll('.video-search-card').forEach(c => c.classList.remove('selected'));
     });
 
-    // Initialize - default to search/discovery mode
-    StateManager.set('source.type', 'search');
+    // Initialize - restore session if available, else default to search/discovery mode
+    (function initializeSession() {
+      const restored = StateManager.restoreSession();
+      if (restored) {
+        console.log('Session restored from previous work');
+        const state = StateManager.get();
+
+        // Restore UI state from session
+        if (state.source?.type) {
+          // Set correct source dropdown value
+          if (sourceSelect) sourceSelect.value = state.source.type;
+          sourceContents.forEach(content => {
+            content.classList.toggle('hidden', !content.id.includes(state.source.type));
+          });
+        }
+
+        // Restore topic if set
+        if (state.params?.topic && topicSelect) {
+          topicSelect.value = state.params.topic;
+        }
+
+        // If we have a lesson, show it in the review state
+        if (state.lesson) {
+          console.log('Restored lesson:', state.lesson.metadata?.title);
+          // Show the review state with the restored lesson
+          $('#input-state').classList.add('hidden');
+          $('#processing-state').classList.add('hidden');
+          $('#review-state').classList.remove('hidden');
+
+          // Update step indicator
+          document.querySelectorAll('.step').forEach(step => {
+            step.classList.remove('active');
+            step.classList.add('completed');
+          });
+          document.querySelector('[data-step="3"]').classList.add('active');
+          document.querySelector('[data-step="3"]').classList.remove('completed');
+
+          // Enable buttons
+          $('#back-btn').disabled = false;
+          $('#preview-btn').disabled = false;
+          $('#export-btn').disabled = false;
+
+          // Populate the lesson data
+          populateLessonData(state.lesson);
+          showToast('Session Restored', 'Your previous lesson has been restored.', 'info');
+        }
+      } else {
+        StateManager.set('source.type', 'search');
+      }
+    })();
 
     // Mobile initialization - show Config panel by default
     function initMobileView() {
@@ -1902,6 +1936,17 @@
         $('.main-content').classList.remove('mobile-hidden');
       }
     });
+
+    // Initialize quota display from stored state
+    (async () => {
+      try {
+        const { llmClient } = await import('./js/generation/llm-client.js');
+        const status = llmClient.getQuotaStatus();
+        EventBus.emit(Events.LLM_QUOTA_UPDATE, status.quotas);
+      } catch (e) {
+        console.warn('Could not initialize quota display:', e);
+      }
+    })();
 
     console.log('Tanaghum Generator initialized');
   </script>

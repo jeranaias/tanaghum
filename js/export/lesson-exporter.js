@@ -130,13 +130,38 @@ class LessonExporter {
       new Date(lesson.createdAt).toLocaleDateString() :
       new Date().toLocaleDateString();
 
+    // Handle title - can be object {ar, en} or string
+    let titleText = 'Untitled Lesson';
+    if (metadata.title) {
+      if (typeof metadata.title === 'object') {
+        // Prefer English title, fall back to Arabic, then any value
+        titleText = metadata.title.en || metadata.title.ar || Object.values(metadata.title)[0] || 'Untitled Lesson';
+      } else {
+        titleText = metadata.title;
+      }
+    }
+
+    // Handle ILR level - can be object {detected, target, confidence} or string
+    let ilrText = 'N/A';
+    if (metadata.ilr) {
+      if (typeof metadata.ilr === 'object') {
+        // Use target level if available, or detected level
+        const level = metadata.ilr.target || metadata.ilr.detected || metadata.ilr.level;
+        if (level !== null && level !== undefined) {
+          ilrText = `ILR ${level}`;
+        }
+      } else {
+        ilrText = String(metadata.ilr);
+      }
+    }
+
     const replacements = {
       '{{LESSON_ID}}': lesson.id || 'unknown',
-      '{{LESSON_TITLE}}': metadata.title || 'Untitled Lesson',
+      '{{LESSON_TITLE}}': this.escapeHtml(titleText),
       '{{CREATED_DATE}}': createdDate,
       '{{DURATION}}': metadata.durationFormatted || formatTime(metadata.duration || 0),
-      '{{ILR_LEVEL}}': metadata.ilr?.name || metadata.ilr?.level || 'N/A',
-      '{{TOPIC}}': metadata.topic?.nameEn || 'General',
+      '{{ILR_LEVEL}}': ilrText,
+      '{{TOPIC}}': metadata.topic?.nameEn || metadata.topic?.code || 'General',
       '{{WORD_COUNT}}': (metadata.wordCount || 0).toLocaleString(),
       '{{DIALECT}}': metadata.dialect || 'MSA'
     };
@@ -191,7 +216,24 @@ class LessonExporter {
    * @returns {Promise<string>} Modified HTML
    */
   async replaceMediaElement(html, lesson, options) {
-    const audio = lesson.audio || {};
+    let audio = lesson.audio || {};
+
+    // Try to get audio URL from StateManager if not in lesson
+    // This handles cases where the blob URL is still available in state
+    if (!audio.url && audio.type !== 'youtube') {
+      try {
+        // Dynamic import to avoid circular dependency
+        const { StateManager } = await import('../core/state-manager.js');
+        const stateAudio = StateManager.get('audio') || {};
+        if (stateAudio.url) {
+          audio = { ...audio, url: stateAudio.url };
+          log.log('Got audio URL from StateManager');
+        }
+      } catch (e) {
+        // StateManager not available, continue without it
+      }
+    }
+
     let mediaElement = '';
 
     if (audio.type === 'youtube') {
@@ -411,7 +453,16 @@ class LessonExporter {
    * @returns {string} Filename
    */
   generateFilename(lesson) {
-    const title = lesson.metadata?.title || 'lesson';
+    let title = 'lesson';
+    const metaTitle = lesson.metadata?.title;
+    if (metaTitle) {
+      if (typeof metaTitle === 'object') {
+        // Prefer English for filename, fall back to Arabic
+        title = metaTitle.en || metaTitle.ar || Object.values(metaTitle)[0] || 'lesson';
+      } else {
+        title = metaTitle;
+      }
+    }
     const sanitized = title
       .toLowerCase()
       .replace(/[^a-z0-9\s-]/g, '')

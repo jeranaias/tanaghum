@@ -131,13 +131,31 @@ class BrowserAudioCapture {
       }
 
       this.mediaRecorder.onstop = () => {
-        const mimeType = this.mediaRecorder.mimeType || 'audio/webm';
-        const audioBlob = new Blob(this.audioChunks, { type: mimeType });
+        try {
+          log.log('MediaRecorder onstop fired');
+          const mimeType = this.mediaRecorder?.mimeType || 'audio/webm';
+          const audioBlob = new Blob(this.audioChunks, { type: mimeType });
 
-        log.log(`Captured ${audioBlob.size} bytes of audio`);
+          log.log(`Captured ${audioBlob.size} bytes of audio, type: ${mimeType}`);
 
-        this.cleanup();
-        resolve(audioBlob);
+          // Resolve FIRST, then cleanup later (cleanup can interfere with browser context)
+          log.log('Resolving promise with blob...');
+          resolve(audioBlob);
+          log.log('Promise resolved, scheduling cleanup...');
+
+          // Delay cleanup to let the promise chain continue
+          setTimeout(() => {
+            try {
+              this.cleanup();
+              log.log('Delayed cleanup done');
+            } catch (cleanupErr) {
+              log.warn('Cleanup error (non-fatal):', cleanupErr.message);
+            }
+          }, 100);
+        } catch (err) {
+          log.error('Error in onstop handler:', err.message);
+          reject(err);
+        }
       };
 
       this.mediaRecorder.onerror = (event) => {
@@ -188,14 +206,36 @@ class BrowserAudioCapture {
   }
 
   /**
-   * Convert audio blob to AudioBuffer for Whisper
+   * Convert audio blob to a format Whisper can process
+   * For webm/opus (from MediaRecorder), we return a blob URL since decodeAudioData hangs
    * @param {Blob} blob - Audio blob
-   * @returns {Promise<AudioBuffer>}
+   * @returns {Promise<AudioBuffer|string>} AudioBuffer or blob URL
    */
   async blobToAudioBuffer(blob) {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const arrayBuffer = await blob.arrayBuffer();
-    return await audioContext.decodeAudioData(arrayBuffer);
+    log.log('Converting blob to audio, size:', blob.size, 'type:', blob.type);
+
+    // IMPORTANT: Skip decodeAudioData for webm/opus - it completely hangs the JS event loop
+    // Transformers.js/Whisper can handle blob URLs directly
+    if (blob.type.includes('webm') || blob.type.includes('opus')) {
+      log.log('WebM/Opus detected - returning blob URL directly (skipping decodeAudioData)');
+      const blobUrl = URL.createObjectURL(blob);
+      return blobUrl;
+    }
+
+    // For other formats (mp3, wav), try decodeAudioData
+    try {
+      log.log('Non-webm format, trying decodeAudioData...');
+      const arrayBuffer = await blob.arrayBuffer();
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      log.log('Decoded successfully:', audioBuffer.duration, 'seconds');
+      return audioBuffer;
+    } catch (decodeError) {
+      log.warn('decodeAudioData failed:', decodeError.message);
+      log.log('Returning blob URL as fallback');
+      const blobUrl = URL.createObjectURL(blob);
+      return blobUrl;
+    }
   }
 }
 
@@ -206,7 +246,7 @@ class BrowserAudioCapture {
  * @returns {Promise<AudioBuffer>} Captured audio
  */
 async function captureYouTubeAudio(videoId, options = {}) {
-  const { onProgress, onPlayerReady, playbackSpeed = 1.5 } = options;
+  const { onProgress, onPlayerReady, playbackSpeed = 1.0 } = options;
 
   const capture = new BrowserAudioCapture();
 
@@ -349,20 +389,30 @@ async function captureYouTubeAudio(videoId, options = {}) {
 
               } else if (event.data === YT.PlayerState.ENDED) {
                 // Video finished - stop capture
+                log.log('Video ended, stopping capture...');
                 statusEl.textContent = 'Processing captured audio...';
 
                 try {
                   const audioBlob = await capture.stopCapture();
+                  log.log('stopCapture returned, blob size:', audioBlob?.size);
 
                   if (!audioBlob || audioBlob.size === 0) {
                     throw new Error('No audio captured. Make sure tab audio sharing was enabled.');
                   }
 
+                  log.log('About to call blobToAudioBuffer');
                   statusEl.textContent = 'Converting audio...';
-                  const audioBuffer = await capture.blobToAudioBuffer(audioBlob);
+                  const audioResult = await capture.blobToAudioBuffer(audioBlob);
+                  log.log('blobToAudioBuffer returned successfully');
 
                   cleanup();
-                  resolve(audioBuffer);
+
+                  // Return object with audio and REAL video duration (not sped-up)
+                  resolve({
+                    audio: audioResult,
+                    realDuration: duration, // Original video duration from YouTube
+                    playbackSpeed: playbackSpeed
+                  });
 
                 } catch (e) {
                   cleanup();

@@ -544,6 +544,230 @@
       color: #991b1b;
     }
 
+    /* Questions Tab Styles */
+    .all-questions-container {
+      padding: 16px;
+    }
+
+    .questions-phase {
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    .questions-phase:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+    }
+
+    .phase-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+    }
+
+    .phase-icon {
+      font-size: 24px;
+    }
+
+    .phase-subtitle {
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--text-tertiary);
+      margin-left: auto;
+    }
+
+    .questions-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .question-item {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      transition: var(--transition);
+    }
+
+    .question-item:hover {
+      border-color: var(--primary-color);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .question-item.answered {
+      background: #f0fdf4;
+      border-color: var(--success-color);
+    }
+
+    .question-item.incorrect {
+      background: #fef2f2;
+      border-color: var(--error-color);
+    }
+
+    .question-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .question-number {
+      background: var(--primary-color);
+      color: white;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .question-text-ar {
+      font-size: 18px;
+      line-height: 1.8;
+      direction: rtl;
+      text-align: right;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .question-text-en {
+      font-size: 14px;
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+
+    .question-type-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      margin-top: 8px;
+    }
+
+    .question-options {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .question-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .question-option:hover {
+      border-color: var(--primary-color);
+      background: #eff6ff;
+    }
+
+    .question-option.selected {
+      border-color: var(--primary-color);
+      background: #dbeafe;
+    }
+
+    .question-option.correct {
+      border-color: var(--success-color);
+      background: #d1fae5;
+    }
+
+    .question-option.wrong {
+      border-color: var(--error-color);
+      background: #fee2e2;
+    }
+
+    .option-letter {
+      background: var(--bg-tertiary);
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .option-text {
+      flex: 1;
+    }
+
+    .option-text-ar {
+      direction: rtl;
+      text-align: right;
+    }
+
+    .question-explanation {
+      margin-top: 12px;
+      padding: 12px;
+      background: #fefce8;
+      border: 1px solid #fef08a;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .explanation-label {
+      font-weight: 600;
+      color: #854d0e;
+      margin-bottom: 4px;
+    }
+
+    /* Progress Bar Visual */
+    .progress-bar-visual {
+      height: 8px;
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+      margin: 12px 0;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--success-color);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    /* Print Button */
+    .print-btn {
+      width: 100%;
+      padding: 12px;
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .print-btn:hover {
+      background: var(--bg-secondary);
+      border-color: var(--primary-color);
+    }
+
     /* ========================================================================
        SIDEBAR
        ======================================================================== */
@@ -655,34 +879,223 @@
     }
 
     /* ========================================================================
-       PRINT STYLES
+       PRINT STYLES - Worksheet Format
        ======================================================================== */
 
     @media print {
-      body {
-        background: white;
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
       }
 
-      .header,
+      body {
+        background: white;
+        font-size: 12pt;
+        line-height: 1.5;
+      }
+
+      .header {
+        background: white !important;
+        border-bottom: 2px solid #000;
+        padding: 15px 0;
+        margin-bottom: 20px;
+      }
+
+      .lesson-title {
+        font-size: 24pt;
+        color: #000;
+      }
+
+      .meta-badge {
+        background: #f0f0f0 !important;
+        color: #000 !important;
+        border: 1px solid #000;
+      }
+
+      /* Hide interactive elements */
       .player-card,
       .progress-card,
-      .tabs {
-        display: none;
+      .reset-btn,
+      .print-btn,
+      .tabs,
+      .control-btn,
+      .speed-control,
+      #question-container,
+      .submit-btn,
+      .option-btn,
+      .keyboard-shortcuts,
+      footer {
+        display: none !important;
       }
 
       .main-layout {
-        grid-template-columns: 1fr;
+        display: block !important;
       }
 
       .card {
-        box-shadow: none;
-        border: 1px solid #ddd;
+        box-shadow: none !important;
+        border: 1px solid #ccc;
+        margin-bottom: 20px;
         page-break-inside: avoid;
       }
 
-      .transcript-container,
+      /* Show all tab content for print */
+      .tab-content {
+        display: block !important;
+        border-top: 1px solid #ccc;
+        padding-top: 15px;
+        margin-top: 15px;
+      }
+
+      .tab-content:first-child {
+        border-top: none;
+        padding-top: 0;
+        margin-top: 0;
+      }
+
+      /* Print section headers */
+      .tab-content::before {
+        display: block;
+        font-size: 14pt;
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: #000;
+      }
+
+      #transcript-tab::before {
+        content: "Arabic Transcript";
+      }
+
+      #vocabulary-tab::before {
+        content: "Key Vocabulary";
+      }
+
+      #questions-tab::before {
+        content: "Comprehension Questions";
+      }
+
+      #translation-tab::before {
+        content: "English Translation";
+      }
+
+      /* Transcript styling for print */
+      .transcript-container {
+        max-height: none !important;
+        overflow: visible !important;
+      }
+
+      .transcript-segment {
+        border-bottom: 1px dotted #ccc;
+        padding: 8px 0;
+        page-break-inside: avoid;
+      }
+
+      .segment-text {
+        font-size: 14pt;
+      }
+
+      /* Vocabulary styling for print */
       .vocab-container {
-        max-height: none;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .vocab-item {
+        border: 1px solid #ddd;
+        padding: 10px;
+        page-break-inside: avoid;
+      }
+
+      .vocab-arabic {
+        font-size: 16pt;
+      }
+
+      /* Questions styling for print - worksheet format */
+      .all-questions-container {
+        padding: 0;
+      }
+
+      .questions-phase {
+        page-break-before: auto;
+        margin-bottom: 25px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #000;
+      }
+
+      .phase-title {
+        font-size: 14pt;
+        border-bottom: 1px solid #000;
+        padding-bottom: 8px;
+        margin-bottom: 15px;
+      }
+
+      .phase-subtitle {
+        display: none;
+      }
+
+      .question-item {
+        border: 1px solid #ccc;
+        margin-bottom: 15px;
+        padding: 12px;
+        page-break-inside: avoid;
+      }
+
+      .question-number {
+        background: #000 !important;
+        color: white !important;
+      }
+
+      .question-text-ar {
+        font-size: 14pt;
+      }
+
+      /* Print answer lines for worksheet */
+      .question-options {
+        margin-top: 10px;
+      }
+
+      .question-option {
+        border: 1px solid #999;
+        margin-bottom: 6px;
+        padding: 8px;
+      }
+
+      .option-letter {
+        background: #eee !important;
+      }
+
+      /* Add write-in space for open questions */
+      .question-item[data-type="open_ended"]::after {
+        content: "";
+        display: block;
+        border-bottom: 1px solid #999;
+        margin-top: 15px;
+        padding-top: 30px;
+      }
+
+      /* Lesson info for print */
+      .lesson-info-card {
+        position: absolute;
+        top: 0;
+        right: 0;
+        font-size: 10pt;
+      }
+
+      /* Page breaks */
+      .questions-phase {
+        page-break-before: auto;
+      }
+
+      h2, h3 {
+        page-break-after: avoid;
+      }
+    }
+
+    /* Print worksheet button styling */
+    @media screen {
+      .print-only {
+        display: none;
       }
     }
   </style>
@@ -749,7 +1162,7 @@
       </div>
     </div>
 
-    <!-- QUESTIONS (appears when triggered) -->
+    <!-- INTERACTIVE QUESTION POPUP (for while-listening) -->
     <div id="question-container" class="question-container"></div>
 
     <!-- MAIN LAYOUT -->
@@ -761,6 +1174,7 @@
           <div class="tabs">
             <button class="tab-btn active" data-tab="transcript">Transcript</button>
             <button class="tab-btn" data-tab="vocabulary">Vocabulary</button>
+            <button class="tab-btn" data-tab="questions">Questions</button>
             {{TRANSLATION_TAB}}
           </div>
 
@@ -772,6 +1186,40 @@
             <div id="vocab-container" class="vocab-container"></div>
           </div>
 
+          <div id="questions-tab" class="tab-content">
+            <div id="all-questions-container" class="all-questions-container">
+              <!-- Pre-Listening Questions -->
+              <div class="questions-phase" id="pre-questions-section">
+                <h3 class="phase-title">
+                  <span class="phase-icon">&#128172;</span>
+                  Pre-Listening Questions
+                  <span class="phase-subtitle">Answer before listening</span>
+                </h3>
+                <div id="pre-questions-list" class="questions-list"></div>
+              </div>
+
+              <!-- While-Listening Questions -->
+              <div class="questions-phase" id="while-questions-section">
+                <h3 class="phase-title">
+                  <span class="phase-icon">&#127911;</span>
+                  While-Listening Questions
+                  <span class="phase-subtitle">Answer during playback</span>
+                </h3>
+                <div id="while-questions-list" class="questions-list"></div>
+              </div>
+
+              <!-- Post-Listening Questions -->
+              <div class="questions-phase" id="post-questions-section">
+                <h3 class="phase-title">
+                  <span class="phase-icon">&#128218;</span>
+                  Post-Listening Questions
+                  <span class="phase-subtitle">Answer after listening</span>
+                </h3>
+                <div id="post-questions-list" class="questions-list"></div>
+              </div>
+            </div>
+          </div>
+
           {{TRANSLATION_CONTENT}}
         </div>
       </div>
@@ -779,9 +1227,12 @@
       <!-- RIGHT COLUMN: Progress & Info -->
       <div>
         <div class="card progress-card">
-          <h2 class="card-title">Progress</h2>
+          <h2 class="card-title">Your Progress</h2>
           <div id="progress-display" class="progress-stats">
-            <span>Progress: 0/0 (0%)</span>
+            <span>Questions: 0/0 (0%)</span>
+          </div>
+          <div class="progress-bar-visual">
+            <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%"></div>
           </div>
           <button id="reset-progress-btn" class="reset-btn">Reset Progress</button>
         </div>
@@ -804,6 +1255,13 @@
         </div>
 
         {{KEYBOARD_SHORTCUTS}}
+
+        <!-- Print Worksheet Button -->
+        <div class="card" style="margin-top: 20px;">
+          <button id="print-worksheet-btn" class="print-btn">
+            &#128424; Print Worksheet
+          </button>
+        </div>
       </div>
 
     </div>

@@ -245,13 +245,21 @@ class WhisperTranscriber {
     const chunks = result.chunks || [];
 
     // Convert chunks to segments with timestamps
-    const segments = chunks.map((chunk, index) => ({
-      id: index,
-      start: chunk.timestamp?.[0] || 0,
-      end: chunk.timestamp?.[1] || 0,
-      text: chunk.text?.trim() || '',
-      confidence: chunk.confidence || 0.8
-    })).filter(seg => seg.text.length > 0);
+    const segments = chunks.map((chunk, index) => {
+      // Whisper doesn't reliably provide confidence, default to reasonable value
+      let confidence = chunk.confidence;
+      if (typeof confidence !== 'number' || confidence <= 0 || confidence > 1) {
+        confidence = 0.8; // Default for Whisper transcription
+      }
+
+      return {
+        id: index,
+        start: chunk.timestamp?.[0] || 0,
+        end: chunk.timestamp?.[1] || 0,
+        text: chunk.text?.trim() || '',
+        confidence
+      };
+    }).filter(seg => seg.text.length > 0);
 
     // Calculate average confidence
     const avgConfidence = segments.length > 0
@@ -274,14 +282,36 @@ class WhisperTranscriber {
 
   /**
    * Transcribe with progress updates
-   * @param {Float32Array} audioData - Audio samples
-   * @param {number} sampleRate - Sample rate
+   * @param {Float32Array|string} audioData - Audio samples or URL
+   * @param {number} sampleRate - Sample rate (ignored for URLs)
    * @param {Function} onProgress - Progress callback
    * @returns {Promise<Object>} Transcription result
    */
   async transcribeWithProgress(audioData, sampleRate, onProgress) {
     if (!this.isReady) {
       await this.loadModel();
+    }
+
+    // If audioData is a URL string, use simpler transcribe method
+    // Transformers.js pipeline handles URL fetching and decoding internally
+    if (typeof audioData === 'string') {
+      log.log('Transcribing from URL:', audioData.substring(0, 50) + '...');
+      onProgress?.(10, 'Loading audio from URL...');
+
+      const result = await this.pipeline(audioData, {
+        language: WHISPER_CONFIG.language,
+        task: WHISPER_CONFIG.task,
+        chunk_length_s: WHISPER_CONFIG.chunkLengthS,
+        stride_length_s: WHISPER_CONFIG.strideS,
+        return_timestamps: true
+      });
+
+      onProgress?.(90, 'Processing results...');
+      const transcription = this.processResult(result);
+
+      onProgress?.(100, transcription.text.substring(0, 50));
+
+      return transcription;
     }
 
     const totalDuration = audioData.length / sampleRate;

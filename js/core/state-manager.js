@@ -140,6 +140,13 @@ const StateManager = (() => {
       if (typeof pathOrUpdates === 'string') {
         setPath(state, pathOrUpdates, value);
         this._notify(pathOrUpdates, value, getPath(prevState, pathOrUpdates));
+
+        // Persist lesson and transcript to localStorage
+        // Also persist on any lesson.* or transcript.* changes
+        if (pathOrUpdates === 'lesson' || pathOrUpdates === 'transcript' ||
+            pathOrUpdates.startsWith('lesson.') || pathOrUpdates.startsWith('transcript.')) {
+          this._persistSession();
+        }
       } else {
         // Merge object
         Object.entries(pathOrUpdates).forEach(([key, val]) => {
@@ -150,6 +157,65 @@ const StateManager = (() => {
           }
           this._notify(key, state[key], prevState[key]);
         });
+
+        // Persist if lesson or transcript changed
+        if ('lesson' in pathOrUpdates || 'transcript' in pathOrUpdates) {
+          this._persistSession();
+        }
+      }
+    },
+
+    /**
+     * Persist current session data to localStorage
+     * Uses localStorage instead of sessionStorage to survive browser close
+     * @private
+     */
+    _persistSession() {
+      try {
+        const sessionData = {
+          lesson: state.lesson,
+          transcript: state.transcript,
+          currentStep: state.currentStep,
+          source: state.source,
+          timestamp: Date.now()
+        };
+        localStorage.setItem('tanaghum_session', JSON.stringify(sessionData));
+      } catch (e) {
+        console.warn('Failed to persist session:', e);
+      }
+    },
+
+    /**
+     * Restore session from localStorage
+     */
+    restoreSession() {
+      try {
+        const saved = localStorage.getItem('tanaghum_session');
+        if (saved) {
+          const data = JSON.parse(saved);
+          // Only restore if less than 24 hours old
+          if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+            if (data.lesson) state.lesson = data.lesson;
+            if (data.transcript) state.transcript = data.transcript;
+            if (data.currentStep) state.currentStep = data.currentStep;
+            if (data.source) state.source = data.source;
+            return true;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to restore session:', e);
+      }
+      return false;
+    },
+
+    /**
+     * Clear persisted session
+     */
+    clearSession() {
+      try {
+        localStorage.removeItem('tanaghum_session');
+      } catch (e) {
+        // Ignore
       }
     },
 

@@ -346,6 +346,31 @@ class TranscriptionService {
       transcription.source = 'whisper';
       transcription.language = language;
 
+      // Use real duration from audio extraction if available (e.g., from browser capture)
+      // This is the actual video duration, not the sped-up capture duration
+      if (audioData.realDuration && audioData.realDuration > 0) {
+        log.log('Using realDuration from audio capture:', audioData.realDuration);
+        transcription.audioDuration = audioData.realDuration;
+        transcription.duration = audioData.realDuration;
+
+        // Scale segment timestamps if audio was captured at different speed
+        // Whisper segments are based on the captured audio duration, not the real video duration
+        const capturedDuration = audioData.duration || 0;
+        if (capturedDuration > 0 && Math.abs(audioData.realDuration - capturedDuration) > 1) {
+          const scale = audioData.realDuration / capturedDuration;
+          log.log(`Scaling segment timestamps by ${scale.toFixed(2)}x (captured: ${capturedDuration}s, real: ${audioData.realDuration}s)`);
+
+          transcription.segments = transcription.segments.map(seg => ({
+            ...seg,
+            start: seg.start * scale,
+            end: seg.end * scale
+          }));
+        }
+      } else if (audioData.duration && audioData.duration > 0) {
+        transcription.audioDuration = audioData.duration;
+        transcription.duration = audioData.duration;
+      }
+
       onProgress({ stage: 'save', percent: 96, message: 'Saving transcription...' });
 
       // Cache the result

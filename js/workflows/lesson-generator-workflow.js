@@ -345,19 +345,46 @@ class LessonGeneratorWorkflow {
 
       onProgress(1.0);
 
+      // Validate question counts
+      const totalQuestions = questions.pre.length + questions.while.length + questions.post.length;
+      if (totalQuestions === 0) {
+        log.warn('No questions were generated! LLM may have failed.');
+        EventBus.emit(Events.ERROR, {
+          step: 'questions',
+          error: 'No comprehension questions could be generated. The lesson will be incomplete.',
+          recoverable: true
+        });
+      } else if (totalQuestions < 5) {
+        log.warn(`Only ${totalQuestions} questions generated (expected ~18)`);
+      }
+
       // Update state
       StateManager.set('questions', questions);
 
       EventBus.emit(Events.QUESTIONS_COMPLETE, {
-        total: questions.pre.length + questions.while.length + questions.post.length,
-        questions
+        total: totalQuestions,
+        questions,
+        incomplete: totalQuestions < 10
       });
 
       return questions;
 
     } catch (error) {
       log.error('Question generation failed:', error);
-      throw new Error(`Failed to generate questions: ${error.message}`);
+      // Return empty questions instead of failing the entire workflow
+      log.warn('Continuing with empty questions due to error');
+
+      EventBus.emit(Events.ERROR, {
+        step: 'questions',
+        error: 'Question generation failed: ' + error.message,
+        recoverable: true
+      });
+
+      return {
+        pre: [],
+        while: [],
+        post: []
+      };
     }
   }
 
@@ -444,11 +471,26 @@ class LessonGeneratorWorkflow {
         }
       },
 
-      // Audio URL will be set when playing
-      audio: {
-        url: null,
-        duration: contentData.duration || 0
-      }
+      // Audio source - get from StateManager if available
+      audio: (() => {
+        const audioState = StateManager.get('audio') || {};
+
+        // For YouTube, include videoId for iframe embedding
+        if (source.type === 'youtube') {
+          return {
+            type: 'youtube',
+            videoId: contentData.videoId || source.videoId,
+            duration: contentData.duration || transcription.audioDuration || 0
+          };
+        }
+
+        // For uploaded/captured audio, include URL if available
+        return {
+          type: source.type || 'audio',
+          url: audioState.url || null,
+          duration: contentData.duration || transcription.audioDuration || 0
+        };
+      })()
     };
 
     const preLen = questions.pre?.length || 0;

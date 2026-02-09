@@ -135,6 +135,8 @@ class LLMClient {
    * Decrement quota for a provider
    */
   decrementQuota(providerId) {
+    const prevQuota = this.quotas[providerId];
+
     // Guard against invalid quota values
     if (typeof this.quotas[providerId] !== 'number' || isNaN(this.quotas[providerId])) {
       this.quotas[providerId] = 0;
@@ -143,6 +145,9 @@ class LLMClient {
     if (this.quotas[providerId] > 0) {
       this.quotas[providerId]--;
       this.saveQuotas();
+      log.log(`Quota decremented for ${providerId}: ${prevQuota} -> ${this.quotas[providerId]}`);
+    } else {
+      log.warn(`Cannot decrement quota for ${providerId}: already at ${this.quotas[providerId]}`);
     }
 
     // Switch provider if exhausted
@@ -254,6 +259,8 @@ class LLMClient {
       body.systemPrompt = systemPrompt;
     }
 
+    log.log(`Making LLM request to ${providerConfig.name} (${providerConfig.model})`);
+
     // Make request with retry
     const makeRequest = async () => {
       const response = await fetch(`${this.workerUrl}${providerConfig.endpoint}`, {
@@ -354,17 +361,40 @@ class LLMClient {
     // Parse JSON from response
     try {
       // Try to extract JSON from the response
-      let jsonText = result.text;
+      let jsonText = result.text || '';
+
+      log.log('Raw LLM response length:', jsonText.length);
 
       // Handle markdown code blocks
       const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (jsonMatch) {
         jsonText = jsonMatch[1];
+        log.log('Extracted from code block, length:', jsonText.length);
+      }
+
+      // Try to find JSON array or object if not cleanly formatted
+      const trimmed = jsonText.trim();
+      if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) {
+        // Look for array pattern
+        const arrayMatch = trimmed.match(/\[[\s\S]*\]/);
+        if (arrayMatch) {
+          jsonText = arrayMatch[0];
+          log.log('Extracted array pattern, length:', jsonText.length);
+        } else {
+          // Look for object pattern
+          const objMatch = trimmed.match(/\{[\s\S]*\}/);
+          if (objMatch) {
+            jsonText = objMatch[0];
+            log.log('Extracted object pattern, length:', jsonText.length);
+          }
+        }
       }
 
       result.data = JSON.parse(jsonText.trim());
+      log.log('JSON parsed successfully, type:', Array.isArray(result.data) ? 'array' : typeof result.data);
     } catch (e) {
-      log.warn('Failed to parse JSON response:', e);
+      log.warn('Failed to parse JSON response:', e.message);
+      log.warn('Raw text (first 500 chars):', result.text?.substring(0, 500));
       result.data = null;
     }
 
@@ -512,6 +542,8 @@ ${phase === 'while' ? '- timestamp_percent: number 0-1 indicating when in audio 
 Text:
 ${transcript}`;
 
+    log.log(`Generating ${count} ${phase}-listening questions`);
+
     const result = await this.json({
       prompt,
       systemPrompt,
@@ -520,11 +552,68 @@ ${transcript}`;
       ...options
     });
 
+    log.log('LLM response received, parsing questions...');
+
     // Validate and clean up questions
     let questions = result.data || [];
 
-    if (!Array.isArray(questions)) {
+    log.log('Initial questions type:', Array.isArray(questions) ? 'array' : typeof questions,
+            'keys:', questions && typeof questions === 'object' ? Object.keys(questions).slice(0, 5) : 'N/A');
+
+    // Handle case where LLM wraps array in an object like {"questions": [...]}
+    if (!Array.isArray(questions) && questions && typeof questions === 'object') {
+      // Try common wrapper keys in priority order
+      const wrapperKeys = [
+        'questions',
+        'items',
+        'data',
+        // Phase-specific keys the LLM sometimes uses
+        'pre_listening_questions',
+        'while_listening_questions',
+        'post_listening_questions',
+        'preListeningQuestions',
+        'whileListeningQuestions',
+        'postListeningQuestions',
+        // Generic variations
+        'comprehension_questions',
+        'quiz_questions',
+        'quiz',
+        'results'
+      ];
+
+      let extracted = false;
+      for (const key of wrapperKeys) {
+        if (Array.isArray(questions[key])) {
+          log.log(`Extracted questions from "${key}" key, count:`, questions[key].length);
+          questions = questions[key];
+          extracted = true;
+          break;
+        }
+      }
+
+      // If no known key found, try to find any array in the object
+      if (!extracted) {
+        const arrayKey = Object.keys(questions).find(k => Array.isArray(questions[k]));
+        if (arrayKey) {
+          log.log(`Extracted questions from unknown key "${arrayKey}", count:`, questions[arrayKey].length);
+          questions = questions[arrayKey];
+          extracted = true;
+        }
+      }
+
+      if (!extracted) {
+        log.warn('Could not find questions array in object. Keys:', Object.keys(questions));
+        questions = [];
+      }
+    } else if (!Array.isArray(questions)) {
+      log.warn('LLM response was not usable, type:', typeof questions, 'value:', questions);
       questions = [];
+    }
+
+    if (questions.length === 0) {
+      log.warn(`No questions generated for phase: ${phase}. Response:`, result.text?.substring(0, 200));
+    } else {
+      log.log(`Generated ${questions.length} questions for phase: ${phase}`);
     }
 
     // Add IDs and ensure required fields

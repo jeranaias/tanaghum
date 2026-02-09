@@ -112,7 +112,7 @@ class AudioExtractor {
         try {
           // Use 1.5x speed - good balance of speed and audio quality
           // Audio is still captured correctly, just faster
-          const audioBuffer = await captureYouTubeAudio(videoId, {
+          const captureResult = await captureYouTubeAudio(videoId, {
             playbackSpeed: 1.5,
             onProgress: (progress) => {
               onProgress?.({
@@ -124,7 +124,21 @@ class AudioExtractor {
           });
 
           log.log('Browser audio capture successful');
-          return audioBuffer;
+
+          // captureYouTubeAudio returns object with audio, realDuration, playbackSpeed
+          // We need to pass through the real duration for accurate lesson metadata
+          if (captureResult && typeof captureResult === 'object' && captureResult.audio !== undefined) {
+            // Return object with audio and real duration metadata
+            return {
+              audio: captureResult.audio,
+              realDuration: captureResult.realDuration,
+              playbackSpeed: captureResult.playbackSpeed,
+              isCaptureResult: true
+            };
+          }
+
+          // Fallback for older format (shouldn't happen but be safe)
+          return captureResult;
 
         } catch (captureError) {
           log.error('Browser audio capture failed:', captureError);
@@ -354,23 +368,47 @@ class AudioExtractor {
     log.log('Preparing audio for Whisper:', source.type);
 
     try {
-      let audioBuffer;
+      let audioResult;
 
       // Extract audio based on source type
       if (source.type === 'youtube') {
-        audioBuffer = await this.extractFromYouTube(source.videoId, {
+        audioResult = await this.extractFromYouTube(source.videoId, {
           onProgress: (progress) => {
             onProgress?.({ ...progress, overall: Math.round(progress.percent * 0.6) });
           }
         });
       } else if (source.type === 'upload') {
-        audioBuffer = await this.extractFromFile(source.file, {
+        audioResult = await this.extractFromFile(source.file, {
           onProgress: (progress) => {
             onProgress?.({ ...progress, overall: Math.round(progress.percent * 0.6) });
           }
         });
       } else {
         throw new Error(`Unsupported source type: ${source.type}`);
+      }
+
+      // Handle browser capture result which includes real duration
+      let audioBuffer = audioResult;
+      let realDuration = null;
+
+      if (audioResult && typeof audioResult === 'object' && audioResult.isCaptureResult) {
+        log.log('Got browser capture result with realDuration:', audioResult.realDuration);
+        realDuration = audioResult.realDuration;
+        audioBuffer = audioResult.audio;
+      }
+
+      // If we got a string URL (from browser capture fallback), pass it directly to Whisper
+      if (typeof audioBuffer === 'string') {
+        log.log('Got blob URL, passing directly to Whisper');
+        onProgress?.({ stage: 'complete', percent: 100, overall: 90, message: 'Audio ready for transcription' });
+
+        return {
+          audioData: audioBuffer, // URL string - Whisper can handle this
+          sampleRate: 16000,
+          duration: realDuration || 0, // Use real duration if available
+          realDuration: realDuration, // Pass through for lesson metadata
+          isUrl: true
+        };
       }
 
       // Validate duration
@@ -394,7 +432,8 @@ class AudioExtractor {
       return {
         audioData,
         sampleRate: 16000,
-        duration: audioBuffer.duration,
+        duration: realDuration || audioBuffer.duration, // Prefer real duration if available
+        realDuration: realDuration, // Pass through for lesson metadata
         originalSampleRate: audioBuffer.sampleRate,
         channels: audioBuffer.numberOfChannels
       };

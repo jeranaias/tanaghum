@@ -261,16 +261,144 @@ class LessonSharing {
   }
 
   /**
+   * Validate lesson meets quality standards for gallery
+   * @param {Object} lesson - Lesson to validate
+   * @returns {Object} - { valid: boolean, errors: string[], warnings: string[] }
+   */
+  static validateForGallery(lesson) {
+    const errors = [];
+    const warnings = [];
+
+    // Required: Transcript
+    const transcript = lesson.content?.transcript || lesson.transcript;
+    if (!transcript?.text || transcript.text.trim().length < 50) {
+      errors.push('Transcript is missing or too short (minimum 50 characters)');
+    }
+
+    // Required: At least some questions
+    const questions = lesson.content?.questions || lesson.questions || {};
+    const totalQuestions = (questions.pre?.length || 0) +
+                           (questions.while?.length || 0) +
+                           (questions.post?.length || 0);
+    if (totalQuestions === 0) {
+      errors.push('No comprehension questions - lesson requires at least 1 question');
+    } else if (totalQuestions < 5) {
+      warnings.push(`Only ${totalQuestions} questions - consider adding more for better learning`);
+    }
+
+    // Required: Title
+    const title = lesson.metadata?.title || lesson.title;
+    if (!title || (typeof title === 'object' && !title.ar && !title.en)) {
+      errors.push('Lesson title is required');
+    }
+
+    // Required: Duration > 0
+    const duration = lesson.metadata?.duration || lesson.duration || 0;
+    if (duration <= 0) {
+      warnings.push('Duration not set - may affect playback');
+    }
+
+    // Recommended: ILR level
+    const ilr = lesson.metadata?.ilr || lesson.ilrLevel;
+    if (!ilr || (typeof ilr === 'object' && !ilr.detected && !ilr.target)) {
+      warnings.push('ILR level not set - helps teachers find appropriate content');
+    }
+
+    // Recommended: Vocabulary
+    const vocabulary = lesson.content?.vocabulary || lesson.vocabulary;
+    if (!vocabulary?.items || vocabulary.items.length === 0) {
+      warnings.push('No vocabulary items - consider adding key terms');
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+      warnings,
+      score: this.calculateQualityScore(lesson)
+    };
+  }
+
+  /**
+   * Calculate quality score (0-100) for a lesson
+   */
+  static calculateQualityScore(lesson) {
+    let score = 0;
+
+    // Transcript quality (30 points)
+    const transcript = lesson.content?.transcript || lesson.transcript;
+    if (transcript?.text) {
+      score += 10; // Has transcript
+      if (transcript.segments?.length > 0) score += 10; // Has segments
+      if (transcript.text.length > 500) score += 10; // Substantial content
+    }
+
+    // Questions quality (40 points)
+    const questions = lesson.content?.questions || lesson.questions || {};
+    const pre = questions.pre?.length || 0;
+    const whileListen = questions.while?.length || 0;
+    const post = questions.post?.length || 0;
+
+    if (pre > 0) score += 10;
+    if (whileListen > 0) score += 15;
+    if (post > 0) score += 10;
+    if (pre + whileListen + post >= 10) score += 5;
+
+    // Metadata quality (20 points)
+    const meta = lesson.metadata || {};
+    if (meta.title) score += 5;
+    if (meta.duration > 0) score += 5;
+    if (meta.ilr?.detected || meta.ilr?.target) score += 5;
+    if (meta.topic) score += 5;
+
+    // Vocabulary (10 points)
+    const vocab = lesson.content?.vocabulary || lesson.vocabulary;
+    if (vocab?.items?.length > 0) score += 5;
+    if (vocab?.items?.length >= 5) score += 5;
+
+    return Math.min(100, score);
+  }
+
+  /**
    * Add lesson to gallery (save locally and update gallery view)
    */
-  static async addToGallery(lesson) {
+  static async addToGallery(lesson, options = {}) {
+    const { skipValidation = false, force = false } = options;
+
     try {
+      // Validate quality unless skipped
+      if (!skipValidation) {
+        const validation = this.validateForGallery(lesson);
+
+        if (!validation.valid && !force) {
+          return {
+            success: false,
+            error: 'Lesson does not meet quality standards',
+            validation
+          };
+        }
+
+        // Log warnings
+        if (validation.warnings.length > 0) {
+          console.warn('Gallery submission warnings:', validation.warnings);
+        }
+      }
+
       // Ensure lesson has required fields
       const lessonPackage = this.createLessonPackage(lesson);
 
       // Generate ID if needed
       if (!lessonPackage.id) {
         lessonPackage.id = this.generateLessonId(lessonPackage);
+      }
+
+      // Check for duplicates
+      const existingLesson = await this.loadLesson(lessonPackage.id);
+      if (existingLesson && !force) {
+        return {
+          success: false,
+          error: 'A lesson with this ID already exists',
+          existingId: lessonPackage.id
+        };
       }
 
       // Save to IndexedDB
@@ -282,7 +410,8 @@ class LessonSharing {
       return {
         success: true,
         lessonId,
-        shareUrl: this.generateShareUrl(lessonPackage)
+        shareUrl: this.generateShareUrl(lessonPackage),
+        qualityScore: this.calculateQualityScore(lesson)
       };
     } catch (error) {
       console.error('Failed to add lesson to gallery:', error);

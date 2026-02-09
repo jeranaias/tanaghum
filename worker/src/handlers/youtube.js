@@ -4,21 +4,35 @@
  * Uses Piped API as primary source with multiple fallback instances
  */
 
-// Piped API instances (ordered by reliability)
+// Piped API instances (ordered by reliability) - updated list with working instances
 const PIPED_INSTANCES = [
   'https://pipedapi.kavin.rocks',
+  'https://pipedapi-libre.kavin.rocks',
   'https://pipedapi.adminforge.de',
   'https://api.piped.yt',
   'https://pipedapi.leptons.xyz',
+  'https://pipedapi.nosebs.ru',
+  'https://pipedapi.drgns.space',
   'https://pipedapi.darkness.services',
-  'https://piped-api.privacy.com.de'
+  'https://piped-api.privacy.com.de',
+  'https://pipedapi.syncpundit.io',
+  'https://api-piped.mha.fi'
 ];
 
-// InnerTube API configuration (fallback)
-const INNERTUBE_API_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
-const INNERTUBE_CLIENT = {
+// InnerTube API configuration (fallback) - use ANDROID client for better success rate
+const INNERTUBE_API_KEY = 'AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w';
+const INNERTUBE_CLIENT_WEB = {
   clientName: 'WEB',
-  clientVersion: '2.20240101.00.00',
+  clientVersion: '2.20250131.00.00',
+  hl: 'en',
+  gl: 'US'
+};
+
+// Android client often has better access to captions
+const INNERTUBE_CLIENT_ANDROID = {
+  clientName: 'ANDROID',
+  clientVersion: '19.09.37',
+  androidSdkVersion: 30,
   hl: 'en',
   gl: 'US'
 };
@@ -117,30 +131,61 @@ async function fetchFromPiped(endpoint, videoId) {
 }
 
 /**
- * Fetch captions using InnerTube API
+ * Fetch captions using InnerTube API - tries WEB client, then ANDROID
  */
 async function fetchCaptionsViaInnerTube(videoId) {
   const playerUrl = `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_API_KEY}`;
 
-  const response = await fetch(playerUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    },
-    body: JSON.stringify({
-      context: {
-        client: INNERTUBE_CLIENT
-      },
-      videoId: videoId
-    })
-  });
+  // Try WEB client first
+  const clients = [
+    { client: INNERTUBE_CLIENT_WEB, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+    { client: INNERTUBE_CLIENT_ANDROID, userAgent: 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip' }
+  ];
 
-  if (!response.ok) {
-    throw new Error('InnerTube API request failed');
+  let lastError = null;
+  let data = null;
+
+  for (const { client, userAgent } of clients) {
+    try {
+      const response = await fetch(playerUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': userAgent,
+          'X-Youtube-Client-Name': client.clientName === 'ANDROID' ? '3' : '1',
+          'X-Youtube-Client-Version': client.clientVersion
+        },
+        body: JSON.stringify({
+          context: {
+            client: client
+          },
+          videoId: videoId
+        })
+      });
+
+      if (!response.ok) {
+        lastError = `InnerTube ${client.clientName} failed: HTTP ${response.status}`;
+        continue;
+      }
+
+      const responseData = await response.json();
+
+      // Check if playable
+      if (responseData.playabilityStatus?.status === 'OK' || responseData.captions) {
+        data = responseData;
+        console.log(`InnerTube ${client.clientName} succeeded`);
+        break;
+      } else {
+        lastError = `InnerTube ${client.clientName}: ${responseData.playabilityStatus?.reason || 'Not playable'}`;
+      }
+    } catch (e) {
+      lastError = `InnerTube ${client.clientName} error: ${e.message}`;
+    }
   }
 
-  const data = await response.json();
+  if (!data) {
+    throw new Error(lastError || 'All InnerTube clients failed');
+  }
 
   // Check for captions
   const captionTracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;

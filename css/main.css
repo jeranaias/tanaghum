@@ -98,7 +98,7 @@
   --z-sticky: 200;
   --z-modal-backdrop: 300;
   --z-modal: 400;
-  --z-toast: 500;
+  --z-toast: 1100; /* Above modals to always be visible */
 
   /* Layout */
   --max-width-sm: 640px;
@@ -1080,6 +1080,42 @@ pre {
   .btn-sm {
     padding: var(--space-2) var(--space-4);
     font-size: var(--text-xs);
+  }
+}
+
+/* Extra small screens - prevent nav overflow */
+@media (max-width: 380px) {
+  .nav {
+    gap: var(--space-1);
+  }
+
+  .nav-link {
+    font-size: 9px;
+    padding: var(--space-1);
+  }
+
+  .logo {
+    font-size: var(--text-xs);
+  }
+
+  .logo-arabic {
+    font-size: var(--text-sm);
+  }
+
+  .header-inner {
+    padding: 0 var(--space-1);
+    gap: var(--space-1);
+  }
+}
+
+/* Very narrow screens (320px) - hide some nav links */
+@media (max-width: 340px) {
+  .nav-link:not(.active):not(:first-child) {
+    display: none;
+  }
+
+  .nav {
+    gap: var(--space-1);
   }
 }
 

@@ -316,12 +316,17 @@
       return all;
     }
 
-    getQuestionAtTime(time) {
+    getQuestionAtTime(time, duration) {
       const whileQuestions = this.questions.while || [];
 
       for (let i = 0; i < whileQuestions.length; i++) {
         const q = whileQuestions[i];
-        if (q.timestamp && Math.abs(time - q.timestamp) < 2) {
+        // Support both timestamp (absolute seconds) and timestamp_percent (0-1 ratio)
+        let questionTime = q.timestamp;
+        if (questionTime === undefined && q.timestamp_percent !== undefined && duration) {
+          questionTime = q.timestamp_percent * duration;
+        }
+        if (questionTime !== undefined && Math.abs(time - questionTime) < 2) {
           return { ...q, phase: 'while', index: i, id: `while_${i}` };
         }
       }
@@ -345,15 +350,28 @@
     checkAnswer(questionId, answer) {
       const question = this.getAllQuestions().find(q => q.id === questionId);
 
-      if (!question || !question.correctAnswer) {
+      // Support both old format (correctAnswer) and new format (correct_answer)
+      const correctAnswer = question?.correctAnswer || question?.correct_answer;
+      if (!question || !correctAnswer) {
         return null; // Cannot verify
       }
 
-      if (question.format === 'multiple_choice') {
-        return answer === question.correctAnswer;
-      } else if (question.format === 'fill_blank') {
-        const normalized = answer.trim().toLowerCase();
-        const correct = question.correctAnswer.toLowerCase();
+      // Support both old format (format) and new format (type)
+      const questionType = question.format || question.type;
+
+      if (questionType === 'multiple_choice') {
+        // For object options, check if the selected option is correct
+        if (question.options && question.options[0] && typeof question.options[0] === 'object') {
+          const selectedOption = question.options.find(o => o.id === answer || o.text_ar === answer || o.text_en === answer);
+          return selectedOption?.is_correct === true;
+        }
+        return answer === correctAnswer;
+      } else if (questionType === 'true_false') {
+        // Handle boolean comparison
+        return answer === correctAnswer;
+      } else if (questionType === 'fill_blank') {
+        const normalized = String(answer).trim().toLowerCase();
+        const correct = String(correctAnswer).toLowerCase();
         return normalized === correct;
       }
 
@@ -406,21 +424,48 @@
         const vocabEl = document.createElement('div');
         vocabEl.className = 'vocab-item';
 
+        // Arabic word
         const arabicEl = document.createElement('div');
         arabicEl.className = 'vocab-arabic';
-        arabicEl.textContent = item.arabic || item.word;
+        arabicEl.textContent = item.word_ar || item.arabic || item.word || '';
 
-        const translitEl = document.createElement('div');
-        translitEl.className = 'vocab-translit';
-        translitEl.textContent = item.transliteration || '';
+        // Root and part of speech
+        const metaEl = document.createElement('div');
+        metaEl.className = 'vocab-translit';
+        const root = item.root || '';
+        const pos = item.pos || item.partOfSpeech || '';
+        metaEl.textContent = [root, pos].filter(Boolean).join(' • ') || '';
 
+        // English meaning/translation
         const meaningEl = document.createElement('div');
         meaningEl.className = 'vocab-meaning';
-        meaningEl.textContent = item.meaning || item.definition || '';
+        meaningEl.textContent = item.word_en || item.definition_en || item.meaning || item.definition || '';
 
         vocabEl.appendChild(arabicEl);
-        if (translitEl.textContent) vocabEl.appendChild(translitEl);
+        if (metaEl.textContent) vocabEl.appendChild(metaEl);
         if (meaningEl.textContent) vocabEl.appendChild(meaningEl);
+
+        // Example sentence (if available)
+        const exampleAr = item.example_ar || item.exampleAr || '';
+        const exampleEn = item.example_en || item.exampleEn || '';
+        if (exampleAr || exampleEn) {
+          const exampleEl = document.createElement('div');
+          exampleEl.className = 'vocab-example';
+          exampleEl.style.cssText = 'margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color); font-size: 13px;';
+          if (exampleAr) {
+            const arEx = document.createElement('div');
+            arEx.style.cssText = 'direction: rtl; text-align: right; color: var(--text-secondary);';
+            arEx.textContent = '« ' + exampleAr + ' »';
+            exampleEl.appendChild(arEx);
+          }
+          if (exampleEn) {
+            const enEx = document.createElement('div');
+            enEx.style.cssText = 'color: var(--text-tertiary); font-style: italic; margin-top: 4px;';
+            enEx.textContent = exampleEn;
+            exampleEl.appendChild(enEx);
+          }
+          vocabEl.appendChild(exampleEl);
+        }
 
         this.container.appendChild(vocabEl);
       });
@@ -509,11 +554,145 @@
 
       this.questionManager.on('answer', (data) => {
         this.updateProgress();
+        this.updateQuestionItem(data.questionId);
       });
 
-      // Show pre-questions on load
-      this.showPhaseQuestions('pre');
+      // Populate the Questions tab with all questions
+      this.renderAllQuestions();
       this.updateProgress();
+    }
+
+    /**
+     * Render all questions in the Questions tab
+     */
+    renderAllQuestions() {
+      const questions = this.lesson.content?.questions || {};
+      const phases = ['pre', 'while', 'post'];
+
+      phases.forEach(phase => {
+        const container = document.getElementById(`${phase}-questions-list`);
+        const section = document.getElementById(`${phase}-questions-section`);
+        const phaseQuestions = questions[phase] || [];
+
+        if (!container) return;
+
+        if (phaseQuestions.length === 0) {
+          section.style.display = 'none';
+          return;
+        }
+
+        container.innerHTML = phaseQuestions.map((q, i) => {
+          const questionId = `${phase}_${i}`;
+          const answered = this.questionManager.answers[questionId];
+
+          // Get question text - support multiple formats
+          const questionAr = q.question_text?.ar || q.question_ar || q.questionAr || '';
+          const questionEn = q.question_text?.en || q.question_en || q.questionEn || '';
+          const questionType = q.type || q.format || 'open_ended';
+
+          let optionsHtml = '';
+          if ((questionType === 'multiple_choice' || questionType === 'true_false') && q.options) {
+            const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+            optionsHtml = `
+              <div class="question-options">
+                ${q.options.map((opt, j) => {
+                  const optAr = typeof opt === 'object' ? (opt.text_ar || opt.text || '') : opt;
+                  const optEn = typeof opt === 'object' ? (opt.text_en || '') : '';
+                  const isCorrect = typeof opt === 'object' ? opt.is_correct : false;
+                  const optionId = typeof opt === 'object' ? (opt.id || j) : j;
+
+                  return `
+                    <div class="question-option" data-question="${questionId}" data-option="${optionId}">
+                      <span class="option-letter">${letters[j]}</span>
+                      <div class="option-text">
+                        <div class="option-text-ar">${optAr}</div>
+                        ${optEn ? `<div class="option-text-en" style="font-size: 12px; color: var(--text-tertiary);">${optEn}</div>` : ''}
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `;
+          } else if (questionType === 'true_false') {
+            optionsHtml = `
+              <div class="question-options">
+                <div class="question-option" data-question="${questionId}" data-option="true">
+                  <span class="option-letter">T</span>
+                  <div class="option-text">True / صحيح</div>
+                </div>
+                <div class="question-option" data-question="${questionId}" data-option="false">
+                  <span class="option-letter">F</span>
+                  <div class="option-text">False / خطأ</div>
+                </div>
+              </div>
+            `;
+          }
+
+          return `
+            <div class="question-item ${answered ? 'answered' : ''}" data-id="${questionId}" data-type="${questionType}">
+              <div class="question-header">
+                <span class="question-number">${i + 1}</span>
+                <div class="question-content">
+                  <div class="question-text-ar">${questionAr}</div>
+                  ${questionEn ? `<div class="question-text-en">${questionEn}</div>` : ''}
+                </div>
+              </div>
+              <span class="question-type-badge">${questionType.replace(/_/g, ' ')}</span>
+              ${optionsHtml}
+            </div>
+          `;
+        }).join('');
+
+        // Add click handlers for options
+        container.querySelectorAll('.question-option').forEach(opt => {
+          opt.addEventListener('click', () => {
+            const questionId = opt.dataset.question;
+            const optionValue = opt.dataset.option;
+
+            // Visual selection
+            const parent = opt.closest('.question-item');
+            parent.querySelectorAll('.question-option').forEach(o => o.classList.remove('selected'));
+            opt.classList.add('selected');
+
+            // Submit answer
+            const result = this.questionManager.submitAnswer(questionId, optionValue);
+
+            // Show result
+            if (result.correct === true) {
+              opt.classList.add('correct');
+              parent.classList.add('answered');
+            } else if (result.correct === false) {
+              opt.classList.add('wrong');
+              // Show correct answer
+              const correctOpt = parent.querySelector('.question-option[data-option="' + this.getCorrectAnswer(questionId) + '"]');
+              if (correctOpt) correctOpt.classList.add('correct');
+              parent.classList.add('answered', 'incorrect');
+            } else {
+              parent.classList.add('answered');
+            }
+          });
+        });
+      });
+    }
+
+    getCorrectAnswer(questionId) {
+      const question = this.questionManager.getAllQuestions().find(q => q.id === questionId);
+      if (!question) return null;
+
+      // Check if options have is_correct flag
+      if (question.options) {
+        const correctIdx = question.options.findIndex(o => typeof o === 'object' && o.is_correct);
+        if (correctIdx >= 0) return question.options[correctIdx].id || correctIdx;
+      }
+
+      return question.correct_answer || question.correctAnswer;
+    }
+
+    updateQuestionItem(questionId) {
+      const item = document.querySelector(`.question-item[data-id="${questionId}"]`);
+      if (item) {
+        item.classList.add('answered');
+      }
     }
 
     setupVocabulary() {
@@ -560,8 +739,18 @@
             this.questionManager.resetProgress();
             this.storage.clear();
             this.updateProgress();
-            this.showPhaseQuestions('pre');
+            this.renderAllQuestions(); // Re-render questions without answered state
           }
+        });
+      }
+
+      // Print worksheet button
+      const printBtn = document.getElementById('print-worksheet-btn');
+      if (printBtn) {
+        printBtn.addEventListener('click', () => {
+          // Switch to questions tab before printing for better worksheet
+          this.switchTab('questions');
+          setTimeout(() => window.print(), 100);
         });
       }
 
@@ -622,7 +811,7 @@
       }
 
       // Check for questions at this timestamp
-      const question = this.questionManager.getQuestionAtTime(time);
+      const question = this.questionManager.getQuestionAtTime(time, this.player.duration);
       if (question && !this.questionManager.answers[question.id]) {
         this.player.pause();
         this.showQuestion(question);
@@ -639,28 +828,59 @@
       const card = document.createElement('div');
       card.className = 'question-card';
 
+      // Support both old format (questionAr/questionEn) and new format (question_text.ar/en, question_ar/en)
+      const questionAr = question.questionAr || question.question_text?.ar || question.question_ar || '';
+      const questionEn = question.questionEn || question.question_text?.en || question.question_en || '';
+
       const titleEl = document.createElement('h3');
-      titleEl.textContent = question.questionAr || question.questionEn || 'Question';
+      titleEl.textContent = questionAr || questionEn || 'Question';
 
       const subtitleEl = document.createElement('p');
       subtitleEl.className = 'question-subtitle';
-      subtitleEl.textContent = question.questionEn || '';
+      subtitleEl.textContent = questionEn || '';
 
       card.appendChild(titleEl);
-      if (subtitleEl.textContent) card.appendChild(subtitleEl);
+      if (subtitleEl.textContent && questionAr) card.appendChild(subtitleEl);
+
+      // Support both old format (format) and new format (type)
+      const questionType = question.format || question.type;
 
       // Render based on question format
-      if (question.format === 'multiple_choice' && question.options) {
+      if (questionType === 'multiple_choice' && question.options) {
         question.options.forEach((option, i) => {
           const btn = document.createElement('button');
           btn.className = 'option-btn';
-          btn.textContent = option;
+          // Options can be objects with text_ar/text_en or simple strings
+          const optionText = typeof option === 'object'
+            ? (option.text_ar || option.text_en || option.text || '')
+            : option;
+          btn.textContent = optionText;
           btn.addEventListener('click', () => {
-            this.handleAnswer(question.id, option, btn);
+            // For object options, use the id or the object itself
+            const answerValue = typeof option === 'object' ? (option.id || optionText) : option;
+            this.handleAnswer(question.id, answerValue, btn);
           });
           card.appendChild(btn);
         });
-      } else if (question.format === 'fill_blank') {
+      } else if (questionType === 'true_false') {
+        // True/False buttons
+        const trueBtn = document.createElement('button');
+        trueBtn.className = 'option-btn';
+        trueBtn.textContent = 'True / صحيح';
+        trueBtn.addEventListener('click', () => {
+          this.handleAnswer(question.id, true, trueBtn);
+        });
+
+        const falseBtn = document.createElement('button');
+        falseBtn.className = 'option-btn';
+        falseBtn.textContent = 'False / خطأ';
+        falseBtn.addEventListener('click', () => {
+          this.handleAnswer(question.id, false, falseBtn);
+        });
+
+        card.appendChild(trueBtn);
+        card.appendChild(falseBtn);
+      } else if (questionType === 'fill_blank') {
         const input = document.createElement('input');
         input.type = 'text';
         input.className = 'answer-input';
@@ -757,11 +977,15 @@
 
       if (this.progressDisplay) {
         this.progressDisplay.innerHTML = `
-          <div class="progress-stats">
-            <span>Progress: ${progress.answered}/${progress.total} (${progress.percentage.toFixed(0)}%)</span>
-            ${progress.answered > 0 ? `<span>Score: ${progress.score.toFixed(0)}%</span>` : ''}
-          </div>
+          <span>Questions: ${progress.answered}/${progress.total} (${progress.percentage.toFixed(0)}%)</span>
+          ${progress.answered > 0 ? `<span>Score: ${progress.correct}/${progress.answered} correct (${progress.score.toFixed(0)}%)</span>` : ''}
         `;
+      }
+
+      // Update visual progress bar
+      const progressBarFill = document.getElementById('progress-bar-fill');
+      if (progressBarFill) {
+        progressBarFill.style.width = `${progress.percentage}%`;
       }
     }
 
