@@ -272,26 +272,7 @@
       $('#vocab-count').textContent = `${lesson.content?.vocabulary?.items?.length || 0} words`;
 
       // Initialize player
-      player = new LessonPlayer({
-        onTimeUpdate: (current, duration) => {
-          updateProgress(current, duration);
-        },
-        onSegmentChange: (index, segment) => {
-          // Transcript sync handles this via events
-        },
-        onPlay: () => {
-          playBtn.querySelector('.icon-play').style.display = 'none';
-          playBtn.querySelector('.icon-pause').style.display = 'inline';
-        },
-        onPause: () => {
-          playBtn.querySelector('.icon-play').style.display = 'inline';
-          playBtn.querySelector('.icon-pause').style.display = 'none';
-        }
-      });
-
-      await player.load(lesson);
-
-      // Setup media container
+      // Setup media container FIRST so audio element exists for LessonPlayer
       const mediaContainer = $('#media-container');
 
       // Check if we have captured audio (from browser capture) - use that for reliable playback
@@ -331,6 +312,26 @@
           </div>
         `;
       }
+
+      // Now create and load the player (audio element exists in DOM)
+      player = new LessonPlayer({
+        onTimeUpdate: (current, duration) => {
+          updateProgress(current, duration);
+        },
+        onSegmentChange: (index, segment) => {
+          // Transcript sync handles this via events
+        },
+        onPlay: () => {
+          playBtn.querySelector('.icon-play').style.display = 'none';
+          playBtn.querySelector('.icon-pause').style.display = 'inline';
+        },
+        onPause: () => {
+          playBtn.querySelector('.icon-play').style.display = 'inline';
+          playBtn.querySelector('.icon-pause').style.display = 'none';
+        }
+      });
+
+      await player.load(lesson);
 
       // Initialize transcript
       transcriptSync = new TranscriptSync(transcriptContainer, {

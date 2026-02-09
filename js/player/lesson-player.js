@@ -53,11 +53,21 @@ class LessonPlayer {
     this.lesson = lesson;
     log.log('Loading lesson:', lesson.metadata?.title);
 
+    // Check for captured audio URL first (from browser capture)
+    // This takes priority over YouTube iframe for better playback control
+    const capturedUrl = lesson.audio?.capturedUrl || lesson.audio?.url;
+
     // Create appropriate media element
-    if (lesson.audio?.type === 'youtube') {
+    if (capturedUrl) {
+      // Use captured audio for playback (works for both YouTube captures and uploads)
+      log.log('Using captured audio URL for playback');
+      await this.setupAudioPlayer(capturedUrl);
+    } else if (lesson.audio?.type === 'youtube' && lesson.audio?.videoId) {
+      // Fall back to YouTube iframe if no captured audio
+      log.log('Using YouTube iframe for playback');
       await this.setupYouTubePlayer(lesson.audio.videoId);
-    } else if (lesson.audio?.type === 'local' || lesson.audio?.url) {
-      await this.setupAudioPlayer(lesson.audio.url);
+    } else {
+      log.warn('No audio source available for playback');
     }
 
     // Initialize state
@@ -83,9 +93,21 @@ class LessonPlayer {
     // Clean up any existing YouTube player first
     this.cleanupYouTubePlayer();
 
-    this.audioElement = new Audio();
-    this.audioElement.src = url;
-    this.audioElement.preload = 'metadata';
+    // Try to use existing DOM audio element first (created by player.html)
+    const existingAudio = document.getElementById('audio-player');
+    if (existingAudio) {
+      log.log('Using existing DOM audio element');
+      this.audioElement = existingAudio;
+      // Update src if needed
+      if (!this.audioElement.src || this.audioElement.src !== url) {
+        this.audioElement.src = url;
+      }
+    } else {
+      log.log('Creating new Audio element');
+      this.audioElement = new Audio();
+      this.audioElement.src = url;
+      this.audioElement.preload = 'metadata';
+    }
 
     this.audioElement.addEventListener('timeupdate', this.handleTimeUpdate);
     this.audioElement.addEventListener('play', this.handlePlay);
@@ -93,6 +115,13 @@ class LessonPlayer {
     this.audioElement.addEventListener('ended', this.handleEnded);
 
     await new Promise((resolve, reject) => {
+      // If already loaded, resolve immediately
+      if (this.audioElement.readyState >= 1) {
+        this.duration = this.audioElement.duration || 0;
+        resolve();
+        return;
+      }
+
       const onLoaded = () => {
         this.audioElement.removeEventListener('loadedmetadata', onLoaded);
         this.audioElement.removeEventListener('error', onError);
