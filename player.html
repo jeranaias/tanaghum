@@ -258,10 +258,17 @@
       currentLesson = lesson;
 
       // Update UI with lesson info
-      $('#lesson-title').textContent = lesson.metadata?.title || 'Untitled Lesson';
-      $('#lesson-ilr').textContent = `ILR ${lesson.analysis?.ilrLevel || '2.0'}`;
+      // Title can be string or {ar, en} object
+      const title = lesson.metadata?.title;
+      const titleText = typeof title === 'string' ? title : (title?.en || title?.ar || 'Untitled Lesson');
+      $('#lesson-title').textContent = titleText;
+      $('#lesson-ilr').textContent = `ILR ${lesson.metadata?.ilr?.detected || lesson.analysis?.ilrLevel || '2.0'}`;
       $('#lesson-topic').textContent = lesson.metadata?.topic?.nameEn || 'General';
-      $('#lesson-duration').textContent = lesson.metadata?.durationFormatted || '0:00';
+      // Format duration if not already formatted
+      const duration = lesson.metadata?.duration || 0;
+      const durationFormatted = lesson.metadata?.durationFormatted ||
+        `${Math.floor(duration / 60)}:${String(Math.floor(duration % 60)).padStart(2, '0')}`;
+      $('#lesson-duration').textContent = durationFormatted;
       $('#vocab-count').textContent = `${lesson.content?.vocabulary?.items?.length || 0} words`;
 
       // Initialize player
@@ -301,7 +308,7 @@
             <div class="visualizer-bars">
               ${Array(20).fill('<div class="bar"></div>').join('')}
             </div>
-            <div class="audio-title">${lesson.metadata?.title || 'Audio'}</div>
+            <div class="audio-title">${titleText || 'Audio'}</div>
           </div>
         `;
       }
@@ -486,7 +493,10 @@
           const lesson = JSON.parse(text);
           await initPlayer(lesson);
           loadModal.classList.add('hidden');
-          showToast('success', 'Lesson Loaded', lesson.metadata?.title || 'Lesson loaded successfully');
+          const loadedTitle = typeof lesson.metadata?.title === 'string'
+            ? lesson.metadata.title
+            : (lesson.metadata?.title?.en || lesson.metadata?.title?.ar || 'Lesson loaded successfully');
+          showToast('success', 'Lesson Loaded', loadedTitle);
         } catch (error) {
           showToast('error', 'Load Failed', error.message);
         }
