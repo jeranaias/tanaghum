@@ -433,7 +433,11 @@
       // Initialize vocabulary panel
       // Ensure content.vocabulary exists
       const vocabulary = lesson.content?.vocabulary || { items: [] };
-      console.log('Loading vocabulary with', vocabulary.items?.length || 0, 'items');
+      console.log('=== VOCABULARY DEBUG ===');
+      console.log('lesson.content.vocabulary:', lesson.content?.vocabulary);
+      console.log('vocabulary object:', vocabulary);
+      console.log('vocabulary.items:', vocabulary.items);
+      console.log('vocabulary.items length:', vocabulary.items?.length || 0);
 
       vocabularyPanel = new VocabularyPanel(vocabularyContainer, {
         showDetails: true,

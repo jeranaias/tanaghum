@@ -733,7 +733,14 @@ ${transcript}`;
       ...options
     });
 
-    return result.data || [];
+    const vocabulary = result.data || [];
+    log.log('extractVocabulary result:', {
+      hasData: !!result.data,
+      isArray: Array.isArray(vocabulary),
+      length: vocabulary.length,
+      firstItem: vocabulary[0] || 'EMPTY'
+    });
+    return vocabulary;
   }
 
   /**
