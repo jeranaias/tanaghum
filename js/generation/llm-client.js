@@ -13,12 +13,20 @@ const log = createLogger('LLM');
 /**
  * Provider configurations
  */
+/**
+ * Provider configurations with accurate free tier limits
+ *
+ * Google AI Studio: 15 RPM, 1,500 requests/day, 1M tokens/day
+ * Groq: 30 RPM, 14,400 requests/day, but token-limited per model
+ * OpenRouter: Free models have ~10-20 requests/day typically
+ */
 const PROVIDERS = {
   google: {
     name: 'Google AI Studio',
     endpoint: '/api/llm/google',
     model: 'gemini-2.0-flash',
-    dailyLimit: 250,
+    dailyLimit: 1500,      // Actual: 1,500 requests/day free tier
+    rateLimit: 15,         // 15 requests per minute
     supportsJson: true,
     priority: 1
   },
@@ -26,7 +34,8 @@ const PROVIDERS = {
     name: 'Groq',
     endpoint: '/api/llm/groq',
     model: 'llama-3.3-70b-versatile',
-    dailyLimit: 1000,
+    dailyLimit: 14400,     // Actual: ~14,400 requests/day (token-limited though)
+    rateLimit: 30,         // 30 requests per minute
     supportsJson: true,
     priority: 2
   },
@@ -34,7 +43,8 @@ const PROVIDERS = {
     name: 'OpenRouter',
     endpoint: '/api/llm/openrouter',
     model: 'google/gemini-2.0-flash-exp:free',
-    dailyLimit: 1000,
+    dailyLimit: 20,        // Free models: ~10-20 requests/day realistically
+    rateLimit: 5,          // Very limited RPM on free tier
     supportsJson: false,
     priority: 3
   }
