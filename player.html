@@ -293,7 +293,24 @@
 
       // Setup media container
       const mediaContainer = $('#media-container');
-      if (lesson.audio?.type === 'youtube') {
+
+      // Check if we have captured audio (from browser capture) - use that for reliable playback
+      const capturedUrl = lesson.audio?.capturedUrl || lesson.audio?.url;
+
+      if (capturedUrl) {
+        // Use captured audio - more reliable than YouTube iframe
+        mediaContainer.innerHTML = `
+          <div class="audio-player-container">
+            <audio id="audio-player" controls style="width: 100%;">
+              <source src="${capturedUrl}" type="audio/webm">
+              <source src="${capturedUrl}" type="audio/mp4">
+              Your browser does not support the audio element.
+            </audio>
+            <div class="audio-title">${titleText || 'Audio'}</div>
+          </div>
+        `;
+      } else if (lesson.audio?.type === 'youtube' && lesson.audio?.videoId) {
+        // Fall back to YouTube iframe if no captured audio
         mediaContainer.innerHTML = `
           <iframe id="yt-iframe"
                   src="https://www.youtube.com/embed/${lesson.audio.videoId}?enablejsapi=1&origin=${window.location.origin}"
@@ -303,12 +320,14 @@
           </iframe>
         `;
       } else {
+        // No audio available
         mediaContainer.innerHTML = `
           <div class="audio-visualizer">
             <div class="visualizer-bars">
               ${Array(20).fill('<div class="bar"></div>').join('')}
             </div>
             <div class="audio-title">${titleText || 'Audio'}</div>
+            <p style="color: #666; font-size: 14px; margin-top: 10px;">No audio available - transcript only</p>
           </div>
         `;
       }

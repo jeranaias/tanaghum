@@ -378,6 +378,16 @@ class TranscriptionService {
 
       onProgress({ stage: 'complete', percent: 100, message: 'Transcription complete' });
 
+      // Store audio URL for player if we have a blob URL from browser capture
+      if (audioData.isUrl && typeof audioData.audioData === 'string') {
+        log.log('Storing audio blob URL for player:', audioData.audioData.substring(0, 50));
+        StateManager.set('audio', {
+          url: audioData.audioData,
+          duration: audioData.realDuration || audioData.duration || 0,
+          type: 'captured'
+        });
+      }
+
       // Update state
       StateManager.set('transcript', transcription);
 

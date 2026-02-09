@@ -499,21 +499,25 @@ class LessonGeneratorWorkflow {
       // Audio source - get from StateManager if available
       audio: (() => {
         const audioState = StateManager.get('audio') || {};
+        const duration = contentData.duration || transcription.audioDuration || audioState.duration || 0;
 
         // For YouTube, include videoId for iframe embedding
+        // Also include captured audio URL if available (from browser capture)
         if (source.type === 'youtube') {
           return {
             type: 'youtube',
             videoId: contentData.videoId || source.videoId,
-            duration: contentData.duration || transcription.audioDuration || 0
+            // Include captured audio URL for offline playback if browser capture was used
+            capturedUrl: audioState.url || null,
+            duration: duration
           };
         }
 
         // For uploaded/captured audio, include URL if available
         return {
-          type: source.type || 'audio',
+          type: audioState.type || source.type || 'audio',
           url: audioState.url || null,
-          duration: contentData.duration || transcription.audioDuration || 0
+          duration: duration
         };
       })()
     };
