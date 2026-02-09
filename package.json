@@ -1,0 +1,32 @@
+{
+  "name": "tanaghum",
+  "version": "1.0.0",
+  "description": "<p align=\"center\">\r   <h1 align=\"center\">تناغم</h1>\r   <h3 align=\"center\">Tanaghum</h3>\r   <p align=\"center\">\r     <strong>Arabic Multimodal Learning Material Generator</strong>\r   </p>\r   <p align=\"center\">\r     Generate professional Arabic comprehension lessons with synchronized audio and text.<br>\r     ILR-calibrated • AI-powered • 100% Free\r   </p>\r </p>",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "test:desktop": "playwright test --project=desktop-chrome",
+    "test:mobile": "playwright test --project=mobile-chrome",
+    "test:headed": "playwright test --headed",
+    "test:report": "playwright show-report"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jeranaias/tanaghum.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/jeranaias/tanaghum/issues"
+  },
+  "homepage": "https://github.com/jeranaias/tanaghum#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "http-server": "^14.1.1"
+  }
+}

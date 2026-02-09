@@ -1,0 +1,605 @@
+
+Running 324 tests using 4 workers
+
+  ok   4 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:109:7 › Functional: Search Flow › stop search button cancels ongoing search (3.0s)
+Search results: 12 videos found
+  ok   1 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:61:7 › Functional: Search Flow › custom search with Arabic query returns results (3.3s)
+  ok   2 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:20:7 › Functional: Search Flow › topic button triggers real API search and displays results (3.8s)
+  ok   3 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:87:7 › Functional: Search Flow › duration filter changes search results (6.1s)
+  ok   5 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:129:7 › Functional: Search Flow › clear search resets everything (4.2s)
+  ok   7 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:201:7 › Functional: Video Selection › selecting different video updates preview (3.9s)
+  x    6 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:164:7 › Functional: Video Selection › clicking search result selects video and shows preview (3.3s)
+  ok   8 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:227:7 › Functional: Video Selection › change video button clears selection (3.2s)
+  ok  10 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:287:7 › Functional: YouTube URL Input › invalid YouTube URL shows no preview (3.4s)
+  ok   9 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:261:7 › Functional: YouTube URL Input › valid YouTube URL fetches video metadata (4.4s)
+  ok  11 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:326:7 › Functional: ILR Slider › slider updates all display elements correctly (3.9s)
+  x   13 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:388:7 › Functional: Toast Notifications › success toast appears on video selection (3.7s)
+  ok  15 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:407:7 › Functional: Toast Notifications › info toast appears on search stop (2.7s)
+  -   16 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:451:7 › Functional: Mobile Panel Content › config panel shows ILR slider and topic buttons
+  -   17 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:469:7 › Functional: Mobile Panel Content › content panel shows step indicator and content cards
+  -   18 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:482:7 › Functional: Mobile Panel Content › status panel shows quota info
+  -   19 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:495:7 › Functional: Mobile Panel Content › can search videos from mobile config panel
+Recommendations at ILR 1.0: 0
+Recommendations at ILR 3.5: 4
+  ok  12 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:351:7 › Functional: ILR Slider › ILR slider affects search result recommendations (6.1s)
+  ok  14 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:297:7 › Functional: YouTube URL Input › short YouTube URL format works (4.1s)
+  ok  20 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:521:7 › Functional: Action Bar States › buttons remain disabled until video is selected (2.9s)
+  ok  21 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:556:7 › Functional: File Upload › drop zone responds to keyboard (2.0s)
+  ok  22 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:566:7 › Functional: File Upload › clicking drop zone opens file dialog (2.0s)
+  ok  23 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:590:7 › Functional: Network Errors › handles search API failure gracefully (2.3s)
+  ok  25 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:643:7 › Functional: State Management › ILR selection persists during tab switching (1.9s)
+  ok  24 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:612:7 › Functional: Network Errors › handles metadata API failure gracefully (3.9s)
+  ok  28 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:689:7 › Functional: Responsive Behavior › resizing from mobile to desktop shows all panels (2.3s)
+  ok  26 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:419:7 › Functional: Toast Notifications › toast closes on click (2.5s)
+  ok  27 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:659:7 › Functional: State Management › selected video persists during tab switching (3.8s)
+Page load time: 1449ms
+  ok  30 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:734:7 › Functional: Performance › page loads within acceptable time (1.8s)
+  ok  29 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:711:7 › Functional: Responsive Behavior › resizing from desktop to mobile shows toolbar (2.9s)
+Search time: 1039ms
+  ok  31 [desktop-chrome] › tests\smoke\functional-tests.spec.ts:748:7 › Functional: Performance › search results render without freezing (2.4s)
+  ok  33 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:31:7 › Page Structure & Initial Load › has correct page title (1.7s)
+  ok  34 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:35:7 › Page Structure & Initial Load › header navigation is present and functional (2.2s)
+  ok  35 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:54:7 › Page Structure & Initial Load › skip navigation link is present (1.8s)
+  ok  32 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:18:7 › Page Structure & Initial Load › page loads without console errors (3.7s)
+  ok  36 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:59:7 › Page Structure & Initial Load › main content area has correct ID for skip link (1.9s)
+  ok  38 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:73:7 › Page Structure & Initial Load › toast container exists for notifications (1.8s)
+  ok  37 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:64:7 › Page Structure & Initial Load › step indicator shows 4 steps (1.9s)
+  ok  39 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:91:7 › Desktop Three-Panel Layout › all three panels are visible (1.8s)
+  ok  40 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:97:7 › Desktop Three-Panel Layout › panels are laid out horizontally without overlap (2.5s)
+  ok  42 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:112:7 › Desktop Three-Panel Layout › mobile toolbar is hidden on desktop (1.7s)
+  ok  41 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:106:7 › Desktop Three-Panel Layout › no horizontal scrolling on any viewport size (1.8s)
+  ok  43 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:130:7 › Content Source Tabs › has 3 source tabs with correct labels (1.8s)
+  ok  44 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:139:7 › Content Source Tabs › Find Videos tab is active by default (1.9s)
+  ok  46 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:165:7 › Content Source Tabs › clicking Upload Audio tab switches content (1.8s)
+  ok  47 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:175:7 › Content Source Tabs › tabs have proper ARIA attributes (1.8s)
+  ok  45 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:148:7 › Content Source Tabs › clicking YouTube URL tab switches content (2.3s)
+  ok  48 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:198:7 › Topic Selection Grid › topic grid displays 8 topic buttons (1.8s)
+  ok  49 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:203:7 › Topic Selection Grid › topic buttons have correct data attributes (1.7s)
+  ok  51 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:224:7 › Topic Selection Grid › topic button shows active state when selected (1.8s)
+  ok  53 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:258:7 › Duration Filter › duration filter is visible (1.9s)
+  ok  54 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:263:7 › Duration Filter › has 5 duration options (1.8s)
+  ok  52 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:231:7 › Topic Selection Grid › selecting different topic deselects previous (2.8s)
+  ok  55 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:268:7 › Duration Filter › "Any" is selected by default (1.6s)
+  ok  56 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:273:7 › Duration Filter › clicking duration button changes selection (1.6s)
+  ok  57 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:283:7 › Duration Filter › duration filter has correct data attributes (1.6s)
+  ok  50 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:212:7 › Topic Selection Grid › clicking topic button triggers search (6.6s)
+  ok  58 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:305:7 › Custom Search › custom search is collapsed by default (1.7s)
+  ok  59 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:310:7 › Custom Search › clicking toggle expands custom search (1.6s)
+  ok  60 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:321:7 › Custom Search › can type in search input (1.6s)
+  ok  61 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:330:7 › Custom Search › search button triggers search (1.9s)
+  ok  63 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:368:7 › Search Results Display › search results container is hidden initially (1.9s)
+  ok  62 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:344:7 › Custom Search › Enter key triggers search (2.2s)
+  ok  64 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:373:7 › Search Results Display › search loading shows spinner and stop button (1.9s)
+  ok  66 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:420:7 › YouTube URL Input › YouTube URL input is visible (2.0s)
+  ok  67 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:426:7 › YouTube URL Input › has helpful placeholder text (2.3s)
+  ok  68 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:432:7 › YouTube URL Input › shows hint text (2.1s)
+  ok  69 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:438:7 › YouTube URL Input › accepts valid YouTube URL formats (1.9s)
+  ok  71 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:472:7 › File Upload › drop zone has correct ARIA attributes (2.0s)
+  ok  70 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:467:7 › File Upload › drop zone is visible (2.0s)
+  ok  72 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:478:7 › File Upload › file input is hidden (1.6s)
+  ok  73 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:483:7 › File Upload › file input accepts audio files (1.7s)
+  ok  74 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:489:7 › File Upload › file preview is hidden initially (1.7s)
+  ok  65 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:387:7 › Search Results Display › clear search button clears results (7.0s)
+  ok  75 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:507:7 › ILR Level Slider › ILR slider is visible (1.7s)
+  ok  76 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:512:7 › ILR Level Slider › slider has correct range (1.8s)
+  ok  77 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:519:7 › ILR Level Slider › default value is 2.0 (2.0s)
+  ok  78 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:527:7 › ILR Level Slider › moving slider updates display (1.9s)
+  ok  79 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:535:7 › ILR Level Slider › slider updates level name (1.9s)
+  ok  80 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:543:7 › ILR Level Slider › slider updates level description (1.8s)
+  ok  81 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:551:7 › ILR Level Slider › slider has ARIA value attributes (1.9s)
+  ok  82 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:570:7 › Video Preview Card › video preview is hidden initially (1.8s)
+  ok  83 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:575:7 › Video Preview Card › input state shows placeholder (1.9s)
+  ok  84 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:581:7 › Video Preview Card › preview has generate and change buttons (1.7s)
+  ok  85 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:603:7 › Processing State UI › processing state is hidden initially (1.7s)
+  ok  86 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:608:7 › Processing State UI › processing state has all step indicators (1.8s)
+  ok  87 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:614:7 › Processing State UI › processing steps have correct data attributes (1.8s)
+  ok  88 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:622:7 › Processing State UI › progress bar exists (1.8s)
+  ok  89 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:644:7 › Review State UI › review state is hidden initially (1.8s)
+  ok  90 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:649:7 › Review State UI › analysis grid has 4 cards (1.9s)
+  ok  91 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:654:7 › Review State UI › transcript preview container exists (1.9s)
+  ok  92 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:659:7 › Review State UI › question sections exist (2.0s)
+  ok  93 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:665:7 › Review State UI › question count badges exist (1.9s)
+  ok  94 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:684:7 › Action Bar › action bar is visible (1.9s)
+  ok  95 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:689:7 › Action Bar › action bar has toolbar role (1.9s)
+  ok  96 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:694:7 › Action Bar › back button exists and is disabled initially (1.8s)
+  ok  97 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:700:7 › Action Bar › preview button exists and is disabled initially (1.7s)
+  ok  98 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:706:7 › Action Bar › export button exists and is disabled initially (1.7s)
+  ok  99 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:725:7 › Status Panel (Right) › status panel is visible (1.7s)
+  ok 100 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:730:7 › Status Panel (Right) › LLM quota section exists (1.9s)
+  -  104 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:764:7 › Mobile Layout › mobile toolbar is visible
+  -  105 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:769:7 › Mobile Layout › mobile toolbar has 3 buttons
+  -  106 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:774:7 › Mobile Layout › config button is active by default
+  -  107 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:779:7 › Mobile Layout › toolbar has tablist role
+  -  108 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:784:7 › Mobile Layout › clicking Content button shows main content
+  -  109 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:791:7 › Mobile Layout › clicking Status button shows status panel
+  -  110 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:798:7 › Mobile Layout › toolbar remains visible when switching panels
+  -  111 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:810:7 › Mobile Layout › no horizontal scrolling on mobile
+  -  112 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:816:7 › Mobile Layout › ILR slider accessible via config panel
+  ok 101 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:735:7 › Status Panel (Right) › shows provider status cards (1.9s)
+  ok 102 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:741:7 › Status Panel (Right) › tips card is visible (1.9s)
+  ok 103 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:746:7 › Status Panel (Right) › About ILR section exists (1.9s)
+  ok 113 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:836:7 › Accessibility › page has heading structure (1.8s)
+  ok 114 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:842:7 › Accessibility › all images have alt text (1.8s)
+  ok 115 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:856:7 › Accessibility › form inputs have labels (1.8s)
+  ok 116 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:862:7 › Accessibility › buttons have accessible names (1.9s)
+  ok 117 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:875:7 › Accessibility › interactive elements are keyboard focusable (1.9s)
+  ok 118 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:884:7 › Accessibility › focus is visible on interactive elements (2.0s)
+  ok 119 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:898:7 › Landing Page › landing page loads correctly (1.8s)
+  ok 120 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:905:7 › Landing Page › has Arabic content (1.4s)
+  ok 121 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:923:7 › Landing Page › Arabic text is centered (1.6s)
+  ok 122 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:937:7 › Landing Page › has link to generator (1.5s)
+  ok 123 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:944:7 › Landing Page › navigation to generator works (1.7s)
+  ok 124 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:955:7 › Landing Page › no horizontal scrolling (2.5s)
+  ok 127 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:1012:7 › Visual Screenshots › capture initial state (2.1s)
+  ok 126 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:987:7 › Error Handling › empty search shows no results (2.8s)
+  ok 125 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:976:7 › Error Handling › invalid YouTube URL shows no preview (3.3s)
+  ok 128 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:1016:7 › Visual Screenshots › capture each tab (2.8s)
+  ok 131 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:1054:7 › Visual Screenshots › capture custom search expanded (2.0s)
+  -  133 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:1078:7 › Mobile Screenshots › capture mobile initial state
+  -  134 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:1082:7 › Mobile Screenshots › capture mobile toolbar navigation
+  -  135 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:1099:7 › Mobile Screenshots › capture mobile topic grid
+  ok 130 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:1038:7 › Visual Screenshots › capture ILR slider positions (2.7s)
+  ok 129 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:1031:7 › Visual Screenshots › capture topic selection (3.0s)
+  ok 132 [desktop-chrome] › tests\smoke\generator-flow.spec.ts:1060:7 › Visual Screenshots › capture duration filter selection (2.1s)
+Overflow at 320px: [ [32m'NAV.nav: right=338.4375px'[39m, [32m'A.nav-link: right=338.4375px'[39m ]
+  ok 138 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:58:7 › Visual: Overflow Detection › no elements extend beyond viewport on mobile (2.0s)
+  x  136 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:13:7 › Visual: Overflow Detection › no horizontal overflow on generator page at any common width (2.3s)
+  ok 139 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:95:7 › Visual: Text Handling › long video titles are properly truncated (3.0s)
+  ok 140 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:119:7 › Visual: Text Handling › Arabic text displays correctly with RTL (2.2s)
+  -  142 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:190:7 › Visual: Mobile Toolbar › toolbar stays fixed at bottom during scroll
+  -  143 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:212:7 › Visual: Mobile Toolbar › toolbar buttons are evenly spaced
+  -  144 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:232:7 › Visual: Mobile Toolbar › toolbar does not overlap content
+  -  145 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:256:7 › Visual: Touch Targets › all buttons meet minimum touch target size (44x44)
+  -  146 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:283:7 › Visual: Touch Targets › topic buttons are tappable on mobile
+  ok 137 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:43:7 › Visual: Overflow Detection › no horizontal overflow on landing page at any common width (5.8s)
+  ok 147 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:311:7 › Visual: Loading States › search loading spinner is visible and centered (1.4s)
+  ok 141 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:169:7 › Visual: Panel Layout › panels fill available height (1.8s)
+  ok 150 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:362:7 › Visual: Hidden States › review state is truly hidden (2.0s)
+  ok 149 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:351:7 › Visual: Hidden States › processing state is truly hidden, not just invisible (2.2s)
+  -  153 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:391:7 › Visual: Z-Index & Stacking › mobile toolbar is above content
+  -  154 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:402:7 › Visual: Z-Index & Stacking › toast notifications appear above everything
+  ok 148 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:329:7 › Visual: Loading States › topic button shows loading state (3.7s)
+  ok 155 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:425:7 › Visual: Typography › fonts load correctly (1.8s)
+  ok 152 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:371:7 › Visual: Hidden States › hidden search results do not take space (2.1s)
+  x  151 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:139:7 › Visual: Panel Layout › three-panel layout has no gaps or overlaps at various widths (2.3s)
+  ok 156 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:437:7 › Visual: Typography › Arabic font is applied to Arabic text (2.3s)
+  ok 158 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:476:7 › Visual: Colors › disabled buttons look disabled (1.8s)
+  x  157 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:457:7 › Visual: Colors › active states have visible color change (2.0s)
+  ok 159 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:509:7 › Visual: Screenshot Regression › generator page visual regression - tablet (2.3s)
+  ok 160 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:521:7 › Visual: Screenshot Regression › generator page visual regression - mobile (2.2s)
+  ok 161 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:497:7 › Visual: Screenshot Regression › generator page visual regression - desktop (2.5s)
+  -  163 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:20:7 › Functional: Search Flow › topic button triggers real API search and displays results
+  -  165 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:109:7 › Functional: Search Flow › stop search button cancels ongoing search
+  -  164 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:61:7 › Functional: Search Flow › custom search with Arabic query returns results
+  -  166 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:129:7 › Functional: Search Flow › clear search resets everything
+  -  167 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:164:7 › Functional: Video Selection › clicking search result selects video and shows preview
+  -  169 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:227:7 › Functional: Video Selection › change video button clears selection
+  -  168 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:201:7 › Functional: Video Selection › selecting different video updates preview
+  -  171 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:261:7 › Functional: YouTube URL Input › valid YouTube URL fetches video metadata
+  -  170 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:287:7 › Functional: YouTube URL Input › invalid YouTube URL shows no preview
+  -  173 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:326:7 › Functional: ILR Slider › slider updates all display elements correctly
+  -  172 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:297:7 › Functional: YouTube URL Input › short YouTube URL format works
+  -  174 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:351:7 › Functional: ILR Slider › ILR slider affects search result recommendations
+  ok 162 [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:533:7 › Visual: Screenshot Regression › landing page visual regression (2.8s)
+  ok 175 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:388:7 › Functional: Toast Notifications › success toast appears on video selection (2.1s)
+  ok 176 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:407:7 › Functional: Toast Notifications › info toast appears on search stop (2.1s)
+  -  179 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:87:7 › Functional: Search Flow › duration filter changes search results
+  ok 178 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:469:7 › Functional: Mobile Panel Content › content panel shows step indicator and content cards (2.2s)
+  ok 177 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:451:7 › Functional: Mobile Panel Content › config panel shows ILR slider and topic buttons (2.3s)
+  -  182 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:521:7 › Functional: Action Bar States › buttons remain disabled until video is selected
+  -  183 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:556:7 › Functional: File Upload › drop zone responds to keyboard
+  -  184 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:566:7 › Functional: File Upload › clicking drop zone opens file dialog
+  -  185 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:590:7 › Functional: Network Errors › handles search API failure gracefully
+  -  186 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:612:7 › Functional: Network Errors › handles metadata API failure gracefully
+  -  187 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:643:7 › Functional: State Management › ILR selection persists during tab switching
+  -  188 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:659:7 › Functional: State Management › selected video persists during tab switching
+  ok 180 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:482:7 › Functional: Mobile Panel Content › status panel shows quota info (2.4s)
+  ok 181 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:495:7 › Functional: Mobile Panel Content › can search videos from mobile config panel (2.4s)
+  ok 189 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:689:7 › Functional: Responsive Behavior › resizing from mobile to desktop shows all panels (2.7s)
+  ok 190 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:419:7 › Functional: Toast Notifications › toast closes on click (1.9s)
+  ok 193 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:748:7 › Functional: Performance › search results render without freezing (409ms)
+Page load time: 1274ms
+  ok 192 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:734:7 › Functional: Performance › page loads within acceptable time (1.7s)
+  ok 191 [mobile-chrome] › tests\smoke\functional-tests.spec.ts:711:7 › Functional: Responsive Behavior › resizing from desktop to mobile shows toolbar (2.5s)
+  ok 195 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:31:7 › Page Structure & Initial Load › has correct page title (1.9s)
+  ok 196 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:35:7 › Page Structure & Initial Load › header navigation is present and functional (1.9s)
+  ok 197 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:54:7 › Page Structure & Initial Load › skip navigation link is present (1.6s)
+  ok 198 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:59:7 › Page Structure & Initial Load › main content area has correct ID for skip link (1.8s)
+  -  201 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:91:7 › Desktop Three-Panel Layout › all three panels are visible
+  -  202 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:97:7 › Desktop Three-Panel Layout › panels are laid out horizontally without overlap
+  -  203 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:106:7 › Desktop Three-Panel Layout › no horizontal scrolling on any viewport size
+  -  204 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:112:7 › Desktop Three-Panel Layout › mobile toolbar is hidden on desktop
+  -  205 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:130:7 › Content Source Tabs › has 3 source tabs with correct labels
+  -  206 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:139:7 › Content Source Tabs › Find Videos tab is active by default
+  -  207 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:148:7 › Content Source Tabs › clicking YouTube URL tab switches content
+  -  208 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:165:7 › Content Source Tabs › clicking Upload Audio tab switches content
+  -  209 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:175:7 › Content Source Tabs › tabs have proper ARIA attributes
+  -  210 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:198:7 › Topic Selection Grid › topic grid displays 8 topic buttons
+  -  211 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:203:7 › Topic Selection Grid › topic buttons have correct data attributes
+  -  212 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:212:7 › Topic Selection Grid › clicking topic button triggers search
+  -  213 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:224:7 › Topic Selection Grid › topic button shows active state when selected
+  -  214 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:231:7 › Topic Selection Grid › selecting different topic deselects previous
+  -  215 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:258:7 › Duration Filter › duration filter is visible
+  -  216 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:263:7 › Duration Filter › has 5 duration options
+  -  217 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:268:7 › Duration Filter › "Any" is selected by default
+  -  218 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:273:7 › Duration Filter › clicking duration button changes selection
+  -  219 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:283:7 › Duration Filter › duration filter has correct data attributes
+  -  220 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:305:7 › Custom Search › custom search is collapsed by default
+  -  221 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:310:7 › Custom Search › clicking toggle expands custom search
+  -  222 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:321:7 › Custom Search › can type in search input
+  -  223 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:330:7 › Custom Search › search button triggers search
+  -  224 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:344:7 › Custom Search › Enter key triggers search
+  -  225 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:368:7 › Search Results Display › search results container is hidden initially
+  -  226 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:373:7 › Search Results Display › search loading shows spinner and stop button
+  -  227 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:387:7 › Search Results Display › clear search button clears results
+  ok 194 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:18:7 › Page Structure & Initial Load › page loads without console errors (4.1s)
+  -  228 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:420:7 › YouTube URL Input › YouTube URL input is visible
+  -  230 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:432:7 › YouTube URL Input › shows hint text
+  -  229 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:426:7 › YouTube URL Input › has helpful placeholder text
+  -  231 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:438:7 › YouTube URL Input › accepts valid YouTube URL formats
+  -  232 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:467:7 › File Upload › drop zone is visible
+  -  233 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:472:7 › File Upload › drop zone has correct ARIA attributes
+  -  235 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:483:7 › File Upload › file input accepts audio files
+  -  236 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:489:7 › File Upload › file preview is hidden initially
+  -  234 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:478:7 › File Upload › file input is hidden
+  -  237 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:507:7 › ILR Level Slider › ILR slider is visible
+  -  238 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:512:7 › ILR Level Slider › slider has correct range
+  -  239 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:519:7 › ILR Level Slider › default value is 2.0
+  -  240 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:527:7 › ILR Level Slider › moving slider updates display
+  -  241 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:535:7 › ILR Level Slider › slider updates level name
+  -  242 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:543:7 › ILR Level Slider › slider updates level description
+  -  243 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:551:7 › ILR Level Slider › slider has ARIA value attributes
+  -  244 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:570:7 › Video Preview Card › video preview is hidden initially
+  -  245 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:575:7 › Video Preview Card › input state shows placeholder
+  -  246 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:603:7 › Processing State UI › processing state is hidden initially
+  -  247 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:581:7 › Video Preview Card › preview has generate and change buttons
+  -  248 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:608:7 › Processing State UI › processing state has all step indicators
+  -  249 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:614:7 › Processing State UI › processing steps have correct data attributes
+  -  250 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:622:7 › Processing State UI › progress bar exists
+  -  251 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:644:7 › Review State UI › review state is hidden initially
+  -  252 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:649:7 › Review State UI › analysis grid has 4 cards
+  -  253 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:654:7 › Review State UI › transcript preview container exists
+  -  254 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:659:7 › Review State UI › question sections exist
+  -  255 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:665:7 › Review State UI › question count badges exist
+  -  256 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:684:7 › Action Bar › action bar is visible
+  -  257 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:689:7 › Action Bar › action bar has toolbar role
+  -  258 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:694:7 › Action Bar › back button exists and is disabled initially
+  -  259 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:700:7 › Action Bar › preview button exists and is disabled initially
+  -  260 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:706:7 › Action Bar › export button exists and is disabled initially
+  -  261 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:730:7 › Status Panel (Right) › LLM quota section exists
+  -  262 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:725:7 › Status Panel (Right) › status panel is visible
+  -  263 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:735:7 › Status Panel (Right) › shows provider status cards
+  -  264 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:741:7 › Status Panel (Right) › tips card is visible
+  -  265 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:746:7 › Status Panel (Right) › About ILR section exists
+  ok 199 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:64:7 › Page Structure & Initial Load › step indicator shows 4 steps (1.8s)
+  ok 200 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:73:7 › Page Structure & Initial Load › toast container exists for notifications (1.8s)
+  ok 266 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:764:7 › Mobile Layout › mobile toolbar is visible (2.1s)
+  ok 267 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:769:7 › Mobile Layout › mobile toolbar has 3 buttons (2.1s)
+  ok 268 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:774:7 › Mobile Layout › config button is active by default (1.8s)
+  ok 269 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:779:7 › Mobile Layout › toolbar has tablist role (1.8s)
+  ok 271 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:791:7 › Mobile Layout › clicking Status button shows status panel (2.3s)
+  ok 273 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:810:7 › Mobile Layout › no horizontal scrolling on mobile (2.1s)
+  ok 270 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:784:7 › Mobile Layout › clicking Content button shows main content (2.4s)
+  ok 272 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:798:7 › Mobile Layout › toolbar remains visible when switching panels (3.4s)
+  ok 275 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:836:7 › Accessibility › page has heading structure (1.7s)
+  ok 276 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:842:7 › Accessibility › all images have alt text (2.1s)
+  ok 274 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:816:7 › Mobile Layout › ILR slider accessible via config panel (2.6s)
+  ok 277 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:856:7 › Accessibility › form inputs have labels (2.2s)
+  ok 278 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:862:7 › Accessibility › buttons have accessible names (1.9s)
+  ok 279 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:875:7 › Accessibility › interactive elements are keyboard focusable (1.9s)
+  ok 280 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:884:7 › Accessibility › focus is visible on interactive elements (1.9s)
+  ok 282 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:905:7 › Landing Page › has Arabic content (1.3s)
+  ok 281 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:898:7 › Landing Page › landing page loads correctly (2.1s)
+  ok 283 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:923:7 › Landing Page › Arabic text is centered (1.7s)
+  -  287 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:976:7 › Error Handling › invalid YouTube URL shows no preview
+  -  288 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:987:7 › Error Handling › empty search shows no results
+  -  289 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:1012:7 › Visual Screenshots › capture initial state
+  -  290 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:1016:7 › Visual Screenshots › capture each tab
+  -  291 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:1031:7 › Visual Screenshots › capture topic selection
+  -  292 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:1038:7 › Visual Screenshots › capture ILR slider positions
+  -  293 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:1054:7 › Visual Screenshots › capture custom search expanded
+  -  294 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:1060:7 › Visual Screenshots › capture duration filter selection
+  ok 284 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:937:7 › Landing Page › has link to generator (1.8s)
+  ok 285 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:944:7 › Landing Page › navigation to generator works (1.5s)
+  ok 286 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:955:7 › Landing Page › no horizontal scrolling (1.4s)
+Overflow at 320px: [ [32m'NAV.nav: right=338.4375px'[39m, [32m'A.nav-link: right=338.4375px'[39m ]
+  ok 295 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:1078:7 › Mobile Screenshots › capture mobile initial state (2.5s)
+  ok 297 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:1099:7 › Mobile Screenshots › capture mobile topic grid (2.4s)
+  x  298 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:13:7 › Visual: Overflow Detection › no horizontal overflow on generator page at any common width (1.9s)
+  ok 296 [mobile-chrome] › tests\smoke\generator-flow.spec.ts:1082:7 › Mobile Screenshots › capture mobile toolbar navigation (3.6s)
+  -  301 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:119:7 › Visual: Text Handling › Arabic text displays correctly with RTL
+  ok 300 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:58:7 › Visual: Overflow Detection › no elements extend beyond viewport on mobile (1.9s)
+  ok 303 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:169:7 › Visual: Panel Layout › panels fill available height (2.5s)
+  x  302 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:139:7 › Visual: Panel Layout › three-panel layout has no gaps or overlaps at various widths (2.3s)
+  -  305 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:95:7 › Visual: Text Handling › long video titles are properly truncated
+  ok 299 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:43:7 › Visual: Overflow Detection › no horizontal overflow on landing page at any common width (6.3s)
+  ok 304 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:190:7 › Visual: Mobile Toolbar › toolbar stays fixed at bottom during scroll (2.5s)
+Buttons smaller than 44x44: [
+  [32m'"Any": 39x24'[39m,
+  [32m'"<1 min": 54x24'[39m,
+  [32m'"1-5 min": 58x24'[39m,
+  [32m'"5-15 min": 65x24'[39m,
+  [32m'">15 min": 61x24'[39m
+]
+  x  307 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:256:7 › Visual: Touch Targets › all buttons meet minimum touch target size (44x44) (2.3s)
+  ok 306 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:232:7 › Visual: Mobile Toolbar › toolbar does not overlap content (2.5s)
+  -  309 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:329:7 › Visual: Loading States › topic button shows loading state
+  ok 308 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:283:7 › Visual: Touch Targets › topic buttons are tappable on mobile (2.4s)
+  ok 310 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:351:7 › Visual: Hidden States › processing state is truly hidden, not just invisible (2.0s)
+  ok 311 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:362:7 › Visual: Hidden States › review state is truly hidden (1.8s)
+  ok 312 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:212:7 › Visual: Mobile Toolbar › toolbar buttons are evenly spaced (2.0s)
+  ok 313 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:371:7 › Visual: Hidden States › hidden search results do not take space (2.1s)
+  ok 314 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:391:7 › Visual: Z-Index & Stacking › mobile toolbar is above content (1.8s)
+  -  318 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:311:7 › Visual: Loading States › search loading spinner is visible and centered
+  ok 317 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:437:7 › Visual: Typography › Arabic font is applied to Arabic text (2.5s)
+  x  315 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:402:7 › Visual: Z-Index & Stacking › toast notifications appear above everything (1.8s)
+  ok 316 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:425:7 › Visual: Typography › fonts load correctly (4.5s)
+  ok 319 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:457:7 › Visual: Colors › active states have visible color change (2.3s)
+  ok 320 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:476:7 › Visual: Colors › disabled buttons look disabled (2.3s)
+  ok 322 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:521:7 › Visual: Screenshot Regression › generator page visual regression - mobile (2.8s)
+  ok 321 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:509:7 › Visual: Screenshot Regression › generator page visual regression - tablet (2.9s)
+  ok 323 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:533:7 › Visual: Screenshot Regression › landing page visual regression (6.3s)
+  ok 324 [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:497:7 › Visual: Screenshot Regression › generator page visual regression - desktop (3.9s)
+
+
+  1) [desktop-chrome] › tests\smoke\functional-tests.spec.ts:164:7 › Functional: Video Selection › clicking search result selects video and shows preview 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('.toast-success')
+    Expected: visible
+    Error: strict mode violation: locator('.toast-success') resolved to 2 elements:
+        1) <div class="toast toast-success">…</div> aka getByText('Videos found 12 videos available ×')
+        2) <div class="toast toast-success">…</div> aka getByText('Video selected Good match for ILR 2.0 ×')
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 2000ms[22m
+    [2m  - waiting for locator('.toast-success')[22m
+
+
+      195 |       // Success toast should appear
+      196 |       const toast = page.locator('.toast-success');
+    > 197 |       await expect(toast).toBeVisible({ timeout: 2000 });
+          |                           ^
+      198 |     }
+      199 |   });
+      200 |
+        at C:\tanaghum\tests\smoke\functional-tests.spec.ts:197:27
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\smoke-functional-tests-Fun-8b4c1-cts-video-and-shows-preview-desktop-chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\smoke-functional-tests-Fun-8b4c1-cts-video-and-shows-preview-desktop-chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\smoke-functional-tests-Fun-8b4c1-cts-video-and-shows-preview-desktop-chrome\error-context.md
+
+  2) [desktop-chrome] › tests\smoke\functional-tests.spec.ts:388:7 › Functional: Toast Notifications › success toast appears on video selection 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('.toast-success')
+    Expected: visible
+    Error: strict mode violation: locator('.toast-success') resolved to 2 elements:
+        1) <div class="toast toast-success">…</div> aka getByText('Videos found 12 videos available ×')
+        2) <div class="toast toast-success">…</div> aka getByText('Video selected Good match for ILR 2.0 ×')
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 3000ms[22m
+    [2m  - waiting for locator('.toast-success')[22m
+
+
+      398 |       // Success toast should appear
+      399 |       const toast = page.locator('.toast-success');
+    > 400 |       await expect(toast).toBeVisible({ timeout: 3000 });
+          |                           ^
+      401 |
+      402 |       // Toast should have title and message
+      403 |       await expect(toast.locator('.toast-title')).toBeVisible();
+        at C:\tanaghum\tests\smoke\functional-tests.spec.ts:400:27
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\smoke-functional-tests-Fun-3e4bf--appears-on-video-selection-desktop-chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\smoke-functional-tests-Fun-3e4bf--appears-on-video-selection-desktop-chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\smoke-functional-tests-Fun-3e4bf--appears-on-video-selection-desktop-chrome\error-context.md
+
+  3) [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:13:7 › Visual: Overflow Detection › no horizontal overflow on generator page at any common width 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeLessThanOrEqual[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: <= [32m325[39m
+    Received:    [31m338[39m
+
+      36 |
+      37 |         console.log(`Overflow at ${width}px:`, overflowing);
+    > 38 |         expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 5);
+         |                             ^
+      39 |       }
+      40 |     }
+      41 |   });
+        at C:\tanaghum\tests\smoke\visual-bugs.spec.ts:38:29
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\smoke-visual-bugs-Visual-O-c04b2-or-page-at-any-common-width-desktop-chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\smoke-visual-bugs-Visual-O-c04b2-or-page-at-any-common-width-desktop-chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\smoke-visual-bugs-Visual-O-c04b2-or-page-at-any-common-width-desktop-chrome\error-context.md
+
+  4) [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:139:7 › Visual: Panel Layout › three-panel layout has no gaps or overlaps at various widths 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeLessThanOrEqual[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: <= [32m2[39m
+    Received:    [31m1024[39m
+
+      152 |         // No overlap
+      153 |         expect(left.x + left.width).toBeLessThanOrEqual(main.x + 2);
+    > 154 |         expect(main.x + main.width).toBeLessThanOrEqual(right.x + 2);
+          |                                     ^
+      155 |
+      156 |         // No large gaps (more than 50px)
+      157 |         const gap1 = main.x - (left.x + left.width);
+        at C:\tanaghum\tests\smoke\visual-bugs.spec.ts:154:37
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\smoke-visual-bugs-Visual-P-17a0b--overlaps-at-various-widths-desktop-chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\smoke-visual-bugs-Visual-P-17a0b--overlaps-at-various-widths-desktop-chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\smoke-visual-bugs-Visual-P-17a0b--overlaps-at-various-widths-desktop-chrome\error-context.md
+
+  5) [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:457:7 › Visual: Colors › active states have visible color change 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mnot[2m.[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: not [32m"rgba(26, 95, 74, 0.08)"[39m
+
+      471 |
+      472 |     // Colors should be different
+    > 473 |     expect(activeColor).not.toBe(inactiveColor);
+          |                             ^
+      474 |   });
+      475 |
+      476 |   test('disabled buttons look disabled', async ({ page }) => {
+        at C:\tanaghum\tests\smoke\visual-bugs.spec.ts:473:29
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\smoke-visual-bugs-Visual-C-20a96-s-have-visible-color-change-desktop-chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\smoke-visual-bugs-Visual-C-20a96-s-have-visible-color-change-desktop-chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\smoke-visual-bugs-Visual-C-20a96-s-have-visible-color-change-desktop-chrome\error-context.md
+
+  6) [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:13:7 › Visual: Overflow Detection › no horizontal overflow on generator page at any common width 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeLessThanOrEqual[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: <= [32m325[39m
+    Received:    [31m338[39m
+
+      36 |
+      37 |         console.log(`Overflow at ${width}px:`, overflowing);
+    > 38 |         expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 5);
+         |                             ^
+      39 |       }
+      40 |     }
+      41 |   });
+        at C:\tanaghum\tests\smoke\visual-bugs.spec.ts:38:29
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\smoke-visual-bugs-Visual-O-c04b2-or-page-at-any-common-width-mobile-chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\smoke-visual-bugs-Visual-O-c04b2-or-page-at-any-common-width-mobile-chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\smoke-visual-bugs-Visual-O-c04b2-or-page-at-any-common-width-mobile-chrome\error-context.md
+
+  7) [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:139:7 › Visual: Panel Layout › three-panel layout has no gaps or overlaps at various widths 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeLessThanOrEqual[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: <= [32m2[39m
+    Received:    [31m1024[39m
+
+      152 |         // No overlap
+      153 |         expect(left.x + left.width).toBeLessThanOrEqual(main.x + 2);
+    > 154 |         expect(main.x + main.width).toBeLessThanOrEqual(right.x + 2);
+          |                                     ^
+      155 |
+      156 |         // No large gaps (more than 50px)
+      157 |         const gap1 = main.x - (left.x + left.width);
+        at C:\tanaghum\tests\smoke\visual-bugs.spec.ts:154:37
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\smoke-visual-bugs-Visual-P-17a0b--overlaps-at-various-widths-mobile-chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\smoke-visual-bugs-Visual-P-17a0b--overlaps-at-various-widths-mobile-chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\smoke-visual-bugs-Visual-P-17a0b--overlaps-at-various-widths-mobile-chrome\error-context.md
+
+  8) [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:256:7 › Visual: Touch Targets › all buttons meet minimum touch target size (44x44) 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeLessThan[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: < [32m5[39m
+    Received:   [31m5[39m
+
+      278 |
+      279 |     // Allow some small buttons, but not too many
+    > 280 |     expect(tooSmall.length).toBeLessThan(5);
+          |                             ^
+      281 |   });
+      282 |
+      283 |   test('topic buttons are tappable on mobile', async ({ page }) => {
+        at C:\tanaghum\tests\smoke\visual-bugs.spec.ts:280:29
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\smoke-visual-bugs-Visual-T-f5a18-um-touch-target-size-44x44--mobile-chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\smoke-visual-bugs-Visual-T-f5a18-um-touch-target-size-44x44--mobile-chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\smoke-visual-bugs-Visual-T-f5a18-um-touch-target-size-44x44--mobile-chrome\error-context.md
+
+  9) [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:402:7 › Visual: Z-Index & Stacking › toast notifications appear above everything 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeGreaterThan[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: > [32m1000[39m
+    Received:   [31m500[39m
+
+      414 |     const zIndex = await toastContainer.evaluate(el => getComputedStyle(el).zIndex);
+      415 |
+    > 416 |     expect(parseInt(zIndex) || 0).toBeGreaterThan(1000);
+          |                                   ^
+      417 |   });
+      418 | });
+      419 |
+        at C:\tanaghum\tests\smoke\visual-bugs.spec.ts:416:35
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\smoke-visual-bugs-Visual-Z-5c2ef-ons-appear-above-everything-mobile-chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\smoke-visual-bugs-Visual-Z-5c2ef-ons-appear-above-everything-mobile-chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\smoke-visual-bugs-Visual-Z-5c2ef-ons-appear-above-everything-mobile-chrome\error-context.md
+
+  9 failed
+    [desktop-chrome] › tests\smoke\functional-tests.spec.ts:164:7 › Functional: Video Selection › clicking search result selects video and shows preview 
+    [desktop-chrome] › tests\smoke\functional-tests.spec.ts:388:7 › Functional: Toast Notifications › success toast appears on video selection 
+    [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:13:7 › Visual: Overflow Detection › no horizontal overflow on generator page at any common width 
+    [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:139:7 › Visual: Panel Layout › three-panel layout has no gaps or overlaps at various widths 
+    [desktop-chrome] › tests\smoke\visual-bugs.spec.ts:457:7 › Visual: Colors › active states have visible color change 
+    [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:13:7 › Visual: Overflow Detection › no horizontal overflow on generator page at any common width 
+    [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:139:7 › Visual: Panel Layout › three-panel layout has no gaps or overlaps at various widths 
+    [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:256:7 › Visual: Touch Targets › all buttons meet minimum touch target size (44x44) 
+    [mobile-chrome] › tests\smoke\visual-bugs.spec.ts:402:7 › Visual: Z-Index & Stacking › toast notifications appear above everything 
+  120 skipped
+  195 passed (2.6m)

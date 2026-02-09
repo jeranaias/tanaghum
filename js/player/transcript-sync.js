@@ -67,6 +67,12 @@ class TranscriptSync {
    * @param {Array} translationSegments - Translation segments
    */
   load(segments, translationSegments = []) {
+    console.log('TranscriptSync.load() called with:', {
+      segmentsType: typeof segments,
+      segmentsIsArray: Array.isArray(segments),
+      segmentsLength: Array.isArray(segments) ? segments.length : 'N/A',
+      segmentsValue: segments
+    });
     // Ensure we have arrays, handling undefined/null gracefully
     this.segments = Array.isArray(segments) ? segments : [];
     this.translationSegments = Array.isArray(translationSegments) ? translationSegments : [];
