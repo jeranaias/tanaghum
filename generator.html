@@ -1225,6 +1225,10 @@
       const audioState = StateManager.get('audio');
       const capturedAudioUrl = audioState?.url || null;
 
+      console.log('=== AUDIO STATE DEBUG ===');
+      console.log('audioState:', audioState);
+      console.log('capturedAudioUrl:', capturedAudioUrl);
+
       if (capturedAudioUrl && capturedAudioUrl.startsWith('blob:')) {
         try {
           showToast('info', 'Preparing audio', 'Saving audio for playback...');

@@ -178,10 +178,28 @@ class QuizPanel {
     return `
       <div class="options-list">
         ${options.map((opt, i) => {
-          const optValue = typeof opt === 'string' ? opt : (opt.text || opt.ar || opt);
-          const escapedOptValue = escapeHtml(optValue);
+          // Handle various option formats: string, {text_ar, text_en}, {ar, en}, or other
+          let optValue;
+          if (typeof opt === 'string') {
+            optValue = opt;
+          } else if (opt && typeof opt === 'object') {
+            // Try various property names - LLM returns text_ar/text_en
+            optValue = opt.text_ar || opt.text_en || opt.text || opt.ar || opt.en || opt.label || opt.value;
+            // If still nothing, stringify but avoid [object Object]
+            if (!optValue) {
+              optValue = JSON.stringify(opt);
+            }
+          } else {
+            optValue = String(opt || '');
+          }
+          const escapedOptValue = escapeHtml(String(optValue));
           const isSelected = answer === i || answer === optValue;
-          const isCorrect = question.correct_answer === i || question.correct_answer === optValue;
+          // Check if this option is correct - handle various formats
+          // LLM returns is_correct on each option, or correct_answer as index/value
+          const isCorrect = opt?.is_correct === true ||
+                           question.correct_answer === i ||
+                           question.correct_answer === optValue ||
+                           question.correct_answer === opt?.id;
           const showResult = answer !== undefined && this.showFeedback;
 
           let optClass = 'option-btn';
@@ -305,6 +323,20 @@ class QuizPanel {
         );
       }
       return String(correctAnswer || '').trim().toLowerCase() === normalizedAnswer;
+    }
+
+    // For multiple choice, check if the selected option has is_correct: true
+    if (question.type === 'multiple_choice' || question.format === 'multiple_choice') {
+      const options = question.options || [];
+      // Answer is typically the index
+      if (typeof answer === 'number' && options[answer]) {
+        return options[answer].is_correct === true;
+      }
+      // Or check by option id
+      const selectedOption = options.find(opt => opt.id === answer);
+      if (selectedOption) {
+        return selectedOption.is_correct === true;
+      }
     }
 
     return answer === question.correct_answer;
