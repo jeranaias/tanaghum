@@ -41,7 +41,15 @@ class VocabularyPanel {
    * @param {Object} vocabulary - Vocabulary data
    */
   load(vocabulary) {
-    this.vocabulary = vocabulary?.items || vocabulary || [];
+    // Handle both {items: [...]} structure and direct array
+    // Ensure we always have an array, even if vocabulary is undefined or empty object
+    if (Array.isArray(vocabulary)) {
+      this.vocabulary = vocabulary;
+    } else if (vocabulary && Array.isArray(vocabulary.items)) {
+      this.vocabulary = vocabulary.items;
+    } else {
+      this.vocabulary = [];
+    }
     this.filter = 'all';
     this.searchTerm = '';
     this.render();
