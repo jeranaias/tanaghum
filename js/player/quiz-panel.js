@@ -84,6 +84,11 @@ class QuizPanel {
 
     const questions = this.questions[this.currentPhase] || [];
 
+    // Show empty state if no questions
+    const questionsHtml = questions.length > 0
+      ? questions.map((q, i) => this.renderQuestion(q, i)).join('')
+      : '<div class="quiz-empty" style="padding: 2rem; text-align: center; color: #666;">No questions available for this phase.</div>';
+
     this.container.innerHTML = `
       <div class="quiz-header">
         <h3 class="quiz-phase-title">${this.getPhaseTitle()}</h3>
@@ -92,7 +97,7 @@ class QuizPanel {
         </div>
       </div>
       <div class="quiz-questions">
-        ${questions.map((q, i) => this.renderQuestion(q, i)).join('')}
+        ${questionsHtml}
       </div>
     `;
 

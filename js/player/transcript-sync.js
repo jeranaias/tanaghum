@@ -84,6 +84,17 @@ class TranscriptSync {
 
     this.container.innerHTML = '';
 
+    // Show message if no segments
+    if (!this.segments || this.segments.length === 0) {
+      const emptyMsg = document.createElement('div');
+      emptyMsg.className = 'transcript-empty';
+      emptyMsg.style.cssText = 'padding: 2rem; text-align: center; color: #666;';
+      emptyMsg.innerHTML = '<p>No transcript available</p><p style="font-size: 0.9em; margin-top: 0.5rem;">Listen to the audio and follow along.</p>';
+      this.container.appendChild(emptyMsg);
+      log.log('No transcript segments to render');
+      return;
+    }
+
     this.segments.forEach((segment, index) => {
       const line = document.createElement('div');
       line.className = 'transcript-line';

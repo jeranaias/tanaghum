@@ -257,6 +257,36 @@
     async function initPlayer(lesson) {
       currentLesson = lesson;
 
+      // Debug: Log the lesson structure to verify data is present
+      console.log('initPlayer called with lesson:', {
+        id: lesson?.id,
+        hasContent: !!lesson?.content,
+        hasTranscript: !!lesson?.content?.transcript,
+        transcriptSegments: lesson?.content?.transcript?.segments?.length || 0,
+        hasQuestions: !!lesson?.content?.questions,
+        questionsCount: {
+          pre: lesson?.content?.questions?.pre?.length || 0,
+          while: lesson?.content?.questions?.while?.length || 0,
+          post: lesson?.content?.questions?.post?.length || 0
+        },
+        hasVocabulary: !!lesson?.content?.vocabulary,
+        vocabularyCount: lesson?.content?.vocabulary?.items?.length || 0,
+        hasAudio: !!lesson?.audio,
+        audioCapturedUrl: lesson?.audio?.capturedUrl ? 'present' : 'missing'
+      });
+
+      // Validate lesson structure
+      if (!lesson) {
+        console.error('initPlayer: No lesson provided');
+        showToast('error', 'Error', 'No lesson data available');
+        return;
+      }
+
+      if (!lesson.content) {
+        console.warn('initPlayer: lesson.content is missing');
+        lesson.content = {};
+      }
+
       // Update UI with lesson info
       // Title can be string or {ar, en} object
       const title = lesson.metadata?.title;
@@ -337,6 +367,11 @@
       await player.load(lesson);
 
       // Initialize transcript
+      // Ensure content.transcript exists and has segments
+      const transcriptSegments = lesson.content?.transcript?.segments || [];
+      const translationSegments = lesson.content?.translation?.segments || [];
+      console.log('Loading transcript with', transcriptSegments.length, 'segments');
+
       transcriptSync = new TranscriptSync(transcriptContainer, {
         showTranslation: $('#toggle-translation').checked,
         autoScroll: $('#toggle-autoscroll').checked,
@@ -346,12 +381,17 @@
         }
       });
 
-      transcriptSync.load(
-        lesson.content?.transcript?.segments || [],
-        lesson.content?.translation?.segments || []
-      );
+      transcriptSync.load(transcriptSegments, translationSegments);
 
       // Initialize quiz panel
+      // Ensure content.questions exists with all phases
+      const questions = lesson.content?.questions || { pre: [], while: [], post: [] };
+      console.log('Loading questions:', {
+        pre: questions.pre?.length || 0,
+        while: questions.while?.length || 0,
+        post: questions.post?.length || 0
+      });
+
       quizPanel = new QuizPanel(quizContainer, {
         showFeedback: true,
         onAnswer: (questionId, answer, isCorrect) => {
@@ -362,11 +402,15 @@
         }
       });
 
-      quizPanel.load(lesson.content?.questions || {});
+      quizPanel.load(questions);
       quizPanel.showPreQuestions();
       updatePhaseBadges();
 
       // Initialize vocabulary panel
+      // Ensure content.vocabulary exists
+      const vocabulary = lesson.content?.vocabulary || { items: [] };
+      console.log('Loading vocabulary with', vocabulary.items?.length || 0, 'items');
+
       vocabularyPanel = new VocabularyPanel(vocabularyContainer, {
         showDetails: true,
         ttsEnabled: true,
@@ -376,7 +420,7 @@
         }
       });
 
-      vocabularyPanel.load(lesson.content?.vocabulary || {});
+      vocabularyPanel.load(vocabulary);
 
       // Update total time
       totalTimeEl.textContent = formatTime(player.duration);
@@ -514,7 +558,7 @@
         try {
           const text = await file.text();
           const lesson = JSON.parse(text);
-          await initPlayer(lesson);
+          await loadAndInitPlayer(lesson, 'file');
           loadModal.classList.add('hidden');
           const loadedTitle = typeof lesson.metadata?.title === 'string'
             ? lesson.metadata.title
@@ -529,7 +573,7 @@
     $('#btn-load-demo').addEventListener('click', async () => {
       // Load demo lesson
       const demoLesson = createDemoLesson();
-      await initPlayer(demoLesson);
+      await loadAndInitPlayer(demoLesson, 'demo');
       loadModal.classList.add('hidden');
       showToast('success', 'Demo Loaded', 'Demo lesson loaded');
     });
@@ -632,12 +676,157 @@
     const lessonFromStorage = localStorage.getItem('tanaghum_current_lesson');
     const lessonIdFromHash = window.location.hash.slice(1);
 
+    /**
+     * Retrieve audio blob from IndexedDB and create a new blob URL
+     * This is needed because blob URLs don't survive page navigation
+     * @param {string} lessonId - Lesson ID
+     * @returns {Promise<string|null>} New blob URL or null
+     */
+    async function getAudioBlobFromIDB(lessonId) {
+      return new Promise((resolve) => {
+        const request = indexedDB.open('TanaghulAudio', 1);
+
+        request.onupgradeneeded = (event) => {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains('audioBlobs')) {
+            db.createObjectStore('audioBlobs', { keyPath: 'lessonId' });
+          }
+        };
+
+        request.onsuccess = (event) => {
+          const db = event.target.result;
+
+          // Check if object store exists
+          if (!db.objectStoreNames.contains('audioBlobs')) {
+            db.close();
+            resolve(null);
+            return;
+          }
+
+          const tx = db.transaction('audioBlobs', 'readonly');
+          const store = tx.objectStore('audioBlobs');
+          const getRequest = store.get(lessonId);
+
+          getRequest.onsuccess = () => {
+            const data = getRequest.result;
+            db.close();
+
+            if (data && data.blob) {
+              // Create a new blob URL from the stored blob
+              const blobUrl = URL.createObjectURL(data.blob);
+              console.log('Retrieved audio blob from IndexedDB, created new URL:', blobUrl.substring(0, 50));
+              resolve(blobUrl);
+            } else {
+              resolve(null);
+            }
+          };
+
+          getRequest.onerror = () => {
+            db.close();
+            resolve(null);
+          };
+        };
+
+        request.onerror = () => {
+          resolve(null);
+        };
+      });
+    }
+
+    /**
+     * Clean up stored audio blob from IndexedDB after use
+     * @param {string} lessonId - Lesson ID
+     */
+    async function cleanupAudioBlobFromIDB(lessonId) {
+      return new Promise((resolve) => {
+        const request = indexedDB.open('TanaghulAudio', 1);
+
+        request.onsuccess = (event) => {
+          const db = event.target.result;
+
+          if (!db.objectStoreNames.contains('audioBlobs')) {
+            db.close();
+            resolve();
+            return;
+          }
+
+          const tx = db.transaction('audioBlobs', 'readwrite');
+          const store = tx.objectStore('audioBlobs');
+          store.delete(lessonId);
+
+          tx.oncomplete = () => {
+            db.close();
+            console.log('Cleaned up audio blob from IndexedDB');
+            resolve();
+          };
+
+          tx.onerror = () => {
+            db.close();
+            resolve();
+          };
+        };
+
+        request.onerror = () => {
+          resolve();
+        };
+      });
+    }
+
+    /**
+     * Restore the captured audio URL to the lesson object
+     * Tries IndexedDB first (for blobs stored by generator), then sessionStorage (legacy)
+     * @param {Object} lesson - Lesson object
+     * @returns {Promise<Object>} Lesson with restored audio URL
+     */
+    async function restoreAudioUrl(lesson) {
+      if (!lesson) return lesson;
+
+      // Ensure audio object exists
+      if (!lesson.audio) {
+        lesson.audio = {};
+      }
+
+      // Check if audio was stored in IndexedDB
+      if (lesson.audio.storedInIDB && lesson.audio.lessonId) {
+        const blobUrl = await getAudioBlobFromIDB(lesson.audio.lessonId);
+        if (blobUrl) {
+          lesson.audio.capturedUrl = blobUrl;
+          console.log('Restored audio from IndexedDB');
+          // Optionally clean up after loading (commented out to allow reload)
+          // await cleanupAudioBlobFromIDB(lesson.audio.lessonId);
+          return lesson;
+        }
+      }
+
+      // Fallback: Check sessionStorage (legacy method - won't work for blob URLs but kept for compatibility)
+      const capturedAudioUrl = sessionStorage.getItem('tanaghum_captured_audio_url');
+      if (capturedAudioUrl && !lesson.audio.capturedUrl) {
+        lesson.audio.capturedUrl = capturedAudioUrl;
+        console.log('Restored captured audio URL from sessionStorage (legacy)');
+        sessionStorage.removeItem('tanaghum_captured_audio_url');
+      }
+
+      return lesson;
+    }
+
+    // Initialize player with lesson
+    async function loadAndInitPlayer(lesson, source) {
+      try {
+        const restoredLesson = await restoreAudioUrl(lesson);
+        await initPlayer(restoredLesson);
+      } catch (e) {
+        console.error('Failed to init player:', e);
+        showToast('error', 'Load Error', 'Failed to initialize player: ' + e.message);
+        loadModal.classList.remove('hidden');
+      }
+    }
+
     if (lessonFromState) {
-      initPlayer(lessonFromState);
+      loadAndInitPlayer(lessonFromState, 'state');
     } else if (lessonFromStorage) {
       try {
-        const lesson = JSON.parse(lessonFromStorage);
-        initPlayer(lesson);
+        let lesson = JSON.parse(lessonFromStorage);
+        loadAndInitPlayer(lesson, 'storage');
         // Clear after loading so it doesn't persist unexpectedly
         localStorage.removeItem('tanaghum_current_lesson');
       } catch (e) {
@@ -647,9 +836,9 @@
     } else if (lessonIdFromHash) {
       // Try to load from IndexedDB via sharing system
       import('./js/gallery/lesson-sharing.js').then(({ LessonSharing }) => {
-        LessonSharing.loadLesson(lessonIdFromHash).then(lesson => {
+        LessonSharing.loadLesson(lessonIdFromHash).then(async (lesson) => {
           if (lesson) {
-            initPlayer(lesson);
+            await loadAndInitPlayer(lesson, 'hash');
           } else {
             showToast('error', 'Lesson Not Found', 'Could not find the shared lesson');
             loadModal.classList.remove('hidden');
@@ -659,7 +848,7 @@
         loadModal.classList.remove('hidden');
       });
     } else if (urlParams.has('demo')) {
-      initPlayer(createDemoLesson());
+      loadAndInitPlayer(createDemoLesson(), 'demo');
     } else {
       // Show load modal
       loadModal.classList.remove('hidden');
