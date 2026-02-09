@@ -31,10 +31,12 @@ class QuizPanel {
    * @param {Object} questions - Questions by phase
    */
   load(questions) {
+    // Ensure we have arrays for each phase, handling undefined/null gracefully
+    const q = questions || {};
     this.questions = {
-      pre: questions.pre || [],
-      while: questions.while || [],
-      post: questions.post || []
+      pre: Array.isArray(q.pre) ? q.pre : [],
+      while: Array.isArray(q.while) ? q.while : [],
+      post: Array.isArray(q.post) ? q.post : []
     };
     this.answers = {};
     this.currentPhase = 'pre';

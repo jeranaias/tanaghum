@@ -276,9 +276,12 @@
       const mediaContainer = $('#media-container');
 
       // Check if we have captured audio (from browser capture) - use that for reliable playback
+      // Prioritize capturedUrl over any other audio source (including YouTube)
       const capturedUrl = lesson.audio?.capturedUrl || lesson.audio?.url;
+      // Ensure capturedUrl is a valid non-empty string
+      const hasCapturedUrl = typeof capturedUrl === 'string' && capturedUrl.trim().length > 0;
 
-      if (capturedUrl) {
+      if (hasCapturedUrl) {
         // Use captured audio - more reliable than YouTube iframe
         mediaContainer.innerHTML = `
           <div class="audio-player-container">

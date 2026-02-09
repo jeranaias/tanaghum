@@ -67,10 +67,13 @@ class TranscriptSync {
    * @param {Array} translationSegments - Translation segments
    */
   load(segments, translationSegments = []) {
-    this.segments = segments || [];
-    this.translationSegments = translationSegments;
+    // Ensure we have arrays, handling undefined/null gracefully
+    this.segments = Array.isArray(segments) ? segments : [];
+    this.translationSegments = Array.isArray(translationSegments) ? translationSegments : [];
     this.activeIndex = -1;
     this.render();
+
+    log.log(`Loaded ${this.segments.length} transcript segments`);
   }
 
   /**

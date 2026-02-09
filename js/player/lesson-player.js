@@ -53,15 +53,21 @@ class LessonPlayer {
     this.lesson = lesson;
     log.log('Loading lesson:', lesson.metadata?.title);
 
+    // Check if player.html already created an audio element - use that first
+    const existingAudioEl = document.getElementById('audio-player');
+
     // Check for captured audio URL first (from browser capture)
     // This takes priority over YouTube iframe for better playback control
+    // Ensure capturedUrl is a non-empty string before using it
     const capturedUrl = lesson.audio?.capturedUrl || lesson.audio?.url;
+    const hasCapturedUrl = typeof capturedUrl === 'string' && capturedUrl.length > 0;
 
     // Create appropriate media element
-    if (capturedUrl) {
+    if (existingAudioEl || hasCapturedUrl) {
       // Use captured audio for playback (works for both YouTube captures and uploads)
+      // If existingAudioEl exists, setupAudioPlayer will use it
       log.log('Using captured audio URL for playback');
-      await this.setupAudioPlayer(capturedUrl);
+      await this.setupAudioPlayer(capturedUrl || existingAudioEl.src);
     } else if (lesson.audio?.type === 'youtube' && lesson.audio?.videoId) {
       // Fall back to YouTube iframe if no captured audio
       log.log('Using YouTube iframe for playback');
@@ -148,7 +154,51 @@ class LessonPlayer {
     // Clean up any existing audio player first
     this.cleanupAudioPlayer();
 
-    // Create container for YouTube iframe
+    // Check for existing YouTube iframe created by player.html
+    const existingIframe = document.getElementById('yt-iframe');
+    if (existingIframe) {
+      log.log('Found existing YouTube iframe, using postMessage API');
+      // Use the existing iframe - we'll control it via postMessage or let it be standalone
+      // The iframe already has the video loaded, so we just need to track its state
+      this.videoElement = existingIframe;
+
+      // For existing iframes, we can use the YouTube IFrame API to control them
+      // but first we need to ensure the API is loaded
+      if (!window.YT || !window.YT.Player) {
+        await this.loadYouTubeAPI();
+      }
+
+      // Get the player from the existing iframe
+      return new Promise((resolve) => {
+        // Try to initialize YT.Player on the existing iframe
+        try {
+          this.ytPlayer = new YT.Player('yt-iframe', {
+            events: {
+              onReady: () => {
+                this.duration = this.ytPlayer.getDuration() || 0;
+                this.startYouTubeTimeUpdate();
+                resolve();
+              },
+              onStateChange: (event) => {
+                if (event.data === YT.PlayerState.PLAYING) {
+                  this.handlePlay();
+                } else if (event.data === YT.PlayerState.PAUSED) {
+                  this.handlePause();
+                } else if (event.data === YT.PlayerState.ENDED) {
+                  this.handleEnded();
+                }
+              }
+            }
+          });
+        } catch (e) {
+          // If we can't control the iframe, just resolve and let it play standalone
+          log.warn('Could not initialize YT.Player on existing iframe:', e);
+          resolve();
+        }
+      });
+    }
+
+    // Create container for YouTube iframe if no existing one
     this.videoElement = document.createElement('div');
     this.videoElement.id = 'yt-player-container';
 
