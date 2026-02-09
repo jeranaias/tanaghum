@@ -110,15 +110,14 @@ class AudioExtractor {
         onProgress?.({ stage: 'browser-capture', percent: 5, message: 'Preparing browser audio capture...' });
 
         try {
-          // Use 1.5x speed - good balance of speed and audio quality
-          // Audio is still captured correctly, just faster
+          // Use 1x speed - normal playback for accurate timestamps
           const captureResult = await captureYouTubeAudio(videoId, {
-            playbackSpeed: 1.5,
+            playbackSpeed: 1.0,
             onProgress: (progress) => {
               onProgress?.({
                 stage: 'browser-capture',
                 percent: 5 + Math.round(progress.percent * 0.9),
-                message: `Capturing audio at 1.5x: ${Math.round(progress.currentTime || 0)}s / ${Math.round(progress.duration || 0)}s`
+                message: `Capturing audio: ${Math.round(progress.currentTime || 0)}s / ${Math.round(progress.duration || 0)}s`
               });
             }
           });

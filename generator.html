@@ -1893,7 +1893,13 @@
           showToast('Session Restored', 'Your previous lesson has been restored.', 'info');
         }
       } else {
+        // Default to search/discovery mode
         StateManager.set('source.type', 'search');
+        // Ensure dropdown and content panels are synced
+        if (sourceSelect) sourceSelect.value = 'search';
+        sourceContents.forEach(content => {
+          content.classList.toggle('hidden', !content.id.includes('search'));
+        });
       }
     })();
 

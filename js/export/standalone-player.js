@@ -202,19 +202,75 @@
   // ============================================================================
 
   class TranscriptViewer extends EventEmitter {
-    constructor(containerElement, segments) {
+    constructor(containerElement, segments, words) {
       super();
       this.container = containerElement;
       this.segments = segments || [];
+      this.words = words || []; // Word-level data for per-word confidence coloring
       this.activeIndex = -1;
       this.render();
+    }
+
+    /**
+     * Get confidence color class based on confidence value
+     * Green (high) -> Yellow (medium) -> Red (low)
+     */
+    getConfidenceClass(confidence) {
+      if (confidence >= 0.9) return 'conf-high';
+      if (confidence >= 0.7) return 'conf-medium';
+      if (confidence >= 0.5) return 'conf-low';
+      return 'conf-very-low';
+    }
+
+    /**
+     * Render words within a segment with per-word confidence coloring
+     */
+    renderSegmentWords(segment) {
+      // If segment has words array, use it for per-word confidence
+      if (segment.words && segment.words.length > 0) {
+        return segment.words.map(word => {
+          const confClass = this.getConfidenceClass(word.confidence);
+          const confPercent = Math.round(word.confidence * 100);
+          return `<span class="word ${confClass}" title="Confidence: ${confPercent}%" data-start="${word.start}">${word.text}</span>`;
+        }).join(' ');
+      }
+
+      // Fallback: try to match segment text with global words array
+      if (this.words.length > 0) {
+        const segmentWords = this.words.filter(w =>
+          w.start >= segment.start && w.end <= (segment.end || segment.start + 10)
+        );
+        if (segmentWords.length > 0) {
+          return segmentWords.map(word => {
+            const confClass = this.getConfidenceClass(word.confidence);
+            const confPercent = Math.round(word.confidence * 100);
+            return `<span class="word ${confClass}" title="Confidence: ${confPercent}%" data-start="${word.start}">${word.text}</span>`;
+          }).join(' ');
+        }
+      }
+
+      // Final fallback: just display segment text with segment-level confidence
+      const confClass = this.getConfidenceClass(segment.confidence || 0.8);
+      return `<span class="word ${confClass}">${segment.text}</span>`;
     }
 
     render() {
       this.container.innerHTML = '';
 
+      // Add confidence legend
+      const legendHtml = `
+        <div class="confidence-legend">
+          <span class="legend-label">Confidence:</span>
+          <span class="legend-item conf-high">High</span>
+          <span class="legend-item conf-medium">Medium</span>
+          <span class="legend-item conf-low">Low</span>
+          <span class="legend-item conf-very-low">Uncertain</span>
+        </div>
+      `;
+      this.container.insertAdjacentHTML('beforeend', legendHtml);
+
       if (this.segments.length === 0) {
-        this.container.innerHTML = '<p class="no-transcript">No transcript available</p>';
+        this.container.innerHTML += '<p class="no-transcript">No transcript available</p>';
         return;
       }
 
@@ -230,13 +286,23 @@
 
         const textEl = document.createElement('span');
         textEl.className = 'segment-text';
-        textEl.textContent = segment.text;
+        // Use per-word confidence coloring
+        textEl.innerHTML = this.renderSegmentWords(segment);
 
         segmentEl.appendChild(timeEl);
         segmentEl.appendChild(textEl);
 
         segmentEl.addEventListener('click', () => {
           this.emit('seek', parseFloat(segment.start));
+        });
+
+        // Make individual words clickable for seeking
+        textEl.querySelectorAll('.word[data-start]').forEach(wordEl => {
+          wordEl.style.cursor = 'pointer';
+          wordEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.emit('seek', parseFloat(wordEl.dataset.start));
+          });
         });
 
         this.container.appendChild(segmentEl);
@@ -541,7 +607,8 @@
 
     setupTranscript() {
       const segments = this.lesson.content?.transcript?.segments || [];
-      this.transcript = new TranscriptViewer(this.transcriptContainer, segments);
+      const words = this.lesson.content?.transcript?.words || [];
+      this.transcript = new TranscriptViewer(this.transcriptContainer, segments, words);
 
       this.transcript.on('seek', (time) => {
         this.player.seek(time);

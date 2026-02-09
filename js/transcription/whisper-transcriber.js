@@ -16,7 +16,7 @@ const WHISPER_CONFIG = {
   language: 'arabic',
   chunkLengthS: 30,
   strideS: 5,
-  returnTimestamps: true
+  returnTimestamps: 'word' // Use 'word' for per-word timestamps and confidence
 };
 
 /**
@@ -237,6 +237,7 @@ class WhisperTranscriber {
 
   /**
    * Process transcription result into segments
+   * With word-level timestamps, each chunk is a word with its own confidence
    * @param {Object} result - Raw Whisper result
    * @returns {Object} Processed transcription
    */
@@ -244,9 +245,9 @@ class WhisperTranscriber {
     const text = result.text?.trim() || '';
     const chunks = result.chunks || [];
 
-    // Convert chunks to segments with timestamps
-    const segments = chunks.map((chunk, index) => {
-      // Whisper doesn't reliably provide confidence, default to reasonable value
+    // With 'word' timestamps, each chunk is a single word
+    // We'll keep word-level data for confidence coloring
+    const words = chunks.map((chunk, index) => {
       let confidence = chunk.confidence;
       if (typeof confidence !== 'number' || confidence <= 0 || confidence > 1) {
         confidence = 0.8; // Default for Whisper transcription
@@ -259,24 +260,71 @@ class WhisperTranscriber {
         text: chunk.text?.trim() || '',
         confidence
       };
-    }).filter(seg => seg.text.length > 0);
+    }).filter(w => w.text.length > 0);
+
+    // Group words into segments (phrases/sentences) based on timing gaps
+    // A gap of >0.5 seconds typically indicates a pause/new segment
+    const segments = [];
+    let currentSegment = null;
+    const GAP_THRESHOLD = 0.5; // seconds
+
+    for (const word of words) {
+      if (!currentSegment) {
+        currentSegment = {
+          id: segments.length,
+          start: word.start,
+          end: word.end,
+          text: word.text,
+          words: [word],
+          confidence: word.confidence
+        };
+      } else {
+        const gap = word.start - currentSegment.end;
+        if (gap > GAP_THRESHOLD) {
+          // Start new segment
+          segments.push(currentSegment);
+          currentSegment = {
+            id: segments.length,
+            start: word.start,
+            end: word.end,
+            text: word.text,
+            words: [word],
+            confidence: word.confidence
+          };
+        } else {
+          // Add to current segment
+          currentSegment.end = word.end;
+          currentSegment.text += ' ' + word.text;
+          currentSegment.words.push(word);
+          // Update confidence to average of all words in segment
+          const totalConf = currentSegment.words.reduce((sum, w) => sum + w.confidence, 0);
+          currentSegment.confidence = totalConf / currentSegment.words.length;
+        }
+      }
+    }
+
+    // Don't forget the last segment
+    if (currentSegment) {
+      segments.push(currentSegment);
+    }
 
     // Calculate average confidence
-    const avgConfidence = segments.length > 0
-      ? segments.reduce((sum, seg) => sum + seg.confidence, 0) / segments.length
+    const avgConfidence = words.length > 0
+      ? words.reduce((sum, w) => sum + w.confidence, 0) / words.length
       : 0.8;
 
-    // Get total audio duration from last segment
-    const audioDuration = segments.length > 0
-      ? segments[segments.length - 1].end
+    // Get total audio duration from last word
+    const audioDuration = words.length > 0
+      ? words[words.length - 1].end
       : 0;
 
     return {
       text,
       segments,
+      words, // Include word-level data for per-word confidence coloring
       avgConfidence,
       audioDuration,
-      wordCount: text.split(/\s+/).filter(w => w.length > 0).length
+      wordCount: words.length
     };
   }
 

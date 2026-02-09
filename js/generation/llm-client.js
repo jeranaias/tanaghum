@@ -497,6 +497,50 @@ ${transcript}`;
   }
 
   /**
+   * Detect Arabic dialect
+   */
+  async detectDialect(transcript, options = {}) {
+    const systemPrompt = `You are an expert in Arabic dialectology.
+Identify the primary dialect or variety of Arabic used in the text.
+
+Dialects to consider:
+- msa: Modern Standard Arabic (formal, news, academic)
+- egyptian: Egyptian Arabic (مصري)
+- levantine: Levantine Arabic (شامي - Syrian, Lebanese, Palestinian, Jordanian)
+- gulf: Gulf Arabic (خليجي - Saudi, Emirati, Kuwaiti, Qatari)
+- maghrebi: Maghrebi Arabic (مغاربي - Moroccan, Algerian, Tunisian)
+
+Look for distinctive vocabulary, grammar, and expressions.`;
+
+    const prompt = `Identify the Arabic dialect/variety in this text.
+
+Return JSON:
+{
+  "dialect": "<msa|egyptian|levantine|gulf|maghrebi>",
+  "confidence": <0.0 to 1.0>,
+  "features": [<strings: specific dialectal features observed>],
+  "mixed": <boolean: true if multiple dialects present>
+}
+
+Text:
+${transcript.substring(0, 3000)}`;
+
+    const result = await this.json({
+      prompt,
+      systemPrompt,
+      temperature: 0.2,
+      ...options
+    });
+
+    return result.data || {
+      dialect: 'msa',
+      confidence: 0.5,
+      features: ['Unable to analyze'],
+      mixed: false
+    };
+  }
+
+  /**
    * Generate comprehension questions
    */
   async generateQuestions(transcript, options = {}) {
@@ -520,33 +564,40 @@ ${transcript}`;
       post: ['vocabulary_in_context', 'speaker_attitude', 'synthesis', 'evaluation']
     };
 
-    const systemPrompt = `You are an expert Arabic language teacher creating comprehension questions for ILR level ${ilrLevel} learners.
+    const systemPrompt = `You are an expert Arabic language teacher creating HIGH-QUALITY comprehension questions for ILR level ${ilrLevel} learners.
 
 ${phaseDescriptions[phase]}
 
 Question types for this phase: ${questionTypes[phase].join(', ')}
 
-Rules:
+CRITICAL Rules for QUALITY questions:
 - Questions must be directly answerable from the text
 - Include both Arabic and English versions
-- For multiple choice, provide 4 options with exactly 1 correct answer
-- Vary question types
-- Match difficulty to ILR ${ilrLevel}`;
+- QUALITY over QUANTITY - fewer excellent questions are better than many mediocre ones
+- Match difficulty to ILR ${ilrLevel}
 
-    const prompt = `Create ${count} ${phase}-listening comprehension questions for this Arabic text about "${topic}".
+MULTIPLE CHOICE FORMAT (4 options):
+- Option A: THE CORRECT ANSWER - definitively correct based on the text
+- Option B: PLAUSIBLE ANSWER - close/almost right, tests nuanced understanding (partially true but not the best answer)
+- Option C: WRONG ANSWER - incorrect but somewhat related to the topic
+- Option D: CLEARLY WRONG - obviously incorrect distractor
+
+This structure tests true comprehension, not just recognition. The learner must understand WHY the correct answer is better than the plausible one.`;
+
+    const prompt = `Create ${count} HIGH-QUALITY ${phase}-listening comprehension questions for this Arabic text about "${topic}".
+
+PRIORITIZE QUALITY. Each question should test genuine understanding, not trivial facts.
 
 ${existingQuestions.length > 0 ? `Avoid these topics already covered: ${existingQuestions.map(q => q.skill).join(', ')}\n` : ''}
 
 Return JSON array where each question has:
-- type: "multiple_choice" | "true_false" | "fill_blank" | "open_ended"
+- type: "multiple_choice" | "true_false"
 - skill: one of ${JSON.stringify(questionTypes[phase])}
 - question_ar: Arabic question text
 - question_en: English translation
-- options: array of {id, text_ar, text_en, is_correct} (for multiple_choice)
+- options: array of 4 items: [{id: "a", text_ar, text_en, is_correct: true}, {id: "b", text_ar, text_en, is_correct: false, distractor_type: "plausible"}, {id: "c", text_ar, text_en, is_correct: false, distractor_type: "wrong"}, {id: "d", text_ar, text_en, is_correct: false, distractor_type: "clearly_wrong"}]
 - correct_answer: boolean (for true_false)
-- sentence_ar, sentence_en, word_bank, correct_word (for fill_blank)
-- rubric: array of criteria strings (for open_ended)
-- explanation_ar, explanation_en: explanation of correct answer
+- explanation_ar, explanation_en: explain why correct answer is right AND why the plausible answer is not the best choice
 ${phase === 'while' ? '- timestamp_percent: number 0-1 indicating when in audio this appears' : ''}
 
 Text:

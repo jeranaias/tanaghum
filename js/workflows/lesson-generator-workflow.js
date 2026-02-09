@@ -237,11 +237,21 @@ class LessonGeneratorWorkflow {
 
     try {
       // Analyze ILR level
-      onProgress(30);
+      onProgress(20);
       const ilrAnalysis = await llmClient.analyzeILR(transcription.text);
 
+      // Detect dialect
+      onProgress(40);
+      let dialectAnalysis = { dialect: 'msa', confidence: 0.5, features: [], mixed: false };
+      try {
+        dialectAnalysis = await llmClient.detectDialect(transcription.text);
+        log.log('Dialect detected:', dialectAnalysis.dialect, 'confidence:', dialectAnalysis.confidence);
+      } catch (e) {
+        log.warn('Dialect detection failed:', e.message);
+      }
+
       // Extract vocabulary
-      onProgress(60);
+      onProgress(70);
       const vocabulary = await llmClient.extractVocabulary(transcription.text, {
         count: 15,
         ilrLevel: ilrAnalysis.level
@@ -253,6 +263,10 @@ class LessonGeneratorWorkflow {
         ilrLevel: ilrAnalysis.level,
         ilrConfidence: ilrAnalysis.confidence,
         ilrFactors: ilrAnalysis.factors,
+        dialect: dialectAnalysis.dialect,
+        dialectConfidence: dialectAnalysis.confidence,
+        dialectFeatures: dialectAnalysis.features,
+        dialectMixed: dialectAnalysis.mixed,
         vocabulary,
         wordCount: transcription.wordCount,
         duration: transcription.audioDuration || transcription.duration || 0
@@ -272,6 +286,10 @@ class LessonGeneratorWorkflow {
         ilrLevel: 2.0,
         ilrConfidence: 0.5,
         ilrFactors: ['Unable to analyze'],
+        dialect: 'msa',
+        dialectConfidence: 0.5,
+        dialectFeatures: [],
+        dialectMixed: false,
         vocabulary: [],
         wordCount: transcription.wordCount || 0,
         duration: transcription.audioDuration || 0
@@ -459,7 +477,14 @@ class LessonGeneratorWorkflow {
         transcript: {
           text: transcription.text || '',
           segments: transcription.segments || [],
+          words: transcription.words || [], // Word-level data for per-word confidence coloring
           language: transcription.language || 'ar'
+        },
+        dialect: {
+          detected: analysis.dialect || 'msa',
+          confidence: analysis.dialectConfidence || 0,
+          features: analysis.dialectFeatures || [],
+          mixed: analysis.dialectMixed || false
         },
         vocabulary: {
           items: analysis.vocabulary || []
