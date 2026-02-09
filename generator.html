@@ -1206,7 +1206,7 @@
     });
 
     // Preview button - open lesson in player
-    $('#preview-btn').addEventListener('click', () => {
+    $('#preview-btn').addEventListener('click', async () => {
       // Use the generated lesson from state
       const lesson = StateManager.get('lesson');
       if (!lesson) {
@@ -1214,10 +1214,91 @@
         return;
       }
 
-      // Save to localStorage for player to load
+      // IMPORTANT: Blob URLs do NOT survive page navigation
+      // When we navigate to player.html, the blob that created the URL is gone
+      // We need to either:
+      // 1. Store the blob itself in IndexedDB and recreate the URL on the player page
+      // 2. Convert to a data URL (large but works)
+      //
+      // We'll use IndexedDB for efficiency with large audio files
+
+      const audioState = StateManager.get('audio');
+      const capturedAudioUrl = audioState?.url || null;
+
+      if (capturedAudioUrl && capturedAudioUrl.startsWith('blob:')) {
+        try {
+          showToast('info', 'Preparing audio', 'Saving audio for playback...');
+
+          // Fetch the blob from the blob URL
+          const response = await fetch(capturedAudioUrl);
+          const audioBlob = await response.blob();
+
+          // Store the blob in IndexedDB
+          await storeAudioBlobInIDB(lesson.id, audioBlob);
+
+          // Mark the lesson as having stored audio
+          lesson.audio = lesson.audio || {};
+          lesson.audio.storedInIDB = true;
+          lesson.audio.lessonId = lesson.id;
+
+          console.log('Audio blob stored in IndexedDB for lesson:', lesson.id);
+        } catch (error) {
+          console.error('Failed to store audio blob:', error);
+          // Continue without audio - at least the lesson will load
+          showToast('warning', 'Audio save failed', 'Lesson will load without audio playback');
+        }
+      }
+
+      // Save lesson to localStorage (without the blob URL which won't work anyway)
       localStorage.setItem('tanaghum_current_lesson', JSON.stringify(lesson));
       window.location.href = 'player.html';
     });
+
+    /**
+     * Store audio blob in IndexedDB for cross-page access
+     * @param {string} lessonId - Lesson ID
+     * @param {Blob} blob - Audio blob
+     */
+    async function storeAudioBlobInIDB(lessonId, blob) {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open('TanaghulAudio', 1);
+
+        request.onupgradeneeded = (event) => {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains('audioBlobs')) {
+            db.createObjectStore('audioBlobs', { keyPath: 'lessonId' });
+          }
+        };
+
+        request.onsuccess = (event) => {
+          const db = event.target.result;
+          const tx = db.transaction('audioBlobs', 'readwrite');
+          const store = tx.objectStore('audioBlobs');
+
+          const data = {
+            lessonId: lessonId,
+            blob: blob,
+            timestamp: Date.now()
+          };
+
+          const putRequest = store.put(data);
+
+          putRequest.onsuccess = () => {
+            db.close();
+            resolve();
+          };
+
+          putRequest.onerror = () => {
+            db.close();
+            reject(putRequest.error);
+          };
+        };
+
+        request.onerror = () => {
+          reject(request.error);
+        };
+      });
+    }
 
     // Export button - show export options
     let exportDialog = null;
