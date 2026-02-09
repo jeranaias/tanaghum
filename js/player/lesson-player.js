@@ -338,9 +338,11 @@ class LessonPlayer {
    */
   play() {
     if (this.audioElement) {
-      this.audioElement.play();
-    } else if (this.ytPlayer) {
+      this.audioElement.play().catch(e => log.warn('Play failed:', e.message));
+    } else if (this.ytPlayer && typeof this.ytPlayer.playVideo === 'function') {
       this.ytPlayer.playVideo();
+    } else {
+      log.warn('No audio or video player available');
     }
   }
 
@@ -350,8 +352,10 @@ class LessonPlayer {
   pause() {
     if (this.audioElement) {
       this.audioElement.pause();
-    } else if (this.ytPlayer) {
+    } else if (this.ytPlayer && typeof this.ytPlayer.pauseVideo === 'function') {
       this.ytPlayer.pauseVideo();
+    } else {
+      log.warn('No audio or video player available');
     }
   }
 
