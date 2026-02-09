@@ -43,10 +43,29 @@ const PROVIDERS = {
     name: 'OpenRouter',
     endpoint: '/api/llm/openrouter',
     model: 'google/gemini-2.0-flash-exp:free',
-    dailyLimit: 20,        // Free models: ~10-20 requests/day realistically
-    rateLimit: 5,          // Very limited RPM on free tier
+    dailyLimit: 50,        // Free models have decent limits
+    rateLimit: 10,
     supportsJson: false,
     priority: 3
+  },
+  // Additional free OpenRouter models as fallbacks
+  openrouter_llama: {
+    name: 'OpenRouter Llama',
+    endpoint: '/api/llm/openrouter',
+    model: 'meta-llama/llama-3.2-3b-instruct:free',
+    dailyLimit: 50,
+    rateLimit: 10,
+    supportsJson: false,
+    priority: 4
+  },
+  openrouter_qwen: {
+    name: 'OpenRouter Qwen',
+    endpoint: '/api/llm/openrouter',
+    model: 'qwen/qwen-2-7b-instruct:free',
+    dailyLimit: 50,
+    rateLimit: 10,
+    supportsJson: false,
+    priority: 5
   }
 };
 
@@ -192,6 +211,21 @@ class LLMClient {
         ])
       )
     };
+  }
+
+  /**
+   * Reset all quotas to their daily limits
+   * Call this to restore quota if you've been rate-limited
+   */
+  resetQuotas() {
+    log.log('Resetting all LLM quotas');
+    for (const [id, config] of Object.entries(PROVIDERS)) {
+      this.quotas[id] = config.dailyLimit;
+    }
+    this.saveQuotas();
+    this.currentProvider = this.selectBestProvider();
+    log.log('Quotas reset:', this.quotas);
+    return this.getQuotaStatus();
   }
 
   /**
