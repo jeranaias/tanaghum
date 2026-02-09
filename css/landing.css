@@ -398,6 +398,10 @@
   gap: var(--space-10);
   margin-top: var(--space-12);
   position: relative;
+  list-style: none;
+  padding: 0;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .landing-step {
