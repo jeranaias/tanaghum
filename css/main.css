@@ -465,6 +465,22 @@ pre {
   transform: translateY(0);
 }
 
+.btn-danger {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+}
+
+.btn-danger:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 24px rgba(220, 38, 38, 0.35);
+}
+
+.btn-danger:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+}
+
 .btn-sm {
   padding: var(--space-2) var(--space-5);
   font-size: var(--text-sm);

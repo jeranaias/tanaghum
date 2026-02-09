@@ -426,6 +426,7 @@
       <div class="action-bar" id="action-bar" role="toolbar" aria-label="Lesson actions">
         <div class="action-group">
           <button class="btn btn-ghost" id="back-btn" type="button" disabled aria-disabled="true">Back</button>
+          <button class="btn btn-danger" id="start-over-btn" type="button" title="Clear everything and start fresh">Start Over</button>
         </div>
         <div class="action-group">
           <button class="btn btn-secondary" id="preview-btn" type="button" disabled aria-disabled="true">Preview</button>
@@ -1121,6 +1122,60 @@
         `).join('');
       });
     }
+
+    // Start Over button - clear everything and reset to initial state
+    $('#start-over-btn').addEventListener('click', () => {
+      if (!confirm('Are you sure you want to start over? This will clear all your current work.')) {
+        return;
+      }
+
+      // Clear session storage
+      StateManager.clearSession();
+
+      // Reset state to defaults
+      StateManager.reset();
+
+      // Clear localStorage items
+      localStorage.removeItem('tanaghum_current_lesson');
+      localStorage.removeItem('tanaghum_session');
+
+      // Reset UI to input state
+      $('#input-state').classList.remove('hidden');
+      $('#processing-state').classList.add('hidden');
+      $('#review-state').classList.add('hidden');
+
+      // Reset step indicators
+      document.querySelectorAll('.step').forEach((step, i) => {
+        step.classList.remove('active', 'completed');
+        if (i === 0) step.classList.add('active');
+      });
+
+      // Reset action buttons
+      $('#back-btn').disabled = true;
+      $('#preview-btn').disabled = true;
+      $('#export-btn').disabled = true;
+
+      // Clear video preview
+      hideVideoPreview();
+
+      // Reset source dropdown to search
+      const sourceSelect = $('#source-select');
+      if (sourceSelect) sourceSelect.value = 'search';
+      document.querySelectorAll('.source-content').forEach(content => {
+        content.classList.toggle('hidden', !content.id.includes('search'));
+      });
+
+      // Clear search results
+      const searchResultsGrid = $('#search-results-grid');
+      if (searchResultsGrid) searchResultsGrid.innerHTML = '';
+
+      // Clear YouTube input
+      const youtubeInput = $('#youtube-url');
+      if (youtubeInput) youtubeInput.value = '';
+
+      // Show toast
+      showToast('success', 'Reset Complete', 'Ready to start a new lesson');
+    });
 
     // Preview button - open lesson in player
     $('#preview-btn').addEventListener('click', () => {
