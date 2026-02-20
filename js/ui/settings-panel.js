@@ -58,8 +58,9 @@ async function openSettings() {
     createModal();
   }
 
-  // Show modal
+  // Show modal (both backdrop and inner modal need .active)
   modalElement.classList.add('active');
+  modalElement.querySelector('.modal').classList.add('active');
   document.body.style.overflow = 'hidden';
 
   // Load current keys and quota
@@ -72,6 +73,7 @@ async function openSettings() {
 function closeSettings() {
   if (modalElement) {
     modalElement.classList.remove('active');
+    modalElement.querySelector('.modal')?.classList.remove('active');
     document.body.style.overflow = '';
   }
 }
