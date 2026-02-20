@@ -69,7 +69,10 @@ export async function handleProxy(request, env, url, origin) {
     'www.youtube.com',
     'i.ytimg.com',
     'googlevideo.com',
-    'translate.google.com'
+    'translate.google.com',
+    'cobalt.tools',
+    'kwiatekmiki.com',
+    'hyper.lol'
   ];
   if (!allowedDomains.some(d => hostname === d || hostname.endsWith('.' + d))) {
     return jsonResponse({ error: 'Domain not in whitelist' }, 403, origin);

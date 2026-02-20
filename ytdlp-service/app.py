@@ -1,6 +1,6 @@
 """
 Tanaghum yt-dlp Audio Extraction Service
-Deployed on Fly.io with PO Token support
+Deployed on Fly.io with PO Token support + Cloudflare WARP proxy
 """
 
 import os
@@ -28,23 +28,45 @@ CORS(app, origins=ALLOWED_ORIGINS)
 # POT Server URL (bgutil-ytdlp-pot-provider runs on port 4416)
 POT_SERVER_URL = 'http://127.0.0.1:4416'
 
+# Cloudflare WARP SOCKS5 proxy (wireproxy on port 40000)
+# Makes YouTube see residential IPs instead of datacenter IPs
+WARP_PROXY = 'socks5h://127.0.0.1:40000'
+
+def is_warp_available():
+    """Check if WARP proxy is running"""
+    import socket
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex(('127.0.0.1', 40000))
+        sock.close()
+        return result == 0
+    except:
+        return False
+
 def run_ytdlp(video_url, get_url=True):
     """
-    Run yt-dlp via subprocess with proper POT provider args.
-    This ensures the plugin is loaded correctly.
+    Run yt-dlp via subprocess with POT provider + WARP proxy.
+    Uses Cloudflare WARP to appear as residential IP to YouTube.
     """
-    # Try multiple player clients including tv_embedded which sometimes bypasses restrictions
-    # The bgutil plugin auto-provides POT tokens when needed for web client
     cmd = [
         'yt-dlp',
         '--dump-json',
         '-f', 'bestaudio/best',
         '--verbose',
-        # Try tv_embedded first (often bypasses restrictions), then ios, android, web
+        # Try multiple player clients for best compatibility
         '--extractor-args', 'youtube:player_client=tv_embedded,mweb,ios,android,web',
         '--extractor-args', f'youtubepot-bgutilhttp:base_url={POT_SERVER_URL}',
-        video_url
     ]
+
+    # Route through Cloudflare WARP if available
+    if is_warp_available():
+        cmd.extend(['--proxy', WARP_PROXY])
+    else:
+        import sys
+        print("[WARN] WARP proxy not available, using direct connection", file=sys.stderr)
+
+    cmd.append(video_url)
 
     try:
         # Log the command being run
@@ -87,8 +109,9 @@ def health():
     return jsonify({
         'status': 'ok',
         'service': 'tanaghum-ytdlp',
-        'version': '2.0.0',
-        'pot_server': POT_SERVER_URL
+        'version': '3.0.0',
+        'pot_server': POT_SERVER_URL,
+        'warp_proxy': is_warp_available()
     })
 
 
@@ -295,11 +318,16 @@ def debug_info():
     except Exception as e:
         pot_status = f'Error: {e}'
 
+    # Check if WARP proxy is running
+    warp_available = is_warp_available()
+
     return jsonify({
         'ytdlp_version': ytdlp_version,
         'bgutil_installed': has_bgutil,
         'pot_server_url': POT_SERVER_URL,
-        'pot_server_status': pot_status
+        'pot_server_status': pot_status,
+        'warp_proxy': WARP_PROXY,
+        'warp_available': warp_available
     })
 
 

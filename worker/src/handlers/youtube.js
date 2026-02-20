@@ -106,7 +106,7 @@ async function fetchFromPiped(endpoint, videoId) {
   for (const instance of PIPED_INSTANCES) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
+      const timeout = setTimeout(() => controller.abort(), 5000);
 
       const response = await fetch(`${instance}${endpoint}${videoId}`, {
         signal: controller.signal,
@@ -906,11 +906,92 @@ async function searchVideos(query, origin, options = {}) {
 }
 
 /**
+ * Try fetching audio via Cobalt API (cobalt.tools)
+ * Requires self-hosted instance or API key — public instances require auth.
+ * Set COBALT_API_URL (and optionally COBALT_API_KEY) in wrangler.toml or secrets.
+ */
+async function getAudioViaCobalt(videoId, env) {
+  const cobaltUrl = env?.COBALT_API_URL;
+  if (!cobaltUrl) return null; // Skip if not configured
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+
+    // Add API key if configured
+    if (env?.COBALT_API_KEY) {
+      headers['Authorization'] = `Api-Key ${env.COBALT_API_KEY}`;
+    }
+
+    const response = await fetch(`${cobaltUrl}/`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers,
+      body: JSON.stringify({
+        url: `https://www.youtube.com/watch?v=${videoId}`,
+        downloadMode: 'audio',
+        audioFormat: 'opus',
+        audioBitrate: '128'
+      })
+    });
+
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      console.log(`[Cobalt] returned HTTP ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (data.status === 'error') {
+      console.log(`[Cobalt] error:`, data.error?.code || 'unknown');
+      return null;
+    }
+
+    if ((data.status === 'tunnel' || data.status === 'redirect') && data.url) {
+      console.log(`[Cobalt] success: status=${data.status}`);
+      return {
+        available: true,
+        audioUrl: data.url,
+        mimeType: 'audio/ogg; codecs=opus',
+        source: 'cobalt',
+        filename: data.filename
+      };
+    }
+
+    console.log(`[Cobalt] unexpected status:`, data.status);
+  } catch (e) {
+    console.log(`[Cobalt] failed:`, e.message);
+  }
+
+  return null;
+}
+
+/**
  * Get audio stream URL for a YouTube video
- * Uses Piped API first, then yt-dlp service as fallback
+ * Tries multiple methods in order of reliability
  */
 async function getVideoAudio(videoId, origin, env) {
-  // Method 1: Try Piped API first (returns direct audio stream URLs)
+  // Method 1: Try Cobalt API first (separate infrastructure, not blocked by YouTube)
+  try {
+    const cobaltResult = await getAudioViaCobalt(videoId, env);
+    if (cobaltResult && cobaltResult.available) {
+      return jsonResponse({
+        videoId,
+        ...cobaltResult
+      }, 200, origin);
+    }
+  } catch (e) {
+    console.error('Cobalt audio fetch failed:', e.message);
+  }
+
+  // Method 2: Try Piped API (returns direct audio stream URLs)
   try {
     const pipedData = await fetchFromPiped('/streams/', videoId);
     if (pipedData && pipedData.audioStreams && pipedData.audioStreams.length > 0) {
@@ -939,13 +1020,19 @@ async function getVideoAudio(videoId, origin, env) {
     console.error('Piped audio fetch failed:', e.message);
   }
 
-  // Method 2: Try yt-dlp service (Fly.io deployment)
+  // Method 3: Try yt-dlp service (Fly.io deployment)
   const ytdlpServiceUrl = env?.YTDLP_SERVICE_URL || 'https://tanaghum-ytdlp.fly.dev';
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
     const response = await fetch(`${ytdlpServiceUrl}/extract?url=${videoId}&format=info`, {
+      signal: controller.signal,
       headers: { 'Accept': 'application/json' }
     });
+
+    clearTimeout(timeout);
 
     if (response.ok) {
       const data = await response.json();
@@ -965,7 +1052,19 @@ async function getVideoAudio(videoId, origin, env) {
     console.error('yt-dlp service error:', e.message);
   }
 
-  // Fallback: Check if captions are available
+  // Method 4: Try InnerTube API with multiple client types (ANDROID, IOS, TV)
+  try {
+    const directResult = await getVideoAudioDirect(videoId, origin);
+    const directData = await directResult.json();
+
+    if (directData.available) {
+      return jsonResponse(directData, 200, origin);
+    }
+  } catch (e) {
+    console.error('InnerTube audio error:', e.message);
+  }
+
+  // Fallback: Check if captions are available (can skip audio extraction entirely)
   try {
     const captionsResult = await getVideoCaptions(videoId, origin);
     const captionsData = await captionsResult.json();
@@ -975,7 +1074,7 @@ async function getVideoAudio(videoId, origin, env) {
         videoId,
         available: false,
         hasCaptions: true,
-        message: 'Audio extraction service unavailable, but this video has captions. Using captions for better accuracy.',
+        message: 'Audio extraction unavailable, but this video has captions.',
         captionsLanguage: captionsData.language
       }, 200, origin);
     }
@@ -983,118 +1082,160 @@ async function getVideoAudio(videoId, origin, env) {
     console.error('Captions check error:', e.message);
   }
 
-  // Last resort: Try direct extraction
-  const directResult = await getVideoAudioDirect(videoId, origin);
-  const directData = await directResult.json();
-
-  if (directData.available) {
-    return jsonResponse(directData, 200, origin);
-  }
-
-  // All methods failed
+  // All methods failed - browser will use audio capture fallback
   return jsonResponse({
     videoId,
     available: false,
-    error: 'Audio extraction unavailable. The yt-dlp service may be starting up (wait 30s and retry) or the video is protected.',
-    suggestion: 'Try again in 30 seconds, or upload the audio file directly.'
+    error: 'Audio extraction unavailable from server. Browser audio capture will be used.',
+    suggestion: 'The app will capture audio at 2x speed via your browser.'
   }, 200, origin);
 }
 
 /**
- * Direct YouTube audio extraction (fallback)
+ * Direct YouTube audio extraction via InnerTube API
+ * Tries multiple client types — ANDROID and IOS clients often return
+ * streaming URLs that bypass restrictions applied to WEB clients.
  */
 async function getVideoAudioDirect(videoId, origin) {
-  const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const INNERTUBE_URL = 'https://www.youtube.com/youtubei/v1/player?key=' + INNERTUBE_API_KEY;
 
-  const response = await fetch(watchUrl, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8'
+  // Client configs to try in order — ANDROID tends to work best for audio
+  const clients = [
+    {
+      name: 'ANDROID',
+      context: {
+        client: {
+          clientName: 'ANDROID',
+          clientVersion: '19.09.37',
+          androidSdkVersion: 30,
+          hl: 'en',
+          gl: 'US'
+        }
+      },
+      userAgent: 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip'
+    },
+    {
+      name: 'IOS',
+      context: {
+        client: {
+          clientName: 'IOS',
+          clientVersion: '19.09.3',
+          deviceModel: 'iPhone14,3',
+          hl: 'en',
+          gl: 'US'
+        }
+      },
+      userAgent: 'com.google.ios.youtube/19.09.3 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)'
+    },
+    {
+      name: 'TVHTML5_SIMPLY_EMBEDDED_PLAYER',
+      context: {
+        client: {
+          clientName: 'TVHTML5_SIMPLY_EMBEDDED_PLAYER',
+          clientVersion: '2.0',
+          hl: 'en',
+          gl: 'US'
+        },
+        thirdParty: {
+          embedUrl: 'https://www.google.com'
+        }
+      },
+      userAgent: 'Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/5.0 Chrome/85.0.4183.93 TV Safari/537.36'
     }
-  });
+  ];
 
-  if (!response.ok) {
-    return jsonResponse({
-      videoId,
-      available: false,
-      error: 'Failed to fetch video page'
-    }, 200, origin);
-  }
-
-  const html = await response.text();
-
-  // Extract ytInitialPlayerResponse
-  let playerResponse = null;
-  const playerMatch = html.match(/var ytInitialPlayerResponse\s*=\s*({.+?});/s);
-  if (playerMatch) {
+  for (const client of clients) {
     try {
-      playerResponse = JSON.parse(playerMatch[1]);
-    } catch (e) {}
-  }
+      console.log(`[Audio] Trying InnerTube ${client.name} client for ${videoId}`);
 
-  if (!playerResponse) {
-    const altMatch = html.match(/ytInitialPlayerResponse\s*=\s*({.+?});/s);
-    if (altMatch) {
-      try {
-        playerResponse = JSON.parse(altMatch[1]);
-      } catch (e) {}
+      const response = await fetch(INNERTUBE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': client.userAgent
+        },
+        body: JSON.stringify({
+          videoId,
+          context: client.context,
+          contentCheckOk: true,
+          racyCheckOk: true
+        })
+      });
+
+      if (!response.ok) {
+        console.log(`[Audio] ${client.name} returned HTTP ${response.status}`);
+        continue;
+      }
+
+      const data = await response.json();
+
+      // Check playability
+      const status = data.playabilityStatus?.status;
+      if (status !== 'OK') {
+        console.log(`[Audio] ${client.name} playability: ${status} - ${data.playabilityStatus?.reason || 'unknown'}`);
+        continue;
+      }
+
+      // Extract audio formats from streaming data
+      const streamingData = data.streamingData;
+      if (!streamingData) {
+        console.log(`[Audio] ${client.name} returned no streaming data`);
+        continue;
+      }
+
+      const adaptiveFormats = streamingData.adaptiveFormats || [];
+      const audioFormats = adaptiveFormats.filter(f =>
+        f.mimeType?.startsWith('audio/') && (f.url || f.signatureCipher)
+      );
+
+      if (audioFormats.length === 0) {
+        console.log(`[Audio] ${client.name} returned no audio formats`);
+        continue;
+      }
+
+      // Filter to only formats with direct URLs (skip those needing signature decryption)
+      const directAudio = audioFormats.filter(f => f.url);
+
+      if (directAudio.length === 0) {
+        console.log(`[Audio] ${client.name} has ${audioFormats.length} audio formats but all need signature decryption`);
+        continue;
+      }
+
+      // Sort by bitrate, prefer opus/webm
+      directAudio.sort((a, b) => {
+        // Prefer opus codec (smaller, better quality)
+        const aIsOpus = a.mimeType?.includes('opus') ? 1 : 0;
+        const bIsOpus = b.mimeType?.includes('opus') ? 1 : 0;
+        if (aIsOpus !== bIsOpus) return bIsOpus - aIsOpus;
+        return (b.bitrate || 0) - (a.bitrate || 0);
+      });
+
+      const bestAudio = directAudio[0];
+      const duration = parseInt(data.videoDetails?.lengthSeconds || 0);
+
+      console.log(`[Audio] ${client.name} success: ${bestAudio.mimeType}, ${bestAudio.bitrate}bps, ${duration}s`);
+
+      return jsonResponse({
+        videoId,
+        available: true,
+        audioUrl: bestAudio.url,
+        mimeType: bestAudio.mimeType,
+        bitrate: bestAudio.bitrate,
+        duration,
+        title: data.videoDetails?.title,
+        source: `innertube-${client.name.toLowerCase()}`
+      }, 200, origin);
+
+    } catch (e) {
+      console.error(`[Audio] ${client.name} error:`, e.message);
     }
   }
 
-  if (!playerResponse) {
-    return jsonResponse({
-      videoId,
-      available: false,
-      error: 'Could not extract video data. Try uploading the audio instead.'
-    }, 200, origin);
-  }
-
-  // Check playability
-  const playability = playerResponse.playabilityStatus;
-  if (playability?.status !== 'OK') {
-    return jsonResponse({
-      videoId,
-      available: false,
-      error: playability?.reason || 'Video not available'
-    }, 200, origin);
-  }
-
-  // Get streaming data
-  const streamingData = playerResponse.streamingData;
-  if (!streamingData) {
-    return jsonResponse({
-      videoId,
-      available: false,
-      error: 'No streaming data available'
-    }, 200, origin);
-  }
-
-  // Find audio-only formats
-  const adaptiveFormats = streamingData.adaptiveFormats || [];
-  const audioFormats = adaptiveFormats.filter(f =>
-    f.mimeType?.startsWith('audio/') && f.url
-  );
-
-  if (audioFormats.length === 0) {
-    return jsonResponse({
-      videoId,
-      available: false,
-      error: 'Audio extraction blocked by YouTube. Try uploading the audio file instead.'
-    }, 200, origin);
-  }
-
-  // Sort by bitrate
-  audioFormats.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
-  const bestAudio = audioFormats[0];
-
+  // All InnerTube clients failed
   return jsonResponse({
     videoId,
-    available: true,
-    audioUrl: bestAudio.url,
-    mimeType: bestAudio.mimeType,
-    bitrate: bestAudio.bitrate,
-    duration: parseInt(playerResponse.videoDetails?.lengthSeconds || 0),
-    source: 'youtube-direct'
+    available: false,
+    error: 'Audio extraction blocked by YouTube. Try uploading the audio file instead.'
   }, 200, origin);
 }
 

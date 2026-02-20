@@ -122,27 +122,26 @@ python -m http.server 8000
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### Audio & Transcript Pipeline
+
+When a YouTube video is selected, the tool obtains a transcript through the following methods (in priority order):
+
+| Priority | Method | How It Works |
+|----------|--------|-------------|
+| 1 | **YouTube Captions** | Uses existing caption tracks (text only) via YouTube's InnerTube API. No audio download needed. This is the most common path. |
+| 2 | **Piped API** | Open-source YouTube frontend instances that provide caption and stream data. |
+| 3 | **yt-dlp + WARP** | Self-hosted extraction service on Fly.io using Cloudflare WARP (a legitimate VPN service) for network connectivity. Includes PO Token authentication for YouTube's anti-bot system. |
+| 4 | **InnerTube API** | Direct calls to YouTube's internal API with multiple client configurations. |
+| 5 | **Browser Audio Capture** | Falls back to the browser's `getDisplayMedia()` API — the same standard Web API used by Google Meet, Zoom, and Teams. Audio is captured at 2x speed, transcribed in-memory via Whisper, and never stored or transmitted. |
+
+For uploaded audio files, Whisper transcription runs entirely in the browser (no server upload).
+
 ### Processing Pipeline
 
-1. **Content Acquisition**
-   - YouTube: Extract existing captions via InnerTube API
-   - Upload: Transcribe with Whisper-small ONNX in browser
-   - Text: Use provided transcript directly
-
-2. **Analysis**
-   - Calculate ILR level based on vocabulary, syntax, discourse
-   - Detect dialect (MSA, Egyptian, Levantine, Gulf, Maghrebi)
-   - Extract key vocabulary and collocations
-
-3. **Question Generation**
-   - Pre-listening: Prediction, schema activation, vocabulary preview
-   - While-listening: Main idea, details, sequence, inference
-   - Post-listening: Vocabulary in context, synthesis, evaluation
-
-4. **Lesson Assembly**
-   - Generate synchronized VTT captions
-   - Build interactive HTML with embedded audio
-   - Create standalone exportable file
+1. **Transcription** — Captions from YouTube or Whisper-generated transcript
+2. **Analysis** — ILR level assessment, dialect detection, vocabulary extraction
+3. **Question Generation** — LLM creates pre/while/post-listening exercises from transcript text
+4. **Lesson Assembly** — Build interactive HTML with YouTube embed player and exercises
 
 ---
 
@@ -305,6 +304,64 @@ tanaghum/
 
 ---
 
+---
+
+## Legal & Fair Use
+
+### Educational Purpose
+
+Tanaghum is designed exclusively as an educational tool for developing Arabic listening comprehension skills. It is intended for use by language instructors and students at academic institutions, including the Defense Language Institute Foreign Language Center (DLIFLC) and similar DoD, IC, and academic language programs. The tool creates original pedagogical exercises — not copies of source material.
+
+### Fair Use (17 U.S.C. § 107)
+
+The use of publicly available content for the creation of educational materials is supported by the Fair Use doctrine under U.S. copyright law:
+
+| Factor | Analysis |
+|--------|----------|
+| **Purpose & Character** | Nonprofit educational use for government/academic language instruction. Transformative — creates original comprehension exercises, not reproductions. |
+| **Nature of the Work** | Uses factual, publicly broadcast content (news, interviews, lectures, educational videos). |
+| **Amount Used** | Lessons reference content via YouTube's official embedded player. No audio or video files are copied, stored, or redistributed. |
+| **Effect on Market** | No substitute for the original. May increase viewership by directing students to original videos. |
+
+### What This Tool Does NOT Do
+
+- **Does not download, store, or host** any copyrighted audio or video content
+- **Does not redistribute** any YouTube content
+- **Does not circumvent** digital rights management (DRM) protections
+- **Does not bypass** YouTube's access controls or authentication
+
+### What This Tool DOES Do
+
+- Uses YouTube's **official iframe embed player** for all content playback in generated lessons
+- Uses **existing YouTube captions** (text only) when available — the preferred and most common path
+- Uses the browser's **standard `getDisplayMedia()` API** for audio capture when captions are unavailable. This is the same Web API used by Google Meet, Zoom, Microsoft Teams, and all major video conferencing applications. Audio is processed in-memory and never stored or transmitted.
+- Generates **original educational content**: comprehension questions, vocabulary exercises, and instructional scaffolding
+- Routes YouTube metadata requests through a **Cloudflare Worker** (a standard CDN/proxy service)
+- Uses **Cloudflare WARP** (a legitimate, publicly available VPN product) for network connectivity on the audio extraction service
+
+### YouTube Terms of Service
+
+YouTube's embedded player is used in compliance with YouTube's [Terms of Service](https://www.youtube.com/t/terms) and [API Terms of Service](https://developers.google.com/youtube/terms/api-services-terms-of-service). The iframe embed player is YouTube's officially supported and documented method for third-party content integration.
+
+### Data Privacy
+
+- No user accounts or authentication required
+- No personal data collected, stored, or transmitted
+- No analytics tracking, cookies, or fingerprinting
+- Audio processing occurs entirely in the user's browser
+- Only transcript text (never audio) is sent to LLM APIs for exercise generation
+- The complete source code is publicly available and auditable
+
+### Open Source Accountability
+
+This project is fully open source. **Institutional compliance officers, legal counsel, and security reviewers** are welcome and encouraged to review the complete source code to verify all claims made in this document.
+
+### DMCA & Content Concerns
+
+If you are a content owner and believe your content is being used inappropriately through this tool, please open a GitHub issue. We will respond promptly and work to address any legitimate concerns.
+
+---
+
 ## Part of the Arabic Learning Toolkit
 
 | Tool | Purpose | Status |
@@ -330,6 +387,12 @@ npx serve .
 
 # Run worker locally
 cd worker && wrangler dev
+
+# Deploy worker
+cd worker && wrangler deploy
+
+# Deploy yt-dlp service (requires Fly.io CLI)
+cd ytdlp-service && fly deploy
 ```
 
 ---

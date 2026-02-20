@@ -200,7 +200,7 @@
       <div class="landing-section-header">
         <h2 class="landing-section-title" id="how-it-works-title">How It Works</h2>
         <p class="landing-section-subtitle">
-          From content to complete lesson in three simple steps
+          Full transparency into the technology behind every lesson
         </p>
       </div>
 
@@ -211,28 +211,165 @@
           <h3 class="landing-step-title">Choose Content</h3>
           <p class="landing-step-desc">
             Paste a YouTube URL, search for authentic Arabic content, or upload your own audio file.
-            Supports MSA and major dialects.
+            Supports MSA and major dialects. You select the content &mdash; the tool never downloads or stores videos.
           </p>
         </li>
 
         <!-- Step 2 -->
         <li class="landing-step">
           <div class="landing-step-number" aria-hidden="true">2</div>
-          <h3 class="landing-step-title">AI Generates</h3>
+          <h3 class="landing-step-title">Transcription</h3>
           <p class="landing-step-desc">
-            Whisper transcribes with word-level timestamps. LLM creates comprehension questions across pre/while/post phases.
+            If the video has existing captions, those are used directly. Otherwise, the audio is captured through
+            your browser's built-in screen sharing API and transcribed locally using OpenAI's Whisper model.
+            Audio is processed in-memory and never uploaded to external servers.
           </p>
         </li>
 
         <!-- Step 3 -->
         <li class="landing-step">
           <div class="landing-step-number" aria-hidden="true">3</div>
-          <h3 class="landing-step-title">Teach & Share</h3>
+          <h3 class="landing-step-title">AI Generates Exercises</h3>
           <p class="landing-step-desc">
-            Download self-contained HTML lessons that work offline, or share directly to the community gallery for others to use.
+            Free-tier LLM APIs (Google Gemini, Groq, OpenRouter) generate pedagogically-structured comprehension
+            questions across pre-listening, while-listening, and post-listening phases. The transcript text is sent
+            to these APIs &mdash; never audio data. All API calls are made through a Cloudflare Worker proxy.
+          </p>
+        </li>
+
+        <!-- Step 4 -->
+        <li class="landing-step">
+          <div class="landing-step-number" aria-hidden="true">4</div>
+          <h3 class="landing-step-title">Teach &amp; Share</h3>
+          <p class="landing-step-desc">
+            Export self-contained HTML lessons that work offline, share directly with students via link,
+            or publish to the community gallery. Lessons reference the original YouTube video &mdash; they do not
+            contain copies of the source material.
           </p>
         </li>
       </ol>
+    </div>
+  </section>
+
+  <!-- Technical Transparency Section -->
+  <section class="landing-features" id="transparency" aria-labelledby="transparency-title" style="background: var(--bg-secondary, #f8f9fa);">
+    <div class="container">
+      <div class="landing-section-header">
+        <h2 class="landing-section-title" id="transparency-title">Technical Transparency</h2>
+        <p class="landing-section-subtitle">
+          Open source, auditable, and designed with privacy in mind
+        </p>
+      </div>
+
+      <div class="landing-features-grid" role="list">
+        <div class="landing-feature-card" role="listitem">
+          <div class="landing-feature-icon" aria-hidden="true">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="white" stroke-width="2"/><path d="M9 12L11 14L15 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <h3 class="landing-feature-title">No Data Collection</h3>
+          <p class="landing-feature-desc">
+            No user accounts, no analytics tracking, no cookies. Audio processing happens entirely
+            in your browser. The only external calls are for YouTube metadata and LLM text generation.
+          </p>
+        </div>
+
+        <div class="landing-feature-card" role="listitem">
+          <div class="landing-feature-icon" aria-hidden="true">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V7.5L14.5 2Z" stroke="white" stroke-width="2"/><path d="M14 2V8H20" stroke="white" stroke-width="2"/></svg>
+          </div>
+          <h3 class="landing-feature-title">Fully Open Source</h3>
+          <p class="landing-feature-desc">
+            Every line of code is publicly auditable on GitHub. The entire application &mdash; frontend,
+            worker proxy, and extraction service &mdash; is transparent and open for review.
+          </p>
+        </div>
+
+        <div class="landing-feature-card" role="listitem">
+          <div class="landing-feature-icon" aria-hidden="true">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 22S20 18 20 12V5L12 2L4 5V12C4 18 12 22 12 22Z" stroke="white" stroke-width="2"/></svg>
+          </div>
+          <h3 class="landing-feature-title">Reference-Only Lessons</h3>
+          <p class="landing-feature-desc">
+            Generated lessons embed YouTube's official player to reference original content. No audio
+            or video files are stored, copied, or redistributed. Content remains on YouTube's servers.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Legal & Fair Use Section -->
+  <section class="landing-how-it-works" id="legal" aria-labelledby="legal-title">
+    <div class="container">
+      <div class="landing-section-header">
+        <h2 class="landing-section-title" id="legal-title">Legal &amp; Fair Use</h2>
+        <p class="landing-section-subtitle">
+          Designed for educational use within established legal frameworks
+        </p>
+      </div>
+
+      <div class="legal-content" style="max-width: 800px; margin: 0 auto; line-height: 1.8; color: var(--text-secondary, #555);">
+        <div class="legal-block" style="background: white; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+          <h3 style="color: var(--text-primary, #333); margin-bottom: 0.5em; font-size: 1.2rem;">Educational Purpose</h3>
+          <p>
+            Tanaghum is designed exclusively as an educational tool for developing Arabic listening comprehension
+            skills. It is intended for use by language instructors and students at academic institutions,
+            including the Defense Language Institute Foreign Language Center (DLIFLC) and similar DoD, IC,
+            and academic language programs. The tool creates pedagogical exercises &mdash; not copies of source material.
+          </p>
+        </div>
+
+        <div class="legal-block" style="background: white; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+          <h3 style="color: var(--text-primary, #333); margin-bottom: 0.5em; font-size: 1.2rem;">Fair Use (17 U.S.C. &sect; 107)</h3>
+          <p style="margin-bottom: 1em;">
+            The use of publicly available content for educational materials is supported by the Fair Use doctrine:
+          </p>
+          <ul style="padding-left: 1.5em; margin: 0;">
+            <li style="margin-bottom: 0.5em;"><strong>Purpose:</strong> Nonprofit educational use for government/academic language instruction. Transformative &mdash; creates original exercises, not reproductions.</li>
+            <li style="margin-bottom: 0.5em;"><strong>Nature:</strong> Uses factual, publicly broadcast content (news, interviews, lectures, educational videos).</li>
+            <li style="margin-bottom: 0.5em;"><strong>Amount:</strong> Lessons reference content via YouTube's official embedded player. No audio or video files are copied, stored, or redistributed.</li>
+            <li><strong>Market Effect:</strong> No substitute for the original. May increase viewership by directing students to original content for educational purposes.</li>
+          </ul>
+        </div>
+
+        <div class="legal-block" style="background: white; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+          <h3 style="color: var(--text-primary, #333); margin-bottom: 0.5em; font-size: 1.2rem;">How Content Is Accessed</h3>
+          <p style="margin-bottom: 1em;">
+            <strong>Primary path (most videos):</strong> When captions are available, the tool uses those
+            existing captions (text only) to generate exercises. No audio is downloaded or processed.
+          </p>
+          <p style="margin-bottom: 1em;">
+            <strong>Fallback path:</strong> When captions are unavailable, the tool uses the browser's standard
+            <code>getDisplayMedia()</code> screen sharing API to capture audio for transcription.
+            This is the same Web API used by Google Meet, Zoom, Microsoft Teams, and all major video
+            conferencing applications. Audio is processed in-memory and is never stored, transmitted, or redistributed.
+          </p>
+          <p>
+            <strong>In generated lessons:</strong> YouTube's official iframe embed player is used for all
+            playback, ensuring content is served through YouTube's authorized channels at all times.
+          </p>
+        </div>
+
+        <div class="legal-block" style="background: white; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+          <h3 style="color: var(--text-primary, #333); margin-bottom: 0.5em; font-size: 1.2rem;">What This Tool Does NOT Do</h3>
+          <ul style="padding-left: 1.5em; margin: 0; list-style-type: '&#10060; ';">
+            <li style="margin-bottom: 0.4em;">Download, store, or host any copyrighted audio or video</li>
+            <li style="margin-bottom: 0.4em;">Redistribute any YouTube content</li>
+            <li style="margin-bottom: 0.4em;">Circumvent digital rights management (DRM)</li>
+            <li style="margin-bottom: 0.4em;">Collect, store, or transmit personal user data</li>
+            <li>Bypass YouTube's access controls or authentication</li>
+          </ul>
+        </div>
+
+        <div class="legal-block" style="background: white; border-radius: 12px; padding: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+          <h3 style="color: var(--text-primary, #333); margin-bottom: 0.5em; font-size: 1.2rem;">Open Source Accountability</h3>
+          <p>
+            The complete source code is publicly available and auditable on GitHub. Institutional compliance
+            officers, legal counsel, and security reviewers are welcome and encouraged to review the codebase
+            to verify all claims independently. For questions, contact the developer or open a GitHub issue.
+          </p>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -274,7 +411,8 @@
         <nav class="landing-footer-links" aria-label="Footer navigation">
           <a href="generator.html" class="landing-footer-link">Generator</a>
           <a href="gallery.html" class="landing-footer-link">Gallery</a>
-          <a href="docs/" class="landing-footer-link">Documentation</a>
+          <a href="#how-it-works" class="landing-footer-link">How It Works</a>
+          <a href="#legal" class="landing-footer-link">Legal &amp; Fair Use</a>
           <a href="https://github.com/tanaghum/tanaghum" class="landing-footer-link" target="_blank" rel="noopener noreferrer">GitHub<span class="visually-hidden"> (opens in new tab)</span></a>
         </nav>
       </div>

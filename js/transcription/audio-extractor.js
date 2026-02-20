@@ -81,43 +81,21 @@ class AudioExtractor {
         lastError = e.message;
       }
 
-      // Method 2: If worker failed, try client-side extraction
-      // This only works in certain browser contexts (not cross-origin from GitHub Pages)
-      if (!audioMeta) {
-        onProgress?.({ stage: 'fetching', percent: 5, message: 'Trying alternative extraction...' });
-
-        try {
-          // Import youtubeFetcher dynamically to avoid circular dependency
-          const { youtubeFetcher } = await import('../content/youtube-fetcher.js');
-          const clientResult = await youtubeFetcher.extractAudioClientSide(videoId);
-
-          if (clientResult.available && clientResult.audioUrl) {
-            log.log('Got audio URL from client-side extraction');
-            audioMeta = clientResult;
-          } else {
-            lastError = clientResult.error || lastError;
-          }
-        } catch (e) {
-          log.warn('Client-side audio extraction failed:', e.message);
-          // This is expected to fail on GitHub Pages due to CORS
-        }
-      }
-
-      // Method 3: If server-side failed, use browser audio capture
+      // Method 2: If server-side failed, use browser audio capture
       // This plays the video and captures the audio in real-time
       if (!audioMeta || !audioMeta.available || !audioMeta.audioUrl) {
         log.log('Server-side extraction failed, attempting browser audio capture');
         onProgress?.({ stage: 'browser-capture', percent: 5, message: 'Preparing browser audio capture...' });
 
         try {
-          // Use 1x speed - normal playback for accurate timestamps
+          // Use 2x speed - halves capture time; YouTube supports up to 2x
           const captureResult = await captureYouTubeAudio(videoId, {
-            playbackSpeed: 1.0,
+            playbackSpeed: 2.0,
             onProgress: (progress) => {
               onProgress?.({
                 stage: 'browser-capture',
                 percent: 5 + Math.round(progress.percent * 0.9),
-                message: `Capturing audio: ${Math.round(progress.currentTime || 0)}s / ${Math.round(progress.duration || 0)}s`
+                message: `Capturing audio at 2x: ${Math.round(progress.currentTime || 0)}s / ${Math.round(progress.duration || 0)}s`
               });
             }
           });
@@ -167,12 +145,12 @@ class AudioExtractor {
           // Fall back to browser audio capture
           onProgress?.({ stage: 'browser-capture', percent: 5, message: 'Preparing browser audio capture...' });
           const captureResult = await captureYouTubeAudio(videoId, {
-            playbackSpeed: 1.0,
+            playbackSpeed: 2.0,
             onProgress: (progress) => {
               onProgress?.({
                 stage: 'browser-capture',
                 percent: 5 + Math.round(progress.percent * 0.9),
-                message: `Capturing audio: ${Math.round(progress.currentTime || 0)}s / ${Math.round(progress.duration || 0)}s`
+                message: `Capturing audio at 2x: ${Math.round(progress.currentTime || 0)}s / ${Math.round(progress.duration || 0)}s`
               });
             }
           });
