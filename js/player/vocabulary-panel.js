@@ -29,6 +29,9 @@ class VocabularyPanel {
     this.ttsEnabled = options.ttsEnabled ?? true;
     this.isSpeaking = false;
 
+    // Transliteration display toggle
+    this.showTranslit = false;
+
     // Debounced search to prevent excessive re-renders
     this.debouncedSearch = debounce((term) => {
       this.searchTerm = term;
@@ -70,6 +73,7 @@ class VocabularyPanel {
     if (!this.container) return;
 
     const filtered = this.getFilteredVocabulary();
+    this.showTranslit = this.showTranslit ?? false;
 
     this.container.innerHTML = `
       <div class="vocab-header">
@@ -87,6 +91,17 @@ class VocabularyPanel {
           </button>
           <button class="vocab-filter-btn${this.filter === 'verbs' ? ' active' : ''}" data-filter="verbs">
             Verbs
+          </button>
+          <button class="vocab-filter-btn${this.filter === 'adjectives' ? ' active' : ''}" data-filter="adjectives">
+            Adj
+          </button>
+        </div>
+        <div class="vocab-actions">
+          <button class="vocab-action-btn${this.showTranslit ? ' active' : ''}" id="toggle-translit" title="Show transliteration">
+            Aa
+          </button>
+          <button class="vocab-action-btn" id="export-anki" title="Export to Anki">
+            &#128190;
           </button>
         </div>
       </div>
@@ -118,14 +133,23 @@ class VocabularyPanel {
     const definitionEn = escapeHtml(item.definition_en || item.definitionEn || '');
     const exampleAr = escapeHtml(item.example_ar || item.exampleAr || '');
     const exampleEn = escapeHtml(item.example_en || item.exampleEn || '');
+    const frequency = item.frequency || '';
+
+    // Generate transliteration if enabled
+    const transliteration = this.showTranslit ? this.transliterate(item.word_ar || item.arabic || item.word || '') : '';
+
+    // Frequency badge
+    const freqBadge = frequency ? `<span class="vocab-freq freq-${frequency}" title="${frequency} frequency">${frequency.charAt(0).toUpperCase()}</span>` : '';
 
     return `
       <div class="vocab-item" data-index="${index}">
         <div class="vocab-item-header">
           <div class="vocab-word">
             <span class="vocab-arabic" dir="rtl">${arabic}</span>
+            ${freqBadge}
             ${this.ttsEnabled ? '<button class="vocab-play-btn" title="Listen" aria-label="Listen to pronunciation">&#128266;</button>' : ''}
           </div>
+          ${this.showTranslit && transliteration ? `<div class="vocab-translit">${escapeHtml(transliteration)}</div>` : ''}
           <div class="vocab-english">${english}</div>
         </div>
 
@@ -212,6 +236,21 @@ class VocabularyPanel {
         this.filter = btn.dataset.filter;
         this.renderVocabList();
       });
+    });
+
+    // Transliteration toggle
+    this.container?.querySelector('#toggle-translit')?.addEventListener('click', () => {
+      this.showTranslit = !this.showTranslit;
+      this.render();
+    });
+
+    // Anki export button
+    this.container?.querySelector('#export-anki')?.addEventListener('click', () => {
+      if (this.vocabulary.length === 0) {
+        log.warn('No vocabulary to export');
+        return;
+      }
+      this.downloadAnkiExport();
     });
 
     // Attach list item listeners
@@ -399,6 +438,99 @@ class VocabularyPanel {
     ].map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(','));
 
     return [headers.join(','), ...rows].join('\n');
+  }
+
+  /**
+   * Export vocabulary to Anki-compatible format
+   * Creates a tab-separated file that can be imported directly into Anki
+   * @returns {string} Tab-separated content
+   */
+  exportToAnki() {
+    // Anki expects: Front TAB Back
+    // We'll put Arabic on front, English + definition + example on back
+    const cards = this.vocabulary.map(item => {
+      const front = item.word_ar || item.arabic || item.word || '';
+      const english = item.word_en || item.english || item.translation || '';
+      const definition = item.definition_en || item.definitionEn || '';
+      const example = item.example_ar || item.exampleAr || '';
+      const exampleEn = item.example_en || item.exampleEn || '';
+
+      // Build back of card with formatting
+      let back = english;
+      if (definition) {
+        back += `<br><br><i>${definition}</i>`;
+      }
+      if (example) {
+        back += `<br><br><b>Example:</b><br>${example}`;
+        if (exampleEn) {
+          back += `<br><small>${exampleEn}</small>`;
+        }
+      }
+
+      // Escape tabs and newlines
+      return `${front}\t${back.replace(/\t/g, ' ').replace(/\n/g, '<br>')}`;
+    });
+
+    return cards.join('\n');
+  }
+
+  /**
+   * Download Anki export file
+   */
+  downloadAnkiExport() {
+    const content = this.exportToAnki();
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `tanaghum_vocab_${Date.now()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    log.log(`Exported ${this.vocabulary.length} words to Anki format`);
+  }
+
+  /**
+   * Transliterate Arabic to Latin script
+   * @param {string} arabic - Arabic text
+   * @returns {string} Transliterated text
+   */
+  transliterate(arabic) {
+    if (!arabic) return '';
+
+    const map = {
+      'ا': 'a', 'أ': 'ʾa', 'إ': 'ʾi', 'آ': 'ʾā', 'ء': 'ʾ',
+      'ب': 'b', 'ت': 't', 'ث': 'th', 'ج': 'j', 'ح': 'ḥ',
+      'خ': 'kh', 'د': 'd', 'ذ': 'dh', 'ر': 'r', 'ز': 'z',
+      'س': 's', 'ش': 'sh', 'ص': 'ṣ', 'ض': 'ḍ', 'ط': 'ṭ',
+      'ظ': 'ẓ', 'ع': 'ʿ', 'غ': 'gh', 'ف': 'f', 'ق': 'q',
+      'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n', 'ه': 'h',
+      'و': 'w', 'ي': 'y', 'ى': 'ā', 'ة': 'a', 'ؤ': 'ʾu', 'ئ': 'ʾi',
+      // Diacritics
+      '\u064E': 'a', '\u064F': 'u', '\u0650': 'i', // fatha, damma, kasra
+      '\u064B': 'an', '\u064C': 'un', '\u064D': 'in', // tanwin
+      '\u0651': '', // shadda (handled by doubling)
+      '\u0652': '' // sukun
+    };
+
+    let result = '';
+    for (let i = 0; i < arabic.length; i++) {
+      const char = arabic[i];
+      const nextChar = arabic[i + 1];
+
+      // Handle shadda (double the consonant)
+      if (nextChar === '\u0651' && map[char]) {
+        result += map[char] + map[char];
+        i++; // Skip shadda
+      } else {
+        result += map[char] || char;
+      }
+    }
+
+    return result;
   }
 
   /**

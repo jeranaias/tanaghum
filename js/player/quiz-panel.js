@@ -24,35 +24,113 @@ class QuizPanel {
     this.showFeedback = options.showFeedback ?? true;
     this.onAnswer = options.onAnswer || (() => {});
     this.onComplete = options.onComplete || (() => {});
+    this.lessonId = options.lessonId || 'default';
+  }
+
+  /**
+   * Sort questions by difficulty (easy to hard)
+   * @param {Array} questions - Array of questions
+   * @returns {Array} Sorted questions
+   */
+  sortByDifficulty(questions) {
+    const difficultyOrder = {
+      'literal': 1,
+      'vocabulary': 1.5,
+      'vocabulary_in_context': 1.5,
+      'details': 2,
+      'main_idea': 2,
+      'sequence': 2.5,
+      'inference': 3,
+      'speaker_attitude': 3,
+      'synthesis': 3.5,
+      'evaluation': 4,
+      'critical': 4
+    };
+
+    return [...questions].sort((a, b) => {
+      const skillA = (a.skill || a.type || '').toLowerCase();
+      const skillB = (b.skill || b.type || '').toLowerCase();
+      const diffA = difficultyOrder[skillA] || 2;
+      const diffB = difficultyOrder[skillB] || 2;
+      return diffA - diffB;
+    });
+  }
+
+  /**
+   * Save answer state to session storage
+   */
+  saveAnswerState() {
+    try {
+      const state = {
+        answers: this.answers,
+        currentPhase: this.currentPhase,
+        currentIndex: this.currentIndex,
+        timestamp: Date.now()
+      };
+      sessionStorage.setItem(`quiz_${this.lessonId}`, JSON.stringify(state));
+    } catch (e) {
+      log.warn('Failed to save answer state:', e);
+    }
+  }
+
+  /**
+   * Load answer state from session storage
+   * @returns {boolean} True if state was restored
+   */
+  loadAnswerState() {
+    try {
+      const saved = sessionStorage.getItem(`quiz_${this.lessonId}`);
+      if (saved) {
+        const state = JSON.parse(saved);
+        // Only restore if less than 1 hour old
+        if (Date.now() - state.timestamp < 3600000) {
+          this.answers = state.answers || {};
+          this.currentPhase = state.currentPhase || 'pre';
+          this.currentIndex = state.currentIndex || 0;
+          log.log('Restored quiz state:', state);
+          return true;
+        }
+      }
+    } catch (e) {
+      log.warn('Failed to load answer state:', e);
+    }
+    return false;
   }
 
   /**
    * Load questions
    * @param {Object} questions - Questions by phase
+   * @param {string} lessonId - Lesson ID for state persistence
    */
-  load(questions) {
-    console.log('QuizPanel.load() called with:', {
-      questionsType: typeof questions,
-      questionsValue: questions,
-      hasPre: !!questions?.pre,
-      hasWhile: !!questions?.while,
-      hasPost: !!questions?.post
-    });
+  load(questions, lessonId = null) {
+    // Set lesson ID for persistence
+    if (lessonId) {
+      this.lessonId = lessonId;
+    }
+
     // Ensure we have arrays for each phase, handling undefined/null gracefully
     const q = questions || {};
+
+    // Sort questions by difficulty within each phase
     this.questions = {
-      pre: Array.isArray(q.pre) ? q.pre : [],
-      while: Array.isArray(q.while) ? q.while : [],
-      post: Array.isArray(q.post) ? q.post : []
+      pre: this.sortByDifficulty(Array.isArray(q.pre) ? q.pre : []),
+      while: this.sortByDifficulty(Array.isArray(q.while) ? q.while : []),
+      post: this.sortByDifficulty(Array.isArray(q.post) ? q.post : [])
     };
-    this.answers = {};
-    this.currentPhase = 'pre';
-    this.currentIndex = 0;
+
+    // Try to restore previous answer state
+    const restored = this.loadAnswerState();
+    if (!restored) {
+      this.answers = {};
+      this.currentPhase = 'pre';
+      this.currentIndex = 0;
+    }
 
     log.log('Loaded questions:', {
       pre: this.questions.pre.length,
       while: this.questions.while.length,
-      post: this.questions.post.length
+      post: this.questions.post.length,
+      restored: restored
     });
   }
 
@@ -291,12 +369,43 @@ class QuizPanel {
     const explanationAr = escapeHtml(question.explanation?.ar || question.explanation_ar || '');
     const explanationEn = escapeHtml(question.explanation?.en || question.explanation_en || '');
 
+    // Build "Why not" explanation for incorrect answers
+    let whyWrongHtml = '';
+    if (!isCorrect && question.distractor_explanations) {
+      // Find the selected option to look up its explanation
+      const options = question.options || [];
+      let selectedOption = null;
+      if (typeof answer === 'number' && options[answer]) {
+        selectedOption = options[answer];
+      } else {
+        selectedOption = options.find(opt => opt.id === answer);
+      }
+
+      if (selectedOption) {
+        // Try matching by text_en first, then text_ar, then the raw text
+        const distractors = question.distractor_explanations;
+        const explanation = distractors[selectedOption.text_en]
+          || distractors[selectedOption.text_ar]
+          || distractors[selectedOption.text]
+          || distractors[selectedOption.id];
+
+        if (explanation) {
+          whyWrongHtml = `
+            <div class="why-wrong">
+              <strong>Why not:</strong> ${escapeHtml(explanation)}
+            </div>
+          `;
+        }
+      }
+    }
+
     return `
       <div class="question-feedback ${isCorrect ? 'correct' : 'incorrect'}">
         <div class="feedback-icon">${isCorrect ? '&#10003;' : '&#10007;'}</div>
         <div class="feedback-text">
           ${explanationAr ? `<div class="feedback-ar" dir="rtl">${explanationAr}</div>` : ''}
           ${explanationEn ? `<div class="feedback-en">${explanationEn}</div>` : ''}
+          ${whyWrongHtml}
         </div>
       </div>
     `;
@@ -400,6 +509,9 @@ class QuizPanel {
    */
   submitAnswer(questionId, answer) {
     this.answers[questionId] = answer;
+
+    // Save answer state to session storage for persistence
+    this.saveAnswerState();
 
     // Find the question - handle both custom IDs and generated phase-index format
     let question = null;
@@ -545,6 +657,7 @@ class QuizPanel {
   reset() {
     this.answers = {};
     this.currentIndex = 0;
+    sessionStorage.removeItem(`quiz_${this.lessonId}`);
     this.renderPhase();
   }
 

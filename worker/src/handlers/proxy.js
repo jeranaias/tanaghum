@@ -68,6 +68,7 @@ export async function handleProxy(request, env, url, origin) {
     'youtube.com',
     'www.youtube.com',
     'i.ytimg.com',
+    'googlevideo.com',
     'translate.google.com'
   ];
   if (!allowedDomains.some(d => hostname === d || hostname.endsWith('.' + d))) {

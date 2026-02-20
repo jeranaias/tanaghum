@@ -106,7 +106,7 @@ export function normalizeArabic(text) {
  */
 export function isArabic(text) {
   if (!text) return false;
-  const arabicPattern = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/;
+  const arabicPattern = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/g;
   const arabicChars = (text.match(arabicPattern) || []).length;
   const totalChars = text.replace(/\s/g, '').length;
   return totalChars > 0 && arabicChars / totalChars > 0.5;
@@ -189,6 +189,159 @@ export async function retry(fn, maxRetries = 3, baseDelay = 1000) {
   }
 
   throw lastError;
+}
+
+/**
+ * Fetch with automatic retry and timeout
+ * @param {string} url - URL to fetch
+ * @param {Object} options - Fetch options
+ * @param {number} options.timeout - Timeout in ms (default 30000)
+ * @param {number} options.maxRetries - Max retry attempts (default 3)
+ * @param {AbortSignal} options.signal - Optional abort signal
+ * @returns {Promise<Response>} Fetch response
+ */
+export async function fetchWithRetry(url, options = {}) {
+  const {
+    timeout = 30000,
+    maxRetries = 3,
+    signal: externalSignal,
+    ...fetchOptions
+  } = options;
+
+  let lastError;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    // Create timeout controller
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), timeout);
+
+    // Combine with external signal if provided
+    let combinedSignal = timeoutController.signal;
+    if (externalSignal) {
+      // If external signal already aborted, throw immediately
+      if (externalSignal.aborted) {
+        clearTimeout(timeoutId);
+        throw new DOMException('Aborted', 'AbortError');
+      }
+      // Listen to external abort
+      externalSignal.addEventListener('abort', () => timeoutController.abort());
+    }
+
+    try {
+      const response = await fetch(url, {
+        ...fetchOptions,
+        signal: combinedSignal
+      });
+
+      clearTimeout(timeoutId);
+
+      // Retry on server errors (5xx)
+      if (response.status >= 500) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      return response;
+
+    } catch (error) {
+      clearTimeout(timeoutId);
+      lastError = error;
+
+      // Don't retry on user abort
+      if (error.name === 'AbortError' && externalSignal?.aborted) {
+        throw error;
+      }
+
+      // Don't retry on 4xx errors (they won't succeed on retry)
+      if (error.status >= 400 && error.status < 500) {
+        throw error;
+      }
+
+      // Retry with exponential backoff
+      if (attempt < maxRetries - 1) {
+        const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+        console.log(`[Fetch] Retry ${attempt + 1}/${maxRetries} after ${delay}ms...`);
+        await sleep(delay);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Actionable error messages for common failures
+ */
+export const ERROR_MESSAGES = {
+  'failed to fetch': {
+    title: 'Network Error',
+    message: 'Cannot connect to server.',
+    action: 'Check your internet connection and try again.',
+    retry: true
+  },
+  'networkerror': {
+    title: 'Network Error',
+    message: 'Connection failed.',
+    action: 'Check your internet connection.',
+    retry: true
+  },
+  'aborterror': {
+    title: 'Request Timeout',
+    message: 'The request took too long.',
+    action: 'Try again or use a shorter video.',
+    retry: true
+  },
+  '429': {
+    title: 'Rate Limited',
+    message: 'Too many requests.',
+    action: 'Wait a moment and try again.',
+    retry: true
+  },
+  'quota exceeded': {
+    title: 'Usage Limit Reached',
+    message: 'Daily LLM quota exhausted.',
+    action: 'Click "Reset Quota" or wait until tomorrow.',
+    retry: false
+  },
+  'video unavailable': {
+    title: 'Video Not Found',
+    message: 'This video is private or deleted.',
+    action: 'Try a different video URL.',
+    retry: false
+  },
+  'no speech detected': {
+    title: 'No Speech Found',
+    message: 'The audio contains no recognizable speech.',
+    action: 'Choose a video with spoken Arabic content.',
+    retry: false
+  },
+  'cors': {
+    title: 'Access Blocked',
+    message: 'Cannot access this resource.',
+    action: 'Try a different video or source.',
+    retry: false
+  }
+};
+
+/**
+ * Get user-friendly error message with action
+ * @param {Error|string} error - Error object or message
+ * @returns {Object} {title, message, action, retry}
+ */
+export function getActionableError(error) {
+  const msg = (error.message || error || '').toLowerCase();
+
+  for (const [key, config] of Object.entries(ERROR_MESSAGES)) {
+    if (msg.includes(key.toLowerCase())) {
+      return config;
+    }
+  }
+
+  return {
+    title: 'Unexpected Error',
+    message: error.message || String(error),
+    action: 'Please try again. If the problem persists, try a different video.',
+    retry: true
+  };
 }
 
 /**

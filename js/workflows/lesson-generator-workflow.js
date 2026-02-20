@@ -40,8 +40,14 @@ class LessonGeneratorWorkflow {
       source,
       targetIlr = 2.0,
       topic = 'general',
-      onProgress = () => {}
+      onProgress = () => {},
+      signal
     } = options;
+
+    // Wire external signal to our abort controller
+    if (signal) {
+      signal.addEventListener('abort', () => this.abortController.abort(), { once: true });
+    }
 
     log.log('Starting lesson generation workflow');
 
@@ -53,6 +59,7 @@ class LessonGeneratorWorkflow {
       const contentData = await this.fetchContent(source, (progress) => {
         onProgress({ step: 'fetch', ...progress });
       });
+      this.checkAborted();
 
       // Step 2: Transcribe Audio
       this.currentStep = 'transcribe';
@@ -62,15 +69,18 @@ class LessonGeneratorWorkflow {
         const percent = 20 + Math.round(progress.percent * 0.35); // 20-55%
         onProgress({ step: 'transcribe', percent, ...progress });
       });
+      this.checkAborted();
 
       // Step 3: Analyze Content
       this.currentStep = 'analyze';
       onProgress({ step: 'analyze', percent: 55, message: 'Analyzing content...' });
 
       const analysis = await this.analyzeContent(transcription, (progress) => {
-        const percent = 55 + Math.round(progress * 0.1); // 55-65%
+        const p = typeof progress === 'number' ? progress : (progress.percent || 0);
+        const percent = 55 + Math.round(p * 0.1); // 55-65%
         onProgress({ step: 'analyze', percent, message: 'Analyzing content...' });
       });
+      this.checkAborted();
 
       // Step 4: Generate Questions
       this.currentStep = 'questions';
@@ -80,6 +90,7 @@ class LessonGeneratorWorkflow {
         targetIlr,
         topic,
         analysis,
+        signal: this.abortController.signal,
         onProgress: (progress) => {
           const percent = 65 + Math.round(progress * 0.25); // 65-90%
           onProgress({ step: 'questions', percent, message: 'Generating questions...' });
@@ -251,13 +262,26 @@ class LessonGeneratorWorkflow {
       }
 
       // Extract vocabulary
-      onProgress(70);
-      const vocabulary = await llmClient.extractVocabulary(transcription.text, {
-        count: 15,
-        ilrLevel: ilrAnalysis.level
-      });
+      onProgress({ step: 'analyze', percent: 70, message: 'Extracting vocabulary...' });
+      let vocabulary = [];
+      try {
+        vocabulary = await llmClient.extractVocabulary(transcription.text, {
+          count: 15,
+          ilrLevel: ilrAnalysis.level
+        });
+        if (!vocabulary || vocabulary.length === 0) {
+          log.warn('Vocabulary extraction returned empty, retrying once...');
+          vocabulary = await llmClient.extractVocabulary(transcription.text, {
+            count: 12,
+            ilrLevel: ilrAnalysis.level
+          });
+        }
+      } catch (vocabError) {
+        log.error('Vocabulary extraction failed:', vocabError.message);
+        vocabulary = [];
+      }
 
-      onProgress(100);
+      onProgress({ step: 'analyze', percent: 100, message: 'Analysis complete', data: { vocabulary } });
 
       const analysis = {
         ilrLevel: ilrAnalysis.level,
@@ -522,18 +546,18 @@ class LessonGeneratorWorkflow {
       })()
     };
 
-    const preLen = questions.pre?.length || 0;
-    const whileLen = questions.while?.length || 0;
-    const postLen = questions.post?.length || 0;
-
-    log.log('Lesson assembled:', {
-      id: lesson.id,
-      duration: lesson.metadata.duration,
-      questions: preLen + whileLen + postLen,
-      vocabulary: analysis.vocabulary?.length || 0
-    });
+    log.log(`Lesson assembled: ${lesson.id}, questions: ${(questions.pre?.length || 0) + (questions.while?.length || 0) + (questions.post?.length || 0)}, vocab: ${lesson.content.vocabulary.items?.length || 0}`);
 
     return lesson;
+  }
+
+  /**
+   * Throw if the workflow has been aborted
+   */
+  checkAborted() {
+    if (this.abortController?.signal?.aborted) {
+      throw new DOMException('Generation cancelled', 'AbortError');
+    }
   }
 
   /**

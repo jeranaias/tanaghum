@@ -151,13 +151,36 @@ class AudioExtractor {
       log.log('Got audio URL from', audioMeta.source);
       onProgress?.({ stage: 'fetching', percent: 10, message: `Downloading audio via ${audioMeta.source}...` });
 
-      // Step 2: Fetch actual audio from the URL
-      const response = await fetch(audioMeta.audioUrl, {
-        method: 'GET'
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to download audio: HTTP ${response.status}`);
+      // Step 2: Fetch actual audio - try direct first, then proxy through worker
+      let response;
+      try {
+        response = await fetch(audioMeta.audioUrl, { method: 'GET' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      } catch (directError) {
+        log.warn('Direct audio fetch failed (likely CORS), trying worker proxy:', directError.message);
+        onProgress?.({ stage: 'fetching', percent: 12, message: 'Downloading audio via proxy...' });
+        try {
+          response = await fetch(`${this.workerUrl}/api/proxy?url=${encodeURIComponent(audioMeta.audioUrl)}`);
+          if (!response.ok) throw new Error(`Proxy HTTP ${response.status}`);
+        } catch (proxyError) {
+          log.warn('Proxy audio fetch also failed, falling back to browser capture:', proxyError.message);
+          // Fall back to browser audio capture
+          onProgress?.({ stage: 'browser-capture', percent: 5, message: 'Preparing browser audio capture...' });
+          const captureResult = await captureYouTubeAudio(videoId, {
+            playbackSpeed: 1.0,
+            onProgress: (progress) => {
+              onProgress?.({
+                stage: 'browser-capture',
+                percent: 5 + Math.round(progress.percent * 0.9),
+                message: `Capturing audio: ${Math.round(progress.currentTime || 0)}s / ${Math.round(progress.duration || 0)}s`
+              });
+            }
+          });
+          if (captureResult && typeof captureResult === 'object' && captureResult.audio !== undefined) {
+            return { audio: captureResult.audio, realDuration: captureResult.realDuration, playbackSpeed: captureResult.playbackSpeed, isCaptureResult: true };
+          }
+          return captureResult;
+        }
       }
 
       // Get total size for progress tracking

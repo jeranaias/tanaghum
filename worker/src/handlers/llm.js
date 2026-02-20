@@ -11,7 +11,13 @@ const MAX_SYSTEM_PROMPT_LENGTH = 10000;
 const ALLOWED_MODELS = {
   google: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'],
   groq: ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'],
-  openrouter: ['google/gemini-2.0-flash-exp:free', 'google/gemini-2.0-flash-thinking-exp-1219:free', 'meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-r1:free']
+  openrouter: [
+    'google/gemini-2.0-flash-exp:free',
+    'google/gemini-2.0-flash-thinking-exp-1219:free',
+    'google/gemma-2-9b-it:free',
+    'meta-llama/llama-3.3-70b-instruct:free',
+    'deepseek/deepseek-r1:free'
+  ]
 };
 
 /**
@@ -145,6 +151,7 @@ async function handleGoogle(body, env, origin) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        ...(body.systemPrompt ? { systemInstruction: { parts: [{ text: body.systemPrompt }] } } : {}),
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: safeTemperature,

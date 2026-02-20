@@ -3,10 +3,12 @@
  * Multi-provider LLM client with automatic fallback and quota tracking
  */
 
+const LLM_CLIENT_VERSION = '2.1.0';
+
 import { Config } from '../core/config.js';
 import { EventBus, Events } from '../core/event-bus.js';
 import { StateManager } from '../core/state-manager.js';
-import { retry, createLogger } from '../core/utils.js';
+import { retry, createLogger, fetchWithRetry, getActionableError } from '../core/utils.js';
 
 const log = createLogger('LLM');
 
@@ -52,16 +54,16 @@ const PROVIDERS = {
   openrouter_llama: {
     name: 'OpenRouter Llama',
     endpoint: '/api/llm/openrouter',
-    model: 'meta-llama/llama-3.2-3b-instruct:free',
+    model: 'meta-llama/llama-3.3-70b-instruct:free',
     dailyLimit: 50,
     rateLimit: 10,
     supportsJson: false,
     priority: 4
   },
-  openrouter_qwen: {
-    name: 'OpenRouter Qwen',
+  openrouter_gemma: {
+    name: 'OpenRouter Gemma',
     endpoint: '/api/llm/openrouter',
-    model: 'qwen/qwen-2-7b-instruct:free',
+    model: 'google/gemma-2-9b-it:free',
     dailyLimit: 50,
     rateLimit: 10,
     supportsJson: false,
@@ -82,6 +84,7 @@ class LLMClient {
     this.workerUrl = Config.WORKER_URL;
     this.quotas = this.loadQuotas();
     this.currentProvider = this.selectBestProvider();
+    log.log(`LLM Client v${LLM_CLIENT_VERSION} initialized`);
   }
 
   /**
@@ -91,7 +94,9 @@ class LLMClient {
     const freshQuotas = {
       google: PROVIDERS.google.dailyLimit,
       groq: PROVIDERS.groq.dailyLimit,
-      openrouter: PROVIDERS.openrouter.dailyLimit
+      openrouter: PROVIDERS.openrouter.dailyLimit,
+      openrouter_llama: PROVIDERS.openrouter_llama.dailyLimit,
+      openrouter_gemma: PROVIDERS.openrouter_gemma.dailyLimit
     };
 
     try {
@@ -269,6 +274,8 @@ class LLMClient {
       jsonMode = false,
       provider = null, // Force specific provider
       retries = 2,
+      timeout = 45000, // 45 second timeout per request
+      signal = null, // AbortSignal for cancellation
       _fallbackAttempt = 0 // Internal: track fallback depth to prevent infinite recursion
     } = options;
 
@@ -305,14 +312,17 @@ class LLMClient {
 
     log.log(`Making LLM request to ${providerConfig.name} (${providerConfig.model})`);
 
-    // Make request with retry
+    // Make request with retry and timeout
     const makeRequest = async () => {
-      const response = await fetch(`${this.workerUrl}${providerConfig.endpoint}`, {
+      const response = await fetchWithRetry(`${this.workerUrl}${providerConfig.endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        timeout: timeout,
+        maxRetries: retries,
+        signal: signal
       });
 
       if (!response.ok) {
@@ -327,7 +337,7 @@ class LLMClient {
     };
 
     try {
-      const result = await retry(makeRequest, retries, 1000);
+      const result = await makeRequest();
 
       // Decrement quota on success
       this.decrementQuota(providerId);
@@ -344,12 +354,27 @@ class LLMClient {
     } catch (error) {
       log.error(`${providerConfig.name} failed:`, error.message);
 
+      // If user cancelled, don't fallback
+      if (error.name === 'AbortError' && signal?.aborted) {
+        log.log('Request cancelled by user');
+        throw error;
+      }
+
       // Determine if we should try fallback
       const shouldFallback = !provider; // Only fallback if not forcing a specific provider
 
       if (shouldFallback) {
+        // Handle timeout - try next provider
+        if (error.name === 'AbortError') {
+          log.warn(`Provider ${providerId} timed out, trying next provider...`);
+          EventBus.emit(Events.LLM_PROVIDER_SWITCH, {
+            from: providerId,
+            to: 'next',
+            reason: 'timeout'
+          });
+        }
         // Only mark as exhausted for rate limit errors, not temporary failures
-        if (this.isRateLimitError(error)) {
+        else if (this.isRateLimitError(error)) {
           this.quotas[providerId] = 0; // Mark as exhausted for this session
           this.saveQuotas();
           log.warn(`Provider ${providerId} rate limited, marking as exhausted`);
@@ -372,6 +397,9 @@ class LLMClient {
         }
       }
 
+      // Enhance error with actionable information
+      const actionable = getActionableError(error);
+      error.actionable = actionable;
       throw error;
     }
   }
@@ -408,6 +436,7 @@ class LLMClient {
       let jsonText = result.text || '';
 
       log.log('Raw LLM response length:', jsonText.length);
+      log.debug('Raw response (first 300):', jsonText.substring(0, 300));
 
       // Handle markdown code blocks
       const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -419,7 +448,7 @@ class LLMClient {
       // Try to find JSON array or object if not cleanly formatted
       const trimmed = jsonText.trim();
       if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) {
-        // Look for array pattern
+        // Look for array pattern - use greedy match to get the full array
         const arrayMatch = trimmed.match(/\[[\s\S]*\]/);
         if (arrayMatch) {
           jsonText = arrayMatch[0];
@@ -434,12 +463,51 @@ class LLMClient {
         }
       }
 
-      result.data = JSON.parse(jsonText.trim());
+      // Clean up common issues before parsing
+      jsonText = jsonText
+        .replace(/,\s*}/g, '}')  // Remove trailing commas in objects
+        .replace(/,\s*\]/g, ']') // Remove trailing commas in arrays
+        .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+        .trim();
+
+      result.data = JSON.parse(jsonText);
       log.log('JSON parsed successfully, type:', Array.isArray(result.data) ? 'array' : typeof result.data);
+
+      // If it's an object, try to unwrap common wrapper keys
+      if (result.data && typeof result.data === 'object' && !Array.isArray(result.data)) {
+        const wrapperKeys = ['vocabulary', 'items', 'words', 'data', 'results', 'questions'];
+        for (const key of wrapperKeys) {
+          if (Array.isArray(result.data[key])) {
+            log.log(`Unwrapping array from "${key}" key`);
+            result.data = result.data[key];
+            break;
+          }
+        }
+      }
+
     } catch (e) {
       log.warn('Failed to parse JSON response:', e.message);
       log.warn('Raw text (first 500 chars):', result.text?.substring(0, 500));
-      result.data = null;
+
+      // Last resort: try to extract individual JSON objects
+      try {
+        const objectMatches = result.text.match(/\{[^{}]*\}/g);
+        if (objectMatches && objectMatches.length > 0) {
+          const parsed = objectMatches.map(m => {
+            try { return JSON.parse(m); } catch { return null; }
+          }).filter(Boolean);
+          if (parsed.length > 0) {
+            log.log('Recovered', parsed.length, 'items from individual object matches');
+            result.data = parsed;
+          }
+        }
+      } catch (e2) {
+        log.warn('Recovery parse also failed');
+      }
+
+      if (!result.data) {
+        result.data = null;
+      }
     }
 
     return result;
@@ -604,35 +672,58 @@ ${phaseDescriptions[phase]}
 
 Question types for this phase: ${questionTypes[phase].join(', ')}
 
-CRITICAL Rules for QUALITY questions:
-- Questions must be directly answerable from the text
-- Include both Arabic and English versions
-- QUALITY over QUANTITY - fewer excellent questions are better than many mediocre ones
-- Match difficulty to ILR ${ilrLevel}
+=== ABSOLUTE RULES - VIOLATION = REJECTION ===
 
-MULTIPLE CHOICE FORMAT (4 options):
-- Option A: THE CORRECT ANSWER - definitively correct based on the text
-- Option B: PLAUSIBLE ANSWER - close/almost right, tests nuanced understanding (partially true but not the best answer)
-- Option C: WRONG ANSWER - incorrect but somewhat related to the topic
-- Option D: CLEARLY WRONG - obviously incorrect distractor
+RULE 1 - NO HALLUCINATION:
+- ONLY ask about facts EXPLICITLY STATED in the text
+- If the text does NOT mention something, do NOT ask about it
+- BANNED topics (unless explicitly in text): international reaction, future predictions, humanitarian aid, rescue efforts, world response
+- Before each question, mentally verify: "Can I point to the exact sentence that answers this?"
 
-This structure tests true comprehension, not just recognition. The learner must understand WHY the correct answer is better than the plausible one.`;
+RULE 2 - LANGUAGE:
+- text_ar: Arabic script ONLY (ا-ي)
+- text_en: English/Latin ONLY (a-z)
+- NO Chinese, Japanese, Korean, Cyrillic, or other scripts
+
+RULE 3 - TRANSCRIPTION ERRORS:
+- The text may have typos from speech-to-text
+- Do NOT create vocabulary questions about misspelled words
+- Focus on meaning, not spelling
+
+RULE 4 - ANSWER VERIFICATION:
+- Correct answer must be directly quotable or closely paraphrased from text
+- If you cannot quote the text to justify an answer, DO NOT include that question
+
+FORMAT (4 options):
+- Option A: CORRECT - verifiable from text
+- Option B: PLAUSIBLE but wrong
+- Option C: WRONG but topically related
+- Option D: CLEARLY WRONG
+
+Fewer excellent questions > many questionable ones.`;
 
     const prompt = `Create ${count} HIGH-QUALITY ${phase}-listening comprehension questions for this Arabic text about "${topic}".
 
-PRIORITIZE QUALITY. Each question should test genuine understanding, not trivial facts.
+CRITICAL REMINDERS:
+- ONLY ask about information EXPLICITLY stated in the text below
+- Do NOT invent reactions, opinions, or events not mentioned
+- Use ONLY Arabic (text_ar) and English (text_en) - NO other languages
+- Correct answers must be VERIFIABLE from the text
 
 ${existingQuestions.length > 0 ? `Avoid these topics already covered: ${existingQuestions.map(q => q.skill).join(', ')}\n` : ''}
 
 Return JSON array where each question has:
 - type: "multiple_choice" | "true_false"
 - skill: one of ${JSON.stringify(questionTypes[phase])}
-- question_ar: Arabic question text
-- question_en: English translation
-- options: array of 4 items: [{id: "a", text_ar, text_en, is_correct: true}, {id: "b", text_ar, text_en, is_correct: false, distractor_type: "plausible"}, {id: "c", text_ar, text_en, is_correct: false, distractor_type: "wrong"}, {id: "d", text_ar, text_en, is_correct: false, distractor_type: "clearly_wrong"}]
+- question_ar: Arabic question text (Arabic script only)
+- question_en: English translation (English only)
+- options: array of 4 items: [{id: "a", text_ar: "Arabic", text_en: "English", is_correct: true}, {id: "b", text_ar, text_en, is_correct: false, distractor_type: "plausible"}, {id: "c", text_ar, text_en, is_correct: false, distractor_type: "wrong"}, {id: "d", text_ar, text_en, is_correct: false, distractor_type: "clearly_wrong"}]
 - correct_answer: boolean (for true_false)
 - explanation_ar, explanation_en: explain why correct answer is right AND why the plausible answer is not the best choice
+- distractor_explanations: object mapping each wrong option's text_en to a brief English explanation of why it is wrong. Example: {"option B text": "This is wrong because...", "option C text": "This is wrong because..."}
 ${phase === 'while' ? '- timestamp_percent: number 0-1 indicating when in audio this appears' : ''}
+
+VERIFY: Before including any question, confirm the answer is IN THE TEXT.
 
 Text:
 ${transcript}`;
@@ -711,25 +802,75 @@ ${transcript}`;
       log.log(`Generated ${questions.length} questions for phase: ${phase}`);
     }
 
+    // Sanitize text - remove non-Arabic/non-English characters
+    const sanitizeText = (text) => {
+      if (!text) return '';
+      const original = text;
+      // Remove Chinese, Japanese, Korean, and other non-Arabic/Latin characters
+      // Keep: Arabic (0600-06FF), Latin (0000-007F extended), punctuation, numbers
+      const cleaned = text
+        .replace(/[\u4E00-\u9FFF\u3400-\u4DBF\u3040-\u309F\u30A0-\u30FF]/g, '') // CJK
+        .replace(/[\uAC00-\uD7AF]/g, '') // Korean
+        .trim();
+      if (cleaned !== original) {
+        log.warn('Sanitized non-Arabic/Latin characters from text');
+      }
+      return cleaned;
+    };
+
+    // Clean up options - ensure proper structure and sanitize
+    const cleanOptions = (options) => {
+      if (!Array.isArray(options)) return [];
+      return options.map((opt, idx) => {
+        // Handle string options
+        if (typeof opt === 'string') {
+          return {
+            id: String.fromCharCode(97 + idx), // a, b, c, d
+            text_ar: sanitizeText(opt),
+            text_en: sanitizeText(opt),
+            is_correct: idx === 0
+          };
+        }
+        // Handle object options
+        return {
+          id: opt.id || String.fromCharCode(97 + idx),
+          text_ar: sanitizeText(opt.text_ar || opt.ar || opt.text || ''),
+          text_en: sanitizeText(opt.text_en || opt.en || opt.text || ''),
+          is_correct: opt.is_correct || false,
+          distractor_type: opt.distractor_type || null
+        };
+      });
+    };
+
     // Add IDs and ensure required fields
-    questions = questions.map((q, i) => ({
-      id: `${phase}-${i + 1}`,
-      type: q.type || 'multiple_choice',
-      timing: phase,
-      skill: q.skill || questionTypes[phase][0],
-      question_text: {
-        ar: q.question_ar || q.question_text?.ar || '',
-        en: q.question_en || q.question_text?.en || ''
-      },
-      options: q.options || [],
-      correct_answer: q.correct_answer,
-      explanation: {
-        ar: q.explanation_ar || q.explanation?.ar || '',
-        en: q.explanation_en || q.explanation?.en || ''
-      },
-      timestamp_percent: q.timestamp_percent,
-      ...q
-    }));
+    // NOTE: We explicitly set all fields AFTER ...q spread to ensure our sanitized versions win
+    questions = questions.map((q, i) => {
+      const cleaned = {
+        ...q, // Spread original first
+        // Then overwrite with our sanitized/structured versions
+        id: `${phase}-${i + 1}`,
+        type: q.type || 'multiple_choice',
+        timing: phase,
+        skill: q.skill || questionTypes[phase][0],
+        question_text: {
+          ar: sanitizeText(q.question_ar || q.question_text?.ar || ''),
+          en: sanitizeText(q.question_en || q.question_text?.en || '')
+        },
+        options: cleanOptions(q.options),
+        correct_answer: q.correct_answer,
+        explanation: {
+          ar: sanitizeText(q.explanation_ar || q.explanation?.ar || ''),
+          en: sanitizeText(q.explanation_en || q.explanation?.en || '')
+        },
+        distractor_explanations: q.distractor_explanations && typeof q.distractor_explanations === 'object'
+          ? Object.fromEntries(
+              Object.entries(q.distractor_explanations).map(([k, v]) => [k, sanitizeText(String(v))])
+            )
+          : null,
+        timestamp_percent: q.timestamp_percent
+      };
+      return cleaned;
+    });
 
     return questions;
   }
@@ -738,187 +879,137 @@ ${transcript}`;
    * Extract key vocabulary from text
    */
   async extractVocabulary(transcript, options = {}) {
-    const { count = 10, ilrLevel = 2.0 } = options;
+    const { count = 12, ilrLevel = 2.0 } = options;
 
-    const systemPrompt = `You are an expert Arabic vocabulary instructor. Extract key vocabulary items that are:
-1. Important for understanding the text
-2. Appropriate for ILR ${ilrLevel} learners
-3. Likely to be new or challenging`;
+    // Simplified, very explicit prompt
+    const systemPrompt = `You extract Arabic vocabulary as JSON. Output ONLY valid JSON array. No explanations. No markdown. Arabic and English only.`;
 
-    const prompt = `Extract ${count} key vocabulary items from this Arabic text.
+    const prompt = `Extract ${count} Arabic vocabulary words from this text. Return a JSON array.
 
-Return JSON array where each item has:
-- word_ar: the Arabic word
+EXAMPLE OUTPUT FORMAT:
+[
+  {"word_ar": "زلزال", "word_en": "earthquake", "root": "ز-ل-ز-ل", "pos": "noun", "definition_en": "a shaking of the ground", "frequency": "medium"},
+  {"word_ar": "ضحايا", "word_en": "victims", "root": "ض-ح-ي", "pos": "noun", "definition_en": "people harmed", "frequency": "high"}
+]
+
+Required fields for each word:
+- word_ar: Arabic word
 - word_en: English translation
-- root: Arabic root (e.g., "ك-ت-ب")
+- root: Arabic root with dashes
 - pos: part of speech
-- definition_ar: brief Arabic definition
 - definition_en: brief English definition
-- example_ar: example sentence from the text
-- example_en: English translation of example
+- frequency: "high", "medium", or "low"
 
-Text:
-${transcript}`;
+TEXT:
+${transcript.substring(0, 2000)}
 
-    const result = await this.json({
-      prompt,
-      systemPrompt,
-      temperature: 0.3,
-      ...options
-    });
+OUTPUT (JSON array only, no other text):`;
 
-    const vocabulary = result.data || [];
-    log.log('extractVocabulary result:', {
-      hasData: !!result.data,
-      isArray: Array.isArray(vocabulary),
-      length: vocabulary.length,
-      firstItem: vocabulary[0] || 'EMPTY'
-    });
+    log.log(`Starting vocabulary extraction, transcript length: ${transcript.length}`);
+
+    let vocabulary = [];
+
+    try {
+      const result = await this.json({
+        prompt,
+        systemPrompt,
+        temperature: 0.2,
+        maxTokens: 3000,
+        ...options
+      });
+
+      vocabulary = result.data || [];
+
+      // Handle case where LLM wraps in object
+      if (!Array.isArray(vocabulary) && vocabulary && typeof vocabulary === 'object') {
+        log.log('Vocabulary wrapped in object, keys:', Object.keys(vocabulary));
+        const keys = ['vocabulary', 'items', 'words', 'data', 'results', 'list'];
+        for (const key of keys) {
+          if (Array.isArray(vocabulary[key])) {
+            log.log(`Unwrapping vocabulary from key: ${key}`);
+            vocabulary = vocabulary[key];
+            break;
+          }
+        }
+        // If still not array, try first array-valued property
+        if (!Array.isArray(vocabulary)) {
+          const arrayKey = Object.keys(vocabulary).find(k => Array.isArray(vocabulary[k]));
+          if (arrayKey) {
+            log.log(`Unwrapping vocabulary from discovered key: ${arrayKey}`);
+            vocabulary = vocabulary[arrayKey];
+          }
+        }
+      }
+
+      if (!Array.isArray(vocabulary)) {
+        log.warn('Vocabulary still not array after unwrapping, type:', typeof vocabulary);
+        vocabulary = [];
+      }
+
+    } catch (error) {
+      log.error('Vocabulary extraction error:', error.message);
+      vocabulary = [];
+    }
+
+    log.log(`Vocabulary extraction complete: ${vocabulary.length} items`);
+    if (vocabulary.length === 0) {
+      log.warn('Empty vocabulary array, using fallback');
+      // Provide basic fallback vocabulary extracted from common news words
+      // This ensures the vocab panel isn't completely empty when LLM fails
+      vocabulary = this.getFallbackVocabulary(transcript);
+    }
+
     return vocabulary;
   }
 
   /**
-   * Evaluate search results for language learning quality
-   * @param {Array} videos - Video metadata array
-   * @param {Object} options - Evaluation options
-   * @returns {Promise<Array>} Ranked and evaluated videos
+   * Get fallback vocabulary when LLM extraction fails
+   * Extracts common Arabic words from the transcript using pattern matching
    */
-  async evaluateSearchResults(videos, options = {}) {
-    const {
-      targetIlr = 2.0,
-      topic = 'general',
-      maxResults = 6
-    } = options;
-
-    if (!videos || videos.length === 0) {
-      return [];
-    }
-
-    // Prepare video summaries for LLM evaluation
-    const videoSummaries = videos.slice(0, 12).map((v, i) => ({
-      index: i,
-      title: v.title,
-      channel: v.channel,
-      duration: v.duration,
-      description: v.description?.substring(0, 200) || ''
-    }));
-
-    const systemPrompt = `You are an expert Arabic language instructor selecting content for learners at ILR level ${targetIlr}.
-
-Evaluate YouTube videos for Arabic language learning suitability. Consider:
-- Clear audio quality (news channels, educational content = good)
-- Appropriate complexity for ILR ${targetIlr}
-- Useful for topic: ${topic}
-- Avoid: music videos, very short clips, non-educational entertainment
-
-Rate each video 1-10 for language learning value and estimate ILR level.`;
-
-    const prompt = `Evaluate these Arabic YouTube videos for language learning:
-
-${JSON.stringify(videoSummaries, null, 2)}
-
-Return JSON array with objects containing:
-- index: original video index
-- score: 1-10 learning value
-- estimatedIlr: estimated ILR level (1.0-3.5)
-- suitable: boolean - good for ILR ${targetIlr} learners
-- reason: brief explanation (20 words max)
-
-Order by score descending. Include only videos scoring 5+.`;
-
-    try {
-      const result = await this.json({
-        prompt,
-        systemPrompt,
-        temperature: 0.3
-      });
-
-      if (!result.data || !Array.isArray(result.data)) {
-        log.warn('Invalid evaluation response, returning original videos');
-        return videos.slice(0, maxResults);
-      }
-
-      // Merge evaluation data with original videos
-      const evaluated = result.data
-        .filter(e => e.suitable !== false && e.score >= 5)
-        .slice(0, maxResults)
-        .map(e => {
-          const original = videos[e.index];
-          if (!original) return null;
-
-          return {
-            ...original,
-            evaluation: {
-              score: e.score,
-              estimatedIlr: e.estimatedIlr,
-              suitable: e.suitable,
-              reason: e.reason
-            }
-          };
-        })
-        .filter(Boolean);
-
-      log.log(`Evaluated ${videos.length} videos, ${evaluated.length} suitable`);
-      return evaluated;
-
-    } catch (error) {
-      log.warn('Evaluation failed, returning original videos:', error.message);
-      return videos.slice(0, maxResults);
-    }
-  }
-
-  /**
-   * Generate optimal search queries for content discovery
-   * @param {Object} options - Search options
-   * @returns {Promise<Array>} Suggested search queries
-   */
-  async generateSearchQueries(options = {}) {
-    const {
-      targetIlr = 2.0,
-      topic = 'general',
-      count = 5
-    } = options;
-
-    const topicDescriptions = {
-      economy: 'economic news, financial reports, business discussions',
-      politics: 'political analysis, government news, international relations',
-      culture: 'arts, literature, traditions, social customs',
-      science: 'scientific discoveries, technology, research',
-      society: 'social issues, daily life, community',
-      health: 'medical news, wellness, healthcare',
-      education: 'learning, schools, academic topics',
-      general: 'news, interviews, documentaries'
+  getFallbackVocabulary(transcript) {
+    // Common high-frequency Arabic words with definitions
+    const commonWords = {
+      'زلزال': { en: 'earthquake', root: 'ز-ل-ز-ل', pos: 'noun', def: 'a shaking of the ground caused by movement of the earth' },
+      'ضحايا': { en: 'victims', root: 'ض-ح-ي', pos: 'noun', def: 'people who are harmed or killed' },
+      'منطقة': { en: 'area/region', root: 'ن-ط-ق', pos: 'noun', def: 'a particular geographic region' },
+      'حكومة': { en: 'government', root: 'ح-ك-م', pos: 'noun', def: 'the governing body of a nation' },
+      'الرئيس': { en: 'president', root: 'ر-أ-س', pos: 'noun', def: 'the head of state' },
+      'قال': { en: 'said', root: 'ق-و-ل', pos: 'verb', def: 'to speak or utter words' },
+      'أعلن': { en: 'announced', root: 'ع-ل-ن', pos: 'verb', def: 'to make a public declaration' },
+      'بعد': { en: 'after', root: 'ب-ع-د', pos: 'preposition', def: 'following in time' },
+      'خلال': { en: 'during', root: 'خ-ل-ل', pos: 'preposition', def: 'throughout the course of' },
+      'أكثر': { en: 'more', root: 'ك-ث-ر', pos: 'adverb', def: 'to a greater degree' },
+      'جديد': { en: 'new', root: 'ج-د-د', pos: 'adjective', def: 'recently made or discovered' },
+      'كبير': { en: 'big/large', root: 'ك-ب-ر', pos: 'adjective', def: 'of considerable size' },
+      'مدينة': { en: 'city', root: 'م-د-ن', pos: 'noun', def: 'a large town' },
+      'دولة': { en: 'state/country', root: 'د-و-ل', pos: 'noun', def: 'a nation with its own government' },
+      'شخص': { en: 'person', root: 'ش-خ-ص', pos: 'noun', def: 'a human being' },
+      'عمل': { en: 'work', root: 'ع-م-ل', pos: 'noun/verb', def: 'activity involving effort' },
+      'يوم': { en: 'day', root: 'ي-و-م', pos: 'noun', def: 'a 24-hour period' },
+      'وقت': { en: 'time', root: 'و-ق-ت', pos: 'noun', def: 'the indefinite continued progress of existence' },
+      'مشكلة': { en: 'problem', root: 'ش-ك-ل', pos: 'noun', def: 'a matter that is difficult to deal with' },
+      'قرار': { en: 'decision', root: 'ق-ر-ر', pos: 'noun', def: 'a conclusion reached after consideration' }
     };
 
-    const systemPrompt = `You are an expert in finding Arabic learning content on YouTube.
-Generate search queries that will find high-quality Arabic content suitable for ILR ${targetIlr} learners.`;
+    const found = [];
 
-    const prompt = `Generate ${count} YouTube search queries in Arabic to find content about: ${topicDescriptions[topic] || topicDescriptions.general}
-
-Requirements:
-- Queries should be in Arabic
-- Target content appropriate for ILR level ${targetIlr}
-- Focus on clear spoken Arabic (news, interviews, educational)
-- Avoid music, entertainment, children's content
-
-Return JSON array of objects with:
-- query: the Arabic search query
-- description: what type of content it will find (English)
-- expectedIlr: expected ILR range`;
-
-    try {
-      const result = await this.json({
-        prompt,
-        systemPrompt,
-        temperature: 0.7
-      });
-
-      return result.data || [];
-    } catch (error) {
-      log.warn('Query generation failed:', error.message);
-      return [];
+    for (const [arabic, info] of Object.entries(commonWords)) {
+      if (transcript.includes(arabic) && found.length < 10) {
+        found.push({
+          word_ar: arabic,
+          word_en: info.en,
+          root: info.root,
+          pos: info.pos,
+          definition_en: info.def,
+          frequency: 'high'
+        });
+      }
     }
+
+    log.log(`Fallback vocabulary: found ${found.length} common words`);
+    return found;
   }
+
 }
 
 // Singleton instance

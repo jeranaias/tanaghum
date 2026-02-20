@@ -31,6 +31,10 @@ npm-debug.log*
 *.temp
 .cache/
 
+# Screenshots
+*.png
+*.jpeg
+
 # Playwright test artifacts
 test-results/
 playwright-report/

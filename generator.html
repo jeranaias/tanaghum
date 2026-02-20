@@ -175,7 +175,7 @@
 
       <!-- Parameters -->
       <div class="panel-section">
-        <h2 class="section-title" id="params-heading">Parameters</h3>
+        <h2 class="section-title" id="params-heading">Parameters</h2>
 
         <!-- ILR Level -->
         <div class="field-group">
@@ -273,18 +273,36 @@
         </div>
       </div>
 
+      <!-- Recovery Banner (shown if incomplete lesson found) -->
+      <div id="recovery-banner" class="recovery-banner hidden" role="alert">
+        <div class="recovery-content">
+          <span class="recovery-icon">&#128190;</span>
+          <span class="recovery-text">Found an incomplete lesson from earlier.</span>
+        </div>
+        <div class="recovery-actions">
+          <button id="resume-lesson-btn" class="btn btn-primary btn-sm">Resume</button>
+          <button id="discard-lesson-btn" class="btn btn-ghost btn-sm">Start Fresh</button>
+        </div>
+      </div>
+
       <!-- Content Card - Processing State -->
       <div class="content-card hidden" id="processing-state" role="status" aria-live="polite" aria-atomic="true">
         <div class="processing-container">
           <div class="processing-spinner" aria-hidden="true"></div>
           <div class="processing-status" id="processing-status">Initializing...</div>
           <div class="processing-detail" id="processing-detail">Please wait</div>
+          <div class="processing-estimate" id="processing-estimate"></div>
 
           <div class="processing-progress">
             <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Generation progress">
               <div class="progress-bar-fill" id="progress-fill" style="width: 0%"></div>
             </div>
           </div>
+
+          <!-- Cancel Button -->
+          <button id="cancel-generation-btn" class="btn btn-danger btn-sm cancel-btn" type="button">
+            Cancel Generation
+          </button>
 
           <div class="processing-steps" id="processing-steps">
             <div class="processing-step" data-step="fetch">
@@ -439,7 +457,7 @@
     <!-- Right Panel: Status & Help -->
     <aside class="panel panel-right" id="status-panel" aria-label="Status and help">
       <div class="panel-section">
-        <h2 class="section-title" id="quota-heading">LLM Quota</h3>
+        <h2 class="section-title" id="quota-heading">LLM Quota</h2>
 
         <div class="status-card" data-provider="google">
           <div class="status-header">
@@ -476,7 +494,7 @@
       </div>
 
       <div class="panel-section">
-        <h2 class="section-title">Tips</h3>
+        <h2 class="section-title">Tips</h2>
 
         <div class="tips-card">
           <div class="tips-title">Getting the Best Results</div>
@@ -490,7 +508,7 @@
       </div>
 
       <div class="panel-section">
-        <h2 class="section-title">About ILR Levels</h3>
+        <h2 class="section-title">About ILR Levels</h2>
 
         <div class="status-card">
           <p style="font-size: var(--text-sm); color: var(--color-text-secondary); margin-bottom: 12px;">
@@ -529,8 +547,210 @@
     import { EventBus, Events } from './js/core/event-bus.js';
     import { StateManager } from './js/core/state-manager.js';
     import { Config } from './js/core/config.js';
-    import { extractYouTubeId, formatTime, $ } from './js/core/utils.js';
+    import { extractYouTubeId, formatTime, $, getActionableError } from './js/core/utils.js';
     import { lessonGeneratorWorkflow } from './js/workflows/lesson-generator-workflow.js';
+
+    // XSS prevention helper
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    // ========================================
+    // PHASE 1: Cancellation & Progressive Save
+    // ========================================
+
+    // Global abort controller for cancellable generation
+    let generationAbortController = null;
+
+    // Progressive save database
+    const PROGRESS_DB_NAME = 'TanaghumProgress';
+    const PROGRESS_STORE = 'lessonProgress';
+
+    /**
+     * Open IndexedDB for progress saving
+     */
+    async function openProgressDB() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(PROGRESS_DB_NAME, 1);
+        request.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(PROGRESS_STORE)) {
+            db.createObjectStore(PROGRESS_STORE, { keyPath: 'id' });
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    /**
+     * Save generation progress after each step
+     */
+    async function saveProgress(step, data) {
+      try {
+        const db = await openProgressDB();
+        const tx = db.transaction(PROGRESS_STORE, 'readwrite');
+        const store = tx.objectStore(PROGRESS_STORE);
+
+        const existing = await new Promise(resolve => {
+          const req = store.get('current');
+          req.onsuccess = () => resolve(req.result || { id: 'current' });
+          req.onerror = () => resolve({ id: 'current' });
+        });
+
+        existing[step] = data;
+        existing.lastStep = step;
+        existing.timestamp = Date.now();
+        existing.sourceType = StateManager.get('source.type');
+        existing.sourceUrl = StateManager.get('source.url');
+        existing.videoTitle = StateManager.get('source.metadata.title');
+
+        await new Promise((resolve, reject) => {
+          const req = store.put(existing);
+          req.onsuccess = resolve;
+          req.onerror = () => reject(req.error);
+        });
+
+        db.close();
+        console.log(`[Progress] Saved step: ${step}`);
+      } catch (error) {
+        console.warn('[Progress] Failed to save:', error);
+      }
+    }
+
+    /**
+     * Check for incomplete lesson
+     */
+    async function checkForIncompleteLesson() {
+      try {
+        const db = await openProgressDB();
+        const tx = db.transaction(PROGRESS_STORE, 'readonly');
+        const store = tx.objectStore(PROGRESS_STORE);
+
+        return new Promise(resolve => {
+          const req = store.get('current');
+          req.onsuccess = () => {
+            db.close();
+            const progress = req.result;
+            // Only show recovery if within last 24 hours
+            if (progress && progress.timestamp > Date.now() - 86400000) {
+              resolve(progress);
+            } else {
+              resolve(null);
+            }
+          };
+          req.onerror = () => {
+            db.close();
+            resolve(null);
+          };
+        });
+      } catch {
+        return null;
+      }
+    }
+
+    /**
+     * Clear saved progress
+     */
+    async function clearProgress() {
+      try {
+        const db = await openProgressDB();
+        const tx = db.transaction(PROGRESS_STORE, 'readwrite');
+        const store = tx.objectStore(PROGRESS_STORE);
+        await new Promise(resolve => {
+          const req = store.delete('current');
+          req.onsuccess = resolve;
+          req.onerror = resolve;
+        });
+        db.close();
+      } catch (error) {
+        console.warn('[Progress] Failed to clear:', error);
+      }
+    }
+
+    /**
+     * Estimate generation time based on content
+     */
+    function estimateGenerationTime(source) {
+      const duration = source?.metadata?.duration || 180; // Default 3 min
+      const durationMins = duration / 60;
+
+      // Base times in seconds
+      const transcriptTime = 30 + (durationMins * 15); // 30s base + 15s per minute
+      const vocabTime = 10;
+      const questionsTime = 20;
+      const assemblyTime = 5;
+
+      const totalSeconds = transcriptTime + vocabTime + questionsTime + assemblyTime;
+      const mins = Math.floor(totalSeconds / 60);
+      const secs = Math.floor(totalSeconds % 60);
+
+      return mins > 0 ? `~${mins}m ${secs}s` : `~${secs}s`;
+    }
+
+    // Check for incomplete lesson on page load
+    (async function checkRecovery() {
+      const incomplete = await checkForIncompleteLesson();
+      if (incomplete && incomplete.lastStep) {
+        const banner = $('#recovery-banner');
+        const steps = { fetch: 1, transcribe: 2, analyze: 3, questions: 4, assemble: 5 };
+        const stepNum = steps[incomplete.lastStep] || 1;
+        const title = incomplete.videoTitle || 'an earlier session';
+
+        banner.querySelector('.recovery-text').textContent =
+          `Found incomplete lesson from ${title} (Step ${stepNum}/5)`;
+        banner.classList.remove('hidden');
+      }
+    })();
+
+    // Recovery banner handlers
+    $('#resume-lesson-btn')?.addEventListener('click', async () => {
+      const progress = await checkForIncompleteLesson();
+      if (progress) {
+        // Restore state from progress
+        if (progress.transcription) {
+          StateManager.set('transcription', progress.transcription);
+        }
+        if (progress.vocabulary) {
+          StateManager.set('vocabulary', progress.vocabulary);
+        }
+        if (progress.questions) {
+          StateManager.set('questions', progress.questions);
+        }
+
+        showToast('info', 'Resuming', 'Continuing from where you left off...');
+        $('#recovery-banner').classList.add('hidden');
+
+        // Continue generation from last step
+        showProcessingState();
+      }
+    });
+
+    $('#discard-lesson-btn')?.addEventListener('click', async () => {
+      await clearProgress();
+      $('#recovery-banner').classList.add('hidden');
+      showToast('info', 'Cleared', 'Starting fresh');
+    });
+
+    // Cancel generation button
+    $('#cancel-generation-btn')?.addEventListener('click', () => {
+      if (generationAbortController) {
+        generationAbortController.abort();
+        generationAbortController = null;
+        showToast('info', 'Cancelled', 'Generation cancelled');
+
+        // Return to input state
+        $('#processing-state').classList.add('hidden');
+        $('#input-state').classList.remove('hidden');
+
+        // Reset step indicators
+        document.querySelectorAll('.step').forEach((step, i) => {
+          step.classList.remove('active', 'completed');
+          if (i === 0) step.classList.add('active');
+        });
+      }
+    });
 
     // Error handling for module imports
     window.addEventListener('error', (e) => {
@@ -643,6 +863,7 @@
       StateManager.set('source.file', file);
     }
 
+    // Duplicates utils.js formatBytes, but needed here since this is an inline script (not ES module scope)
     function formatBytes(bytes) {
       if (bytes < 1024) return bytes + ' B';
       if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -789,6 +1010,7 @@
       placeholder.classList.remove('hidden');
     }
 
+    // Duplicates utils.js debounce, but needed here since this is an inline script (not ES module scope)
     function debounce(fn, ms) {
       let timeout;
       return (...args) => {
@@ -826,6 +1048,15 @@
     function showProcessingState() {
       $('#input-state').classList.add('hidden');
       $('#processing-state').classList.remove('hidden');
+      $('#recovery-banner').classList.add('hidden');
+
+      // Show time estimate
+      const source = StateManager.get('source');
+      const estimate = estimateGenerationTime(source);
+      const estimateEl = $('#processing-estimate');
+      if (estimateEl) {
+        estimateEl.textContent = `Estimated time: ${estimate}`;
+      }
 
       // Update step indicator
       document.querySelectorAll('.step').forEach(step => {
@@ -834,7 +1065,10 @@
       document.querySelector('[data-step="1"]').classList.add('completed');
       document.querySelector('[data-step="2"]').classList.add('active');
 
-      // Simulate processing (in production, this would be real)
+      // Create abort controller for this generation
+      generationAbortController = new AbortController();
+
+      // Start processing
       simulateProcessing();
     }
 
@@ -853,14 +1087,23 @@
       const targetIlr = StateManager.get('params.targetIlr') || 2.0;
       const topic = StateManager.get('params.topic') || 'general';
 
+      // Track completed steps for progressive saving
+      let lastCompletedStep = null;
+
       try {
-        // Start the real workflow
+        // Start the real workflow with abort signal
         await lessonGeneratorWorkflow.generate({
           source,
           targetIlr,
           topic,
-          onProgress: (progress) => {
-            const { step, percent, message, stage } = progress;
+          signal: generationAbortController?.signal,
+          onProgress: async (progress) => {
+            const { step, percent, message, stage, data } = progress;
+
+            // Check if cancelled
+            if (generationAbortController?.signal?.aborted) {
+              throw new DOMException('Generation cancelled', 'AbortError');
+            }
 
             // Update current step status
             const stepEl = document.querySelector(`[data-step="${step}"]`);
@@ -892,6 +1135,12 @@
             // Update progress bar
             $('#progress-fill').style.width = `${percent}%`;
 
+            // Progressive save when step completes (percent reaches next threshold)
+            if (step !== lastCompletedStep && data) {
+              lastCompletedStep = step;
+              await saveProgress(step, data);
+            }
+
             // Show streaming transcript if available
             if (step === 'transcribe' && progress.currentText) {
               // Could show streaming text here if UI supports it
@@ -910,16 +1159,42 @@
           }
         });
 
+        // Clear saved progress (generation completed successfully)
+        await clearProgress();
+
+        // Clean up abort controller
+        generationAbortController = null;
+
         // Show review state with real data
         showReviewStateWithLesson();
 
       } catch (error) {
         console.error('Lesson generation failed:', error);
-        showToast('error', 'Generation Failed', error.message);
+
+        // Check if it was a cancellation
+        if (error.name === 'AbortError') {
+          // Already handled by cancel button
+          return;
+        }
+
+        // Get actionable error message
+        const actionable = error.actionable || getActionableError(error);
+
+        // Show error with action suggestion
+        showToast('error', actionable.title, `${actionable.message} ${actionable.action}`);
 
         // Show error state
         $('#processing-state').classList.add('hidden');
         $('#input-state').classList.remove('hidden');
+
+        // Reset step indicators
+        document.querySelectorAll('.step').forEach((step, i) => {
+          step.classList.remove('active', 'completed');
+          if (i === 0) step.classList.add('active');
+        });
+
+        // Clean up abort controller
+        generationAbortController = null;
       }
     }
 
@@ -1020,10 +1295,10 @@
             <div class="question-number">${i + 1}</div>
             <div class="question-content">
               <div class="question-text">
-                <div class="question-text-ar">${q.question_text.ar}</div>
-                <div class="question-text-en">${q.question_text.en}</div>
+                <div class="question-text-ar">${escapeHtml(q.question_text.ar)}</div>
+                <div class="question-text-en">${escapeHtml(q.question_text.en)}</div>
               </div>
-              <span class="question-type">${q.type.replace(/_/g, ' ')}</span>
+              <span class="question-type">${escapeHtml(q.type.replace(/_/g, ' '))}</span>
             </div>
           </div>
         `).join('');
@@ -1386,8 +1661,8 @@
       toast.className = `toast toast-${type}`;
       toast.innerHTML = `
         <div class="toast-content">
-          <div class="toast-title">${title}</div>
-          <div class="toast-message">${message}</div>
+          <div class="toast-title">${escapeHtml(title)}</div>
+          <div class="toast-message">${escapeHtml(message)}</div>
         </div>
         <button class="toast-close">&times;</button>
       `;
@@ -1799,16 +2074,16 @@
 
         return `
           <div class="video-search-card ${ilrMatch ? 'recommended' : ''}"
-               data-video-id="${video.videoId}"
+               data-video-id="${escapeHtml(video.videoId)}"
                data-video='${JSON.stringify(video).replace(/'/g, "&#39;")}'
                data-estimated-ilr="${estimatedIlr}">
-            <img class="video-thumb-small" src="${video.thumbnail}" alt="${video.title}" loading="lazy">
+            <img class="video-thumb-small" src="${escapeHtml(video.thumbnail)}" alt="${escapeHtml(video.title)}" loading="lazy">
             <div class="video-info">
-              <h4>${video.title}</h4>
-              <div class="video-channel">${video.channel}</div>
+              <h4>${escapeHtml(video.title)}</h4>
+              <div class="video-channel">${escapeHtml(video.channel)}</div>
               <div class="video-meta-row">
-                <span>${video.duration || ''}</span>
-                <span>${video.views || ''}</span>
+                <span>${escapeHtml(video.duration || '')}</span>
+                <span>${escapeHtml(video.views || '')}</span>
                 <span class="ilr-badge estimated" title="Estimated ILR level">~${estimatedIlr.toFixed(1)}</span>
               </div>
             </div>
@@ -2000,7 +2275,7 @@
     EventBus.on(Events.LLM_QUOTA_UPDATE, (quotas) => {
       console.log('LLM quotas updated:', quotas);
 
-      const limits = { google: 250, groq: 1000, openrouter: 50 };
+      const limits = { google: 1500, groq: 14400, openrouter: 50 };
 
       for (const [provider, remaining] of Object.entries(quotas)) {
         const limit = limits[provider] || 100;
@@ -2087,7 +2362,7 @@
 
           // Populate the lesson data
           populateLessonData(state.lesson);
-          showToast('Session Restored', 'Your previous lesson has been restored.', 'info');
+          showToast('info', 'Session Restored', 'Your previous lesson has been restored.');
         }
       } else {
         // Default to search/discovery mode

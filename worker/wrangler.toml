@@ -8,7 +8,8 @@ account_id = "8346e1ae1d3a90d45bc75ecd87af86e2"
 
 # Environment variables (secrets should be set via wrangler secret put)
 [vars]
-ALLOWED_ORIGINS = "https://jeranaias.github.io,https://tanaghum.github.io,http://localhost:8000,http://127.0.0.1:8000,http://localhost:3000"
+ALLOWED_ORIGINS = "https://jeranaias.github.io,https://tanaghum.github.io,http://localhost:8000,http://localhost:8080,http://127.0.0.1:8000,http://127.0.0.1:8080,http://localhost:3000"
+ALLOW_LOCALHOST = "true"
 
 # Production environment
 [env.production]

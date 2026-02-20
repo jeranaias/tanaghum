@@ -1354,6 +1354,62 @@ h2.section-title {
   color: var(--color-text-muted);
 }
 
+/* Processing Estimate */
+.processing-estimate {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-bg-alt);
+  border-radius: var(--radius-sm);
+}
+
+/* Cancel Button */
+.cancel-btn {
+  margin-top: var(--space-6);
+}
+
+/* ============================================
+   Recovery Banner
+   ============================================ */
+
+.recovery-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: linear-gradient(135deg, var(--color-warning-bg), rgba(234, 179, 8, 0.15));
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
+}
+
+.recovery-banner.hidden {
+  display: none;
+}
+
+.recovery-content {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.recovery-icon {
+  font-size: var(--text-xl);
+}
+
+.recovery-text {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.recovery-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
 /* ============================================
    Transcript Preview
    ============================================ */

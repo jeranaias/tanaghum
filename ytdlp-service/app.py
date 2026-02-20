@@ -17,8 +17,10 @@ ALLOWED_ORIGINS = [
     'https://tanaghum.github.io',
     'https://tanaghum-worker.jmathdog.workers.dev',
     'http://localhost:8000',
+    'http://localhost:8080',
     'http://localhost:3000',
-    'http://127.0.0.1:8000'
+    'http://127.0.0.1:8000',
+    'http://127.0.0.1:8080'
 ]
 
 CORS(app, origins=ALLOWED_ORIGINS)

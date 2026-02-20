@@ -1,6 +1,10 @@
 /**
  * Tanaghum Lesson Assembler
  * Combines all generated content into a complete lesson package
+ *
+ * NOTE: This module is currently unused. The workflow (lesson-generator-workflow.js)
+ * has its own assembleLesson() method and never calls LessonAssembler.
+ * Kept for potential future use.
  */
 
 import { Config } from '../core/config.js';
