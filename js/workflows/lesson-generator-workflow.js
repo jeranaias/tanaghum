@@ -32,38 +32,71 @@ class LessonGeneratorWorkflow {
   cleanHallucinations(text) {
     if (!text || text.length < 50) return text;
 
-    // Split into comma/period-delimited phrases
-    const phrases = text.split(/[،,\.]/);
-    if (phrases.length < 4) return text;
+    let cleaned = text;
 
-    // Count consecutive repetitions of phrases (normalized)
-    const normalize = (s) => s.trim().replace(/\s+/g, ' ');
-    const seen = {};
-    for (const p of phrases) {
-      const n = normalize(p);
-      if (n.length < 3) continue;
-      seen[n] = (seen[n] || 0) + 1;
-    }
+    // Detection 1: Repeated words (space-separated, e.g. "ألف ألف ألف ألف...")
+    const words = cleaned.split(/\s+/);
+    if (words.length > 10) {
+      const wordRuns = [];
+      let runWord = words[0], runCount = 1;
+      for (let i = 1; i < words.length; i++) {
+        if (words[i] === runWord) {
+          runCount++;
+        } else {
+          if (runCount > 3) wordRuns.push({ word: runWord, count: runCount, endIdx: i });
+          runWord = words[i];
+          runCount = 1;
+        }
+      }
+      if (runCount > 3) wordRuns.push({ word: runWord, count: runCount, endIdx: words.length });
 
-    // If any phrase repeats more than 3 times, it's a hallucination
-    const hallucinated = Object.entries(seen).filter(([, count]) => count > 3);
-    if (hallucinated.length === 0) return text;
-
-    log.warn(`Detected Whisper hallucination: "${hallucinated[0][0]}" repeated ${hallucinated[0][1]} times`);
-
-    // Keep only unique phrases (preserving order, first occurrence)
-    const kept = [];
-    const keptSet = new Set();
-    for (const p of phrases) {
-      const n = normalize(p);
-      if (n.length < 3) continue;
-      if (!keptSet.has(n)) {
-        keptSet.add(n);
-        kept.push(p.trim());
+      if (wordRuns.length > 0) {
+        log.warn(`Detected repeated word hallucination: "${wordRuns[0].word}" repeated ${wordRuns[0].count} times`);
+        // Collapse each run to a single occurrence
+        const result = [];
+        let i = 0;
+        while (i < words.length) {
+          result.push(words[i]);
+          const run = wordRuns.find(r => r.endIdx - r.count === i);
+          if (run) {
+            i += run.count; // Skip the repeated words
+          } else {
+            i++;
+          }
+        }
+        cleaned = result.join(' ');
       }
     }
 
-    return kept.join('، ');
+    // Detection 2: Repeated phrases (comma/period-delimited)
+    const phrases = cleaned.split(/[،,\.]/);
+    if (phrases.length >= 4) {
+      const normalize = (s) => s.trim().replace(/\s+/g, ' ');
+      const seen = {};
+      for (const p of phrases) {
+        const n = normalize(p);
+        if (n.length < 3) continue;
+        seen[n] = (seen[n] || 0) + 1;
+      }
+
+      const hallucinated = Object.entries(seen).filter(([, count]) => count > 3);
+      if (hallucinated.length > 0) {
+        log.warn(`Detected phrase hallucination: "${hallucinated[0][0]}" repeated ${hallucinated[0][1]} times`);
+        const kept = [];
+        const keptSet = new Set();
+        for (const p of phrases) {
+          const n = normalize(p);
+          if (n.length < 3) continue;
+          if (!keptSet.has(n)) {
+            keptSet.add(n);
+            kept.push(p.trim());
+          }
+        }
+        cleaned = kept.join('، ');
+      }
+    }
+
+    return cleaned;
   }
 
   /**
@@ -387,14 +420,16 @@ class LessonGeneratorWorkflow {
       topic
     });
 
-    try {
-      const questions = {
-        pre: [],
-        while: [],
-        post: []
-      };
+    // Questions object lives outside try blocks so partial results are preserved
+    const questions = {
+      pre: [],
+      while: [],
+      post: []
+    };
 
-      // Generate pre-listening questions
+    // Generate each phase independently — partial failures preserve earlier phases
+    // Pre-listening questions
+    try {
       onProgress(0.1);
       questions.pre = await llmClient.generateQuestions(transcription.text, {
         phase: 'pre',
@@ -402,13 +437,13 @@ class LessonGeneratorWorkflow {
         ilrLevel: targetIlr,
         topic
       });
+      EventBus.emit(Events.QUESTIONS_PROGRESS, { phase: 'pre', count: questions.pre.length });
+    } catch (error) {
+      log.error('Pre-listening question generation failed:', error.message);
+    }
 
-      EventBus.emit(Events.QUESTIONS_PROGRESS, {
-        phase: 'pre',
-        count: questions.pre.length
-      });
-
-      // Generate while-listening questions
+    // While-listening questions
+    try {
       onProgress(0.4);
       questions.while = await llmClient.generateQuestions(transcription.text, {
         phase: 'while',
@@ -417,13 +452,13 @@ class LessonGeneratorWorkflow {
         topic,
         existingQuestions: questions.pre
       });
+      EventBus.emit(Events.QUESTIONS_PROGRESS, { phase: 'while', count: questions.while.length });
+    } catch (error) {
+      log.error('While-listening question generation failed:', error.message);
+    }
 
-      EventBus.emit(Events.QUESTIONS_PROGRESS, {
-        phase: 'while',
-        count: questions.while.length
-      });
-
-      // Generate post-listening questions
+    // Post-listening questions
+    try {
       onProgress(0.7);
       questions.post = await llmClient.generateQuestions(transcription.text, {
         phase: 'post',
@@ -432,55 +467,36 @@ class LessonGeneratorWorkflow {
         topic,
         existingQuestions: [...questions.pre, ...questions.while]
       });
-
-      EventBus.emit(Events.QUESTIONS_PROGRESS, {
-        phase: 'post',
-        count: questions.post.length
-      });
-
-      onProgress(1.0);
-
-      // Validate question counts
-      const totalQuestions = questions.pre.length + questions.while.length + questions.post.length;
-      if (totalQuestions === 0) {
-        log.warn('No questions were generated! LLM may have failed.');
-        EventBus.emit(Events.ERROR, {
-          step: 'questions',
-          error: 'No comprehension questions could be generated. The lesson will be incomplete.',
-          recoverable: true
-        });
-      } else if (totalQuestions < 5) {
-        log.warn(`Only ${totalQuestions} questions generated (expected ~18)`);
-      }
-
-      // Update state
-      StateManager.set('questions', questions);
-
-      EventBus.emit(Events.QUESTIONS_COMPLETE, {
-        total: totalQuestions,
-        questions,
-        incomplete: totalQuestions < 10
-      });
-
-      return questions;
-
+      EventBus.emit(Events.QUESTIONS_PROGRESS, { phase: 'post', count: questions.post.length });
     } catch (error) {
-      log.error('Question generation failed:', error);
-      // Return empty questions instead of failing the entire workflow
-      log.warn('Continuing with empty questions due to error');
+      log.error('Post-listening question generation failed:', error.message);
+    }
 
+    onProgress(1.0);
+
+    // Validate question counts
+    const totalQuestions = questions.pre.length + questions.while.length + questions.post.length;
+    if (totalQuestions === 0) {
+      log.warn('No questions were generated! LLM may have failed.');
       EventBus.emit(Events.ERROR, {
         step: 'questions',
-        error: 'Question generation failed: ' + error.message,
+        error: 'No comprehension questions could be generated. The lesson will be incomplete.',
         recoverable: true
       });
-
-      return {
-        pre: [],
-        while: [],
-        post: []
-      };
+    } else if (totalQuestions < 18) {
+      log.warn(`Only ${totalQuestions} questions generated (expected ~18)`);
     }
+
+    // Update state
+    StateManager.set('questions', questions);
+
+    EventBus.emit(Events.QUESTIONS_COMPLETE, {
+      total: totalQuestions,
+      questions,
+      incomplete: totalQuestions < 10
+    });
+
+    return questions;
   }
 
   /**

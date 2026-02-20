@@ -447,16 +447,24 @@ class VocabularyPanel {
    */
   exportToAnki() {
     // Anki expects: Front TAB Back
-    // We'll put Arabic on front, English + definition + example on back
+    // We'll put Arabic on front, English + root + definition + example on back
     const cards = this.vocabulary.map(item => {
       const front = item.word_ar || item.arabic || item.word || '';
       const english = item.word_en || item.english || item.translation || '';
+      const root = item.root || '';
+      const pos = item.pos || item.type || '';
       const definition = item.definition_en || item.definitionEn || '';
       const example = item.example_ar || item.exampleAr || '';
       const exampleEn = item.example_en || item.exampleEn || '';
 
       // Build back of card with formatting
-      let back = english;
+      let back = `<b>${english}</b>`;
+      if (root && root !== '—') {
+        back += `<br>Root: ${root}`;
+      }
+      if (pos) {
+        back += ` (${pos})`;
+      }
       if (definition) {
         back += `<br><br><i>${definition}</i>`;
       }

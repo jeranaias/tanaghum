@@ -1,11 +1,22 @@
 /**
  * LLM Handler
  * Proxies requests to Google AI Studio, Groq, and OpenRouter
+ * Supports user-provided API keys (from D1) with system keys as fallback
+ * Enforces server-side quotas per user
  */
+
+import { getUserApiKey } from './auth.js';
 
 // Maximum prompt length to prevent abuse
 const MAX_PROMPT_LENGTH = 100000;
 const MAX_SYSTEM_PROMPT_LENGTH = 10000;
+
+// Quota limits per tier
+const QUOTA_LIMITS = {
+  anonymous: 10,      // 10 requests/day without login
+  authenticated: 50,  // 50 requests/day with login + system keys
+  own_keys: Infinity  // Unlimited with own keys
+};
 
 // Allowed models per provider (prevent model injection)
 const ALLOWED_MODELS = {
@@ -23,7 +34,7 @@ const ALLOWED_MODELS = {
 /**
  * Handle LLM API requests
  */
-export async function handleLLM(request, env, url, origin) {
+export async function handleLLM(request, env, url, origin, user = null) {
   if (request.method !== 'POST') {
     return jsonResponse({ error: 'Method not allowed' }, 405, origin);
   }
@@ -43,25 +54,110 @@ export async function handleLLM(request, env, url, origin) {
     return jsonResponse({ error: 'Request body must be an object' }, 400, origin);
   }
 
+  // Resolve API key: user's own key (if authenticated) → system key (fallback)
+  let userApiKey = null;
+  let usingOwnKey = false;
+  if (user && env.DB && env.JWT_SECRET) {
+    userApiKey = await getUserApiKey(env.DB, parseInt(user.sub), path, env.JWT_SECRET);
+    if (userApiKey) usingOwnKey = true;
+  }
+
+  // Enforce server-side quota (skip for own-key users)
+  if (env.DB && !usingOwnKey) {
+    const quotaCheck = await checkQuota(env.DB, user, path);
+    if (!quotaCheck.allowed) {
+      return jsonResponse({
+        error: 'Daily quota exceeded',
+        code: 'QUOTA_EXCEEDED',
+        limit: quotaCheck.limit,
+        used: quotaCheck.used,
+        tier: quotaCheck.tier
+      }, 429, origin);
+    }
+  }
+
   try {
+    let result;
     switch (path) {
       case 'google':
-        return await handleGoogle(body, env, origin);
+        result = await handleGoogle(body, env, origin, userApiKey);
+        break;
 
       case 'groq':
-        return await handleGroq(body, env, origin);
+        result = await handleGroq(body, env, origin, userApiKey);
+        break;
 
       case 'openrouter':
-        return await handleOpenRouter(body, env, origin);
+        result = await handleOpenRouter(body, env, origin, userApiKey);
+        break;
 
       default:
         return jsonResponse({ error: 'Unknown LLM provider' }, 404, origin);
     }
+
+    // Record usage on successful requests (2xx status)
+    if (env.DB && result.status >= 200 && result.status < 300) {
+      const userId = user ? parseInt(user.sub) : null;
+      // Fire-and-forget: don't block response on usage recording
+      recordUsage(env.DB, userId, path).catch(e => console.error('Usage recording failed:', e));
+    }
+
+    return result;
   } catch (error) {
     console.error('LLM handler error:', error);
     // Don't expose internal error details
     return jsonResponse({ error: 'LLM request failed' }, 500, origin);
   }
+}
+
+/**
+ * Check if user has remaining quota
+ */
+async function checkQuota(db, user, provider) {
+  const today = new Date().toISOString().split('T')[0];
+  const userId = user ? parseInt(user.sub) : null;
+  const tier = user ? 'authenticated' : 'anonymous';
+  const limit = QUOTA_LIMITS[tier];
+
+  try {
+    let used = 0;
+    if (userId) {
+      const row = await db.prepare(
+        'SELECT SUM(request_count) as total FROM usage_log WHERE user_id = ? AND date = ?'
+      ).bind(userId, today).first();
+      used = row?.total || 0;
+    }
+    // For anonymous users, we can't track server-side without IP logging
+    // so we rely on the frontend client-side quota (best-effort)
+    // The system key limits from upstream APIs act as a natural backstop
+
+    return {
+      allowed: used < limit,
+      used,
+      limit,
+      tier
+    };
+  } catch (e) {
+    console.error('Quota check failed:', e);
+    // Fail open: allow the request if quota check fails
+    return { allowed: true, used: 0, limit, tier };
+  }
+}
+
+/**
+ * Record usage after a successful LLM request
+ */
+async function recordUsage(db, userId, provider) {
+  if (!userId) return; // Don't track anonymous usage in DB
+
+  const today = new Date().toISOString().split('T')[0];
+
+  await db.prepare(`
+    INSERT INTO usage_log (user_id, provider, request_count, date)
+    VALUES (?, ?, 1, ?)
+    ON CONFLICT(user_id, date, provider) DO UPDATE SET
+      request_count = request_count + 1
+  `).bind(userId, provider, today).run();
 }
 
 /**
@@ -122,8 +218,8 @@ function parseRateLimitError(status, errorBody) {
 /**
  * Handle Google AI Studio (Gemini) requests
  */
-async function handleGoogle(body, env, origin) {
-  const apiKey = env.GOOGLE_API_KEY;
+async function handleGoogle(body, env, origin, userApiKey = null) {
+  const apiKey = userApiKey || env.GOOGLE_API_KEY;
   if (!apiKey) {
     return jsonResponse({ error: 'Google API key not configured' }, 503, origin);
   }
@@ -211,8 +307,8 @@ async function handleGoogle(body, env, origin) {
 /**
  * Handle Groq requests
  */
-async function handleGroq(body, env, origin) {
-  const apiKey = env.GROQ_API_KEY;
+async function handleGroq(body, env, origin, userApiKey = null) {
+  const apiKey = userApiKey || env.GROQ_API_KEY;
   if (!apiKey) {
     return jsonResponse({ error: 'Groq API key not configured' }, 503, origin);
   }
@@ -290,8 +386,8 @@ async function handleGroq(body, env, origin) {
 /**
  * Handle OpenRouter requests
  */
-async function handleOpenRouter(body, env, origin) {
-  const apiKey = env.OPENROUTER_API_KEY;
+async function handleOpenRouter(body, env, origin, userApiKey = null) {
+  const apiKey = userApiKey || env.OPENROUTER_API_KEY;
   if (!apiKey) {
     return jsonResponse({ error: 'OpenRouter API key not configured' }, 503, origin);
   }

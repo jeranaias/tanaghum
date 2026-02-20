@@ -15,8 +15,15 @@ const Config = {
     LLM_GOOGLE: '/api/llm/google',
     LLM_GROQ: '/api/llm/groq',
     LLM_OPENROUTER: '/api/llm/openrouter',
-    TTS: '/api/tts'
+    TTS: '/api/tts',
+    AUTH_GOOGLE: '/api/auth/google',
+    AUTH_ME: '/api/auth/me',
+    USER_KEYS: '/api/user/keys',
+    USER_QUOTA: '/api/user/quota'
   },
+
+  // Google OAuth Client ID
+  GOOGLE_CLIENT_ID: '569116254417-6r3dtom9epvhtulmv999dldemgl6gimq.apps.googleusercontent.com',
 
   // LLM Provider Configuration
   LLM: {
@@ -135,7 +142,8 @@ const Config = {
     lessons: 'tanaghum_lessons',
     settings: 'tanaghum_settings',
     quotas: 'tanaghum_quotas',
-    whisperCache: 'tanaghum_whisper'
+    whisperCache: 'tanaghum_whisper',
+    auth: 'tanaghum_auth'
   },
 
   // Feature Flags
@@ -144,6 +152,7 @@ const Config = {
     dialectDetection: true,
     communityGallery: true,
     offlineMode: true,
+    authEnabled: true,
     debugMode: false
   },
 

@@ -4,20 +4,18 @@
  * Uses Piped API as primary source with multiple fallback instances
  */
 
-// Piped API instances (ordered by reliability) - updated list with working instances
+// Piped API instances (ordered by reliability)
 const PIPED_INSTANCES = [
   'https://pipedapi.kavin.rocks',
-  'https://pipedapi-libre.kavin.rocks',
   'https://pipedapi.adminforge.de',
   'https://api.piped.yt',
   'https://pipedapi.leptons.xyz',
-  'https://pipedapi.nosebs.ru',
-  'https://pipedapi.drgns.space',
   'https://pipedapi.darkness.services',
-  'https://piped-api.privacy.com.de',
-  'https://pipedapi.syncpundit.io',
-  'https://api-piped.mha.fi'
+  'https://pipedapi.r4fo.com'
 ];
+
+// Maximum Piped instances to try before giving up (prevents excessive total timeout)
+const MAX_PIPED_ATTEMPTS = 4;
 
 // InnerTube API configuration (fallback) - use ANDROID client for better success rate
 const INNERTUBE_API_KEY = 'AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w';
@@ -103,10 +101,13 @@ function parseVTT(vttContent) {
  * Try fetching from Piped API with fallback instances
  */
 async function fetchFromPiped(endpoint, videoId) {
+  let attempts = 0;
   for (const instance of PIPED_INSTANCES) {
+    if (attempts >= MAX_PIPED_ATTEMPTS) break;
+    attempts++;
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+      const timeout = setTimeout(() => controller.abort(), 8000);
 
       const response = await fetch(`${instance}${endpoint}${videoId}`, {
         signal: controller.signal,
@@ -1025,7 +1026,7 @@ async function getVideoAudio(videoId, origin, env) {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), 30000);
 
     const response = await fetch(`${ytdlpServiceUrl}/extract?url=${videoId}&format=info`, {
       signal: controller.signal,

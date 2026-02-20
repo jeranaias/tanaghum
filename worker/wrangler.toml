@@ -11,6 +11,12 @@ account_id = "8346e1ae1d3a90d45bc75ecd87af86e2"
 ALLOWED_ORIGINS = "https://jeranaias.github.io,https://tanaghum.github.io,http://localhost:8000,http://localhost:8080,http://127.0.0.1:8000,http://127.0.0.1:8080,http://localhost:3000"
 ALLOW_LOCALHOST = "true"
 
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "tanaghum-db"
+database_id = "6fff8728-0a00-4bf8-92e7-a1122fa07f2b"
+
 # Production environment
 [env.production]
 name = "tanaghum-worker"

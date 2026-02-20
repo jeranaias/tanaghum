@@ -84,8 +84,8 @@ class AudioExtractor {
       // Method 2: If server-side failed, use browser audio capture
       // This plays the video and captures the audio in real-time
       if (!audioMeta || !audioMeta.available || !audioMeta.audioUrl) {
-        log.log('Server-side extraction failed, attempting browser audio capture');
-        onProgress?.({ stage: 'browser-capture', percent: 5, message: 'Preparing browser audio capture...' });
+        log.warn('Server-side extraction failed:', lastError || 'No audio URL returned');
+        onProgress?.({ stage: 'browser-capture', percent: 5, message: 'Server extraction unavailable, capturing audio from browser...' });
 
         try {
           // Use 2x speed - halves capture time; YouTube supports up to 2x

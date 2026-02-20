@@ -1,15 +1,16 @@
 /**
  * Tanaghum Cloudflare Worker
- * Handles YouTube caption extraction, LLM API proxying, and CORS
+ * Handles YouTube caption extraction, LLM API proxying, auth, and CORS
  */
 
 import { handleYouTube } from './handlers/youtube.js';
 import { handleLLM } from './handlers/llm.js';
 import { handleProxy } from './handlers/proxy.js';
+import { handleAuth, handleUserKeys, handleUserQuota, verifyJWT } from './handlers/auth.js';
 
 // CORS headers
 const CORS_HEADERS = {
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Max-Age': '86400',
 };
@@ -76,6 +77,17 @@ function errorResponse(message, status = 500, origin = '*') {
 }
 
 /**
+ * Extract user from JWT Authorization header (returns null if not authenticated)
+ */
+async function extractUser(request, env) {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  if (!env.JWT_SECRET) return null;
+
+  return verifyJWT(authHeader.slice(7), env.JWT_SECRET);
+}
+
+/**
  * Main request handler
  */
 export default {
@@ -101,8 +113,28 @@ export default {
         return jsonResponse({
           status: 'ok',
           service: 'tanaghum-worker',
-          version: '1.0.0'
+          version: '2.0.0',
+          auth: !!env.JWT_SECRET,
+          db: !!env.DB
         }, 200, origin);
+      }
+
+      // Auth endpoints (no user context needed — these create the user context)
+      if (path.startsWith('/api/auth/')) {
+        return handleAuth(request, env, url, origin);
+      }
+
+      // Extract authenticated user for all subsequent routes
+      const user = await extractUser(request, env);
+
+      // User key management
+      if (path.startsWith('/api/user/keys')) {
+        return handleUserKeys(request, env, url, origin, user);
+      }
+
+      // User quota
+      if (path === '/api/user/quota') {
+        return handleUserQuota(request, env, origin, user);
       }
 
       // YouTube endpoints
@@ -110,9 +142,9 @@ export default {
         return handleYouTube(request, env, url, origin);
       }
 
-      // LLM endpoints
+      // LLM endpoints (pass user for key lookup + quota)
       if (path.startsWith('/api/llm/')) {
-        return handleLLM(request, env, url, origin);
+        return handleLLM(request, env, url, origin, user);
       }
 
       // Generic proxy
