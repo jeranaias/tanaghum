@@ -139,14 +139,14 @@ function onGsiLoaded() {
   const clientId = Config.GOOGLE_CLIENT_ID;
   if (!clientId) return;
 
-  // Initialize the Google Sign-In library with FedCM support
+  // Initialize Google Identity Services
+  // Note: do NOT use use_fedcm_for_prompt — it causes "browser not secure" errors
+  // The rendered button uses a popup flow which is most reliable
   window.google.accounts.id.initialize({
     client_id: clientId,
     callback: handleGoogleCredential,
     auto_select: true,
-    cancel_on_tap_outside: false,
-    use_fedcm_for_prompt: true,
-    itp_support: true
+    cancel_on_tap_outside: false
   });
 
   // Render the real Google Sign-In button inside our custom container
