@@ -404,6 +404,17 @@
 
       transcriptSync.load(transcriptSegments, translationSegments);
 
+      // Hide translation toggle if no translations available
+      const hasTranslations = translationSegments.length > 0 ||
+        transcriptSegments.some(s => s.translation);
+      if (!hasTranslations) {
+        const translationToggle = $('#toggle-translation');
+        if (translationToggle) {
+          translationToggle.checked = false;
+          translationToggle.closest('.toggle-label').style.display = 'none';
+        }
+      }
+
       // Initialize quiz panel
       // Ensure content.questions exists with all phases
       const questions = lesson.content?.questions || { pre: [], while: [], post: [] };
@@ -600,15 +611,22 @@
 
         const phase = tab.dataset.phase;
 
-        // Handle vocabulary tab (mobile slide-out)
+        // Handle vocabulary tab
         if (phase === 'vocab') {
-          vocabPanel?.classList.add('vocab-active');
-          // Add overlay
-          if (!vocabOverlay) {
-            vocabOverlay = document.createElement('div');
-            vocabOverlay.className = 'vocab-overlay';
-            vocabOverlay.addEventListener('click', closeVocabPanel);
-            document.body.appendChild(vocabOverlay);
+          // On mobile: slide-out panel
+          if (window.innerWidth < 1024) {
+            vocabPanel?.classList.add('vocab-active');
+            if (!vocabOverlay) {
+              vocabOverlay = document.createElement('div');
+              vocabOverlay.className = 'vocab-overlay';
+              vocabOverlay.addEventListener('click', closeVocabPanel);
+              document.body.appendChild(vocabOverlay);
+            }
+          } else {
+            // On desktop: scroll to and highlight the vocabulary panel
+            vocabPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            vocabPanel?.classList.add('vocab-highlight');
+            setTimeout(() => vocabPanel?.classList.remove('vocab-highlight'), 1500);
           }
         } else {
           closeVocabPanel();

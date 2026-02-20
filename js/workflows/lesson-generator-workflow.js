@@ -24,6 +24,49 @@ class LessonGeneratorWorkflow {
   }
 
   /**
+   * Detect and clean Whisper hallucinations (repetitive phrase loops).
+   * Whisper sometimes gets stuck repeating the same phrase dozens of times.
+   * @param {string} text - Segment text
+   * @returns {string} Cleaned text
+   */
+  cleanHallucinations(text) {
+    if (!text || text.length < 50) return text;
+
+    // Split into comma/period-delimited phrases
+    const phrases = text.split(/[،,\.]/);
+    if (phrases.length < 4) return text;
+
+    // Count consecutive repetitions of phrases (normalized)
+    const normalize = (s) => s.trim().replace(/\s+/g, ' ');
+    const seen = {};
+    for (const p of phrases) {
+      const n = normalize(p);
+      if (n.length < 3) continue;
+      seen[n] = (seen[n] || 0) + 1;
+    }
+
+    // If any phrase repeats more than 3 times, it's a hallucination
+    const hallucinated = Object.entries(seen).filter(([, count]) => count > 3);
+    if (hallucinated.length === 0) return text;
+
+    log.warn(`Detected Whisper hallucination: "${hallucinated[0][0]}" repeated ${hallucinated[0][1]} times`);
+
+    // Keep only unique phrases (preserving order, first occurrence)
+    const kept = [];
+    const keptSet = new Set();
+    for (const p of phrases) {
+      const n = normalize(p);
+      if (n.length < 3) continue;
+      if (!keptSet.has(n)) {
+        keptSet.add(n);
+        kept.push(p.trim());
+      }
+    }
+
+    return kept.join('، ');
+  }
+
+  /**
    * Generate a complete lesson from source
    * @param {Object} options - Generation options
    * @returns {Promise<Object>} Generated lesson
@@ -229,6 +272,16 @@ class LessonGeneratorWorkflow {
       language: 'ar',
       onProgress
     });
+
+    // Detect and clean Whisper hallucinations (repetitive phrases)
+    if (transcription?.segments) {
+      transcription.segments = transcription.segments.map(seg => {
+        seg.text = this.cleanHallucinations(seg.text);
+        return seg;
+      });
+      // Rebuild full text from cleaned segments
+      transcription.text = transcription.segments.map(s => s.text).join(' ');
+    }
 
     // Ensure wordCount is populated
     if (transcription && !transcription.wordCount && transcription.text) {

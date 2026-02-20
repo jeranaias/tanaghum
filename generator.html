@@ -443,13 +443,13 @@
       <!-- Action Bar -->
       <div class="action-bar" id="action-bar" role="toolbar" aria-label="Lesson actions">
         <div class="action-group">
-          <button class="btn btn-ghost" id="back-btn" type="button" disabled aria-disabled="true">Back</button>
+          <button class="btn btn-ghost" id="back-btn" type="button" disabled>Back</button>
           <button class="btn btn-danger" id="start-over-btn" type="button" title="Clear everything and start fresh">Start Over</button>
           <button class="btn btn-ghost" id="reset-quota-btn" type="button" title="Reset LLM quotas if you ran out">Reset LLM Quota</button>
         </div>
         <div class="action-group">
-          <button class="btn btn-secondary" id="preview-btn" type="button" disabled aria-disabled="true">Preview</button>
-          <button class="btn btn-primary" id="export-btn" type="button" disabled aria-disabled="true">Export Lesson</button>
+          <button class="btn btn-secondary" id="preview-btn" type="button" disabled>Preview</button>
+          <button class="btn btn-primary" id="export-btn" type="button" disabled>Export Lesson</button>
         </div>
       </div>
     </section>
@@ -1266,13 +1266,11 @@
       const secs = Math.floor(duration % 60);
       $('#result-duration').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
 
-      const wordCount = lesson.metadata?.wordCount || lesson.content?.transcript?.text?.split(/\s+/).filter(w => w).length || 0;
-      $('#result-words').textContent = wordCount;
-
-      // Calculate unique words
+      // Always compute word count from transcript text (metadata.wordCount can be stale/wrong)
       const text = lesson.content?.transcript?.text || '';
       const words = text.split(/\s+/).filter(w => w.length > 0);
       const uniqueWords = new Set(words.map(w => w.replace(/[\u064B-\u065F]/g, ''))); // Remove diacritics for comparison
+      $('#result-words').textContent = words.length;
       $('#result-unique').textContent = `${uniqueWords.size} unique`;
 
       // Update dialect
@@ -2313,6 +2311,14 @@
 
         if (textEl) {
           textEl.textContent = `${remaining.toLocaleString()} / ${limit.toLocaleString()} requests remaining`;
+        }
+
+        // Update status indicator dot color
+        const card = document.querySelector(`.status-card[data-provider="${provider}"]`);
+        const dot = card?.querySelector('.status-indicator');
+        if (dot) {
+          const percent = Math.round((remaining / limit) * 100);
+          dot.style.backgroundColor = percent <= 0 ? 'var(--color-error)' : percent <= 20 ? 'var(--color-warning)' : '';
         }
       }
     });

@@ -818,6 +818,13 @@ ${transcript}`;
       return cleaned;
     };
 
+    // Sanitize Arabic-only fields: remove non-Arabic script characters (e.g., French "région")
+    const sanitizeArabic = (text) => {
+      if (!text) return '';
+      // Keep Arabic chars, Arabic punctuation, digits, whitespace, and common Arabic diacritics
+      return text.replace(/[a-zA-ZÀ-ÿ]+/g, '').replace(/\s{2,}/g, ' ').trim();
+    };
+
     // Clean up options - ensure proper structure and sanitize
     const cleanOptions = (options) => {
       if (!Array.isArray(options)) return [];
@@ -826,7 +833,7 @@ ${transcript}`;
         if (typeof opt === 'string') {
           return {
             id: String.fromCharCode(97 + idx), // a, b, c, d
-            text_ar: sanitizeText(opt),
+            text_ar: sanitizeArabic(opt),
             text_en: sanitizeText(opt),
             is_correct: idx === 0
           };
@@ -834,7 +841,7 @@ ${transcript}`;
         // Handle object options
         return {
           id: opt.id || String.fromCharCode(97 + idx),
-          text_ar: sanitizeText(opt.text_ar || opt.ar || opt.text || ''),
+          text_ar: sanitizeArabic(opt.text_ar || opt.ar || opt.text || ''),
           text_en: sanitizeText(opt.text_en || opt.en || opt.text || ''),
           is_correct: opt.is_correct || false,
           distractor_type: opt.distractor_type || null
@@ -853,13 +860,13 @@ ${transcript}`;
         timing: phase,
         skill: q.skill || questionTypes[phase][0],
         question_text: {
-          ar: sanitizeText(q.question_ar || q.question_text?.ar || ''),
+          ar: sanitizeArabic(q.question_ar || q.question_text?.ar || ''),
           en: sanitizeText(q.question_en || q.question_text?.en || '')
         },
         options: cleanOptions(q.options),
         correct_answer: q.correct_answer,
         explanation: {
-          ar: sanitizeText(q.explanation_ar || q.explanation?.ar || ''),
+          ar: sanitizeArabic(q.explanation_ar || q.explanation?.ar || ''),
           en: sanitizeText(q.explanation_en || q.explanation?.en || '')
         },
         distractor_explanations: q.distractor_explanations && typeof q.distractor_explanations === 'object'
@@ -871,6 +878,48 @@ ${transcript}`;
       };
       return cleaned;
     });
+
+    // Ensure each question has exactly 4 options for multiple choice
+    questions = questions.filter(q => {
+      if (q.type === 'multiple_choice' && q.options.length < 2) {
+        log.warn(`Dropping question with ${q.options.length} options: ${q.question_text.en}`);
+        return false;
+      }
+      // Pad to 4 options if needed
+      if (q.type === 'multiple_choice' && q.options.length < 4) {
+        while (q.options.length < 4) {
+          const idx = q.options.length;
+          q.options.push({
+            id: String.fromCharCode(97 + idx),
+            text_ar: 'لا شيء مما ذكر',
+            text_en: 'None of the above',
+            is_correct: false,
+            distractor_type: 'clearly_wrong'
+          });
+        }
+      }
+      return true;
+    });
+
+    // Deduplicate questions by similarity (remove near-duplicate questions)
+    const deduplicated = [];
+    const seenQuestions = new Set();
+    for (const q of questions) {
+      // Normalize question text for comparison (remove punctuation, extra spaces)
+      const norm = (q.question_text.ar || '').replace(/[؟?!.,،]/g, '').replace(/\s+/g, ' ').trim();
+      // Use first 30 chars as a fingerprint (catches near-duplicates)
+      const fingerprint = norm.substring(0, 30);
+      if (seenQuestions.has(fingerprint)) {
+        log.warn(`Dropping duplicate question: ${q.question_text.en}`);
+        continue;
+      }
+      seenQuestions.add(fingerprint);
+      deduplicated.push(q);
+    }
+    questions = deduplicated;
+
+    // Re-index after filtering
+    questions = questions.map((q, i) => ({ ...q, id: `${phase}-${i + 1}` }));
 
     return questions;
   }

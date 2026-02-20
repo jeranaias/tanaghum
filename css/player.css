@@ -46,6 +46,13 @@
     border-left: 1px solid var(--color-border);
   }
 
+  /* Highlight animation for vocab tab click on desktop */
+  .panel-vocabulary.vocab-highlight {
+    outline: 3px solid var(--color-primary);
+    outline-offset: -3px;
+    transition: outline 0.3s ease;
+  }
+
   /* Overlay backdrop when vocab panel is open */
   .vocab-overlay {
     position: fixed;
