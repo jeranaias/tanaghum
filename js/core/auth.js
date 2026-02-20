@@ -185,7 +185,7 @@ class AuthManager {
 
   /**
    * Save an API key for a provider
-   * @param {string} provider - 'google', 'groq', or 'openrouter'
+   * @param {string} provider - 'google'
    * @param {string} apiKey - The API key to save
    * @returns {boolean} Success
    */
@@ -209,7 +209,7 @@ class AuthManager {
 
   /**
    * Delete an API key for a provider
-   * @param {string} provider - 'google', 'groq', or 'openrouter'
+   * @param {string} provider - 'google'
    * @returns {boolean} Success
    */
   async deleteKey(provider) {

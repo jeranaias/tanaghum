@@ -66,8 +66,6 @@ test.describe('Auth System', () => {
 
     // Verify API key sections
     await expect(page.locator('.settings-key-item[data-provider="google"]')).toBeVisible();
-    await expect(page.locator('.settings-key-item[data-provider="groq"]')).toBeVisible();
-    await expect(page.locator('.settings-key-item[data-provider="openrouter"]')).toBeVisible();
 
     // Verify quota section
     await expect(page.locator('#settings-quota')).toBeVisible();

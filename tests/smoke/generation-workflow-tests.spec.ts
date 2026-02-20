@@ -124,7 +124,7 @@ async function setupFullMocks(page: any) {
     });
   });
 
-  // Mock LLM endpoints (Google, Groq, OpenRouter)
+  // Mock LLM endpoint (Google Gemini)
   const llmHandler = async (route: any) => {
     const request = route.request();
     const postData = request.postDataJSON();
@@ -168,8 +168,6 @@ async function setupFullMocks(page: any) {
   };
 
   await page.route('**/api/llm/google**', llmHandler);
-  await page.route('**/api/llm/groq**', llmHandler);
-  await page.route('**/api/llm/openrouter**', llmHandler);
 
   // Mock TTS
   await page.route('**/api/tts**', async route => {

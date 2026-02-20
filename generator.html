@@ -489,27 +489,6 @@
           <div class="quota-text" id="quota-text-google">250 / 250 requests remaining today</div>
         </div>
 
-        <div class="status-card" data-provider="groq">
-          <div class="status-header">
-            <div class="status-indicator"></div>
-            <span class="status-title">Groq</span>
-          </div>
-          <div class="quota-bar">
-            <div class="quota-fill" id="quota-fill-groq" style="width: 100%"></div>
-          </div>
-          <div class="quota-text" id="quota-text-groq">1,000 / 1,000 requests remaining</div>
-        </div>
-
-        <div class="status-card" data-provider="openrouter">
-          <div class="status-header">
-            <div class="status-indicator"></div>
-            <span class="status-title">OpenRouter</span>
-          </div>
-          <div class="quota-bar">
-            <div class="quota-fill" id="quota-fill-openrouter" style="width: 100%"></div>
-          </div>
-          <div class="quota-text" id="quota-text-openrouter">50 / 50 requests remaining</div>
-        </div>
       </div>
 
       <div class="panel-section">
@@ -2313,7 +2292,7 @@
     EventBus.on(Events.LLM_QUOTA_UPDATE, (quotas) => {
       console.log('LLM quotas updated:', quotas);
 
-      const limits = { google: 1500, groq: 14400, openrouter: 50 };
+      const limits = { google: 1500 };
 
       for (const [provider, remaining] of Object.entries(quotas)) {
         const limit = limits[provider] || 100;

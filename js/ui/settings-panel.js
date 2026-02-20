@@ -10,23 +10,9 @@ const PROVIDERS = [
   {
     id: 'google',
     name: 'Google AI Studio',
-    description: 'Gemini models (recommended)',
+    description: 'Gemini models — free tier: 1,500 requests/day',
     keyUrl: 'https://aistudio.google.com/apikey',
     placeholder: 'AIza...'
-  },
-  {
-    id: 'groq',
-    name: 'Groq',
-    description: 'Llama & Mixtral models (fast)',
-    keyUrl: 'https://console.groq.com/keys',
-    placeholder: 'gsk_...'
-  },
-  {
-    id: 'openrouter',
-    name: 'OpenRouter',
-    description: 'Many free models available',
-    keyUrl: 'https://openrouter.ai/keys',
-    placeholder: 'sk-or-...'
   }
 ];
 

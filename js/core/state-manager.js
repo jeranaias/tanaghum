@@ -70,11 +70,9 @@ const StateManager = (() => {
 
     // LLM status
     llm: {
-      provider: 'google', // 'google' | 'groq' | 'openrouter'
+      provider: 'google',
       quotaRemaining: {
-        google: 1500,    // Google AI Studio: 1,500/day free
-        groq: 14400,     // Groq: ~14,400/day (token-limited)
-        openrouter: 20   // OpenRouter free: ~20/day
+        google: 1500
       }
     },
 
@@ -301,7 +299,7 @@ const StateManager = (() => {
         lesson: null,
         llm: {
           provider: 'google',
-          quotaRemaining: { google: 1500, groq: 14400, openrouter: 20 }
+          quotaRemaining: { google: 1500 }
         },
         ui: { theme: 'light', sidebarOpen: true, activeModal: null }
       };

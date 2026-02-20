@@ -13,8 +13,6 @@ const Config = {
     YOUTUBE_METADATA: '/api/youtube/metadata',
     YOUTUBE_AUDIO: '/api/youtube/audio',
     LLM_GOOGLE: '/api/llm/google',
-    LLM_GROQ: '/api/llm/groq',
-    LLM_OPENROUTER: '/api/llm/openrouter',
     TTS: '/api/tts',
     AUTH_GOOGLE: '/api/auth/google',
     AUTH_ME: '/api/auth/me',
@@ -31,24 +29,10 @@ const Config = {
       google: {
         name: 'Google AI Studio',
         model: 'gemini-2.0-flash',
-        dailyLimit: 250,
+        dailyLimit: 1500,
         priority: 1
-      },
-      groq: {
-        name: 'Groq',
-        model: 'llama-3.3-70b-versatile',
-        dailyLimit: 1000,
-        priority: 2
-      },
-      openrouter: {
-        name: 'OpenRouter',
-        model: 'google/gemini-2.0-flash-exp:free',
-        dailyLimit: 50,
-        priority: 3
       }
     },
-    // Fallback order
-    fallbackOrder: ['google', 'groq', 'openrouter'],
     // Temperature for different tasks
     temperature: {
       transcription_correction: 0.1,

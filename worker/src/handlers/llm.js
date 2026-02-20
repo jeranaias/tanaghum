@@ -1,6 +1,6 @@
 /**
  * LLM Handler
- * Proxies requests to Google AI Studio, Groq, and OpenRouter
+ * Proxies requests to Google AI Studio (Gemini)
  * Supports user-provided API keys (from D1) with system keys as fallback
  * Enforces server-side quotas per user
  */
@@ -18,17 +18,9 @@ const QUOTA_LIMITS = {
   own_keys: Infinity  // Unlimited with own keys
 };
 
-// Allowed models per provider (prevent model injection)
+// Allowed models (prevent model injection)
 const ALLOWED_MODELS = {
-  google: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'],
-  groq: ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'],
-  openrouter: [
-    'google/gemini-2.0-flash-exp:free',
-    'google/gemini-2.0-flash-thinking-exp-1219:free',
-    'google/gemma-2-9b-it:free',
-    'meta-llama/llama-3.3-70b-instruct:free',
-    'deepseek/deepseek-r1:free'
-  ]
+  google: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
 };
 
 /**
@@ -81,14 +73,6 @@ export async function handleLLM(request, env, url, origin, user = null) {
     switch (path) {
       case 'google':
         result = await handleGoogle(body, env, origin, userApiKey);
-        break;
-
-      case 'groq':
-        result = await handleGroq(body, env, origin, userApiKey);
-        break;
-
-      case 'openrouter':
-        result = await handleOpenRouter(body, env, origin, userApiKey);
         break;
 
       default:
@@ -300,170 +284,6 @@ async function handleGoogle(body, env, origin, userApiKey = null) {
     usage: {
       promptTokens: data.usageMetadata?.promptTokenCount || 0,
       completionTokens: data.usageMetadata?.candidatesTokenCount || 0
-    }
-  }, 200, origin);
-}
-
-/**
- * Handle Groq requests
- */
-async function handleGroq(body, env, origin, userApiKey = null) {
-  const apiKey = userApiKey || env.GROQ_API_KEY;
-  if (!apiKey) {
-    return jsonResponse({ error: 'Groq API key not configured' }, 503, origin);
-  }
-
-  const {
-    prompt,
-    model = 'llama-3.3-70b-versatile',
-    temperature = 0.7,
-    maxTokens = 2048,
-    systemPrompt
-  } = body;
-
-  // Validate prompt
-  const validation = validatePromptInput(prompt, systemPrompt);
-  if (!validation.valid) {
-    return jsonResponse({ error: validation.error }, 400, origin);
-  }
-
-  // Validate model
-  if (!validateModel(model, 'groq')) {
-    return jsonResponse({ error: 'Invalid or unsupported model' }, 400, origin);
-  }
-
-  // Validate temperature and maxTokens
-  const safeTemperature = Math.max(0, Math.min(2, Number(temperature) || 0.7));
-  const safeMaxTokens = Math.max(1, Math.min(32768, Math.floor(Number(maxTokens) || 2048)));
-
-  const messages = [];
-  if (systemPrompt) {
-    messages.push({ role: 'system', content: systemPrompt });
-  }
-  messages.push({ role: 'user', content: prompt });
-
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: safeTemperature,
-      max_tokens: safeMaxTokens,
-      response_format: body.jsonMode ? { type: 'json_object' } : undefined
-    })
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    console.error('Groq API error:', errorBody);
-
-    // Handle rate limiting
-    const rateLimitError = parseRateLimitError(response.status, errorBody);
-    if (rateLimitError) {
-      return jsonResponse(rateLimitError, 429, origin);
-    }
-
-    return jsonResponse({ error: 'Groq API request failed' }, response.status >= 500 ? 502 : response.status, origin);
-  }
-
-  const data = await response.json();
-
-  return jsonResponse({
-    provider: 'groq',
-    model,
-    text: data.choices?.[0]?.message?.content || '',
-    usage: {
-      promptTokens: data.usage?.prompt_tokens || 0,
-      completionTokens: data.usage?.completion_tokens || 0
-    }
-  }, 200, origin);
-}
-
-/**
- * Handle OpenRouter requests
- */
-async function handleOpenRouter(body, env, origin, userApiKey = null) {
-  const apiKey = userApiKey || env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    return jsonResponse({ error: 'OpenRouter API key not configured' }, 503, origin);
-  }
-
-  const {
-    prompt,
-    model = 'google/gemini-2.0-flash-exp:free',
-    temperature = 0.7,
-    maxTokens = 2048,
-    systemPrompt
-  } = body;
-
-  // Validate prompt
-  const validation = validatePromptInput(prompt, systemPrompt);
-  if (!validation.valid) {
-    return jsonResponse({ error: validation.error }, 400, origin);
-  }
-
-  // Validate model
-  if (!validateModel(model, 'openrouter')) {
-    return jsonResponse({ error: 'Invalid or unsupported model' }, 400, origin);
-  }
-
-  // Validate temperature and maxTokens
-  const safeTemperature = Math.max(0, Math.min(2, Number(temperature) || 0.7));
-  const safeMaxTokens = Math.max(1, Math.min(8192, Math.floor(Number(maxTokens) || 2048)));
-
-  const messages = [];
-  if (systemPrompt) {
-    messages.push({ role: 'system', content: systemPrompt });
-  }
-  messages.push({ role: 'user', content: prompt });
-
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-      'HTTP-Referer': 'https://tanaghum.github.io',
-      'X-Title': 'Tanaghum'
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: safeTemperature,
-      max_tokens: safeMaxTokens
-    })
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    console.error('OpenRouter API error:', errorBody);
-
-    // Handle rate limiting
-    const rateLimitError = parseRateLimitError(response.status, errorBody);
-    if (rateLimitError) {
-      return jsonResponse(rateLimitError, 429, origin);
-    }
-
-    // Handle credits exhausted
-    if (response.status === 402) {
-      return jsonResponse({ error: 'API credits exhausted', code: 'CREDITS_EXHAUSTED' }, 429, origin);
-    }
-
-    return jsonResponse({ error: 'OpenRouter API request failed' }, response.status >= 500 ? 502 : response.status, origin);
-  }
-
-  const data = await response.json();
-
-  return jsonResponse({
-    provider: 'openrouter',
-    model,
-    text: data.choices?.[0]?.message?.content || '',
-    usage: {
-      promptTokens: data.usage?.prompt_tokens || 0,
-      completionTokens: data.usage?.completion_tokens || 0
     }
   }, 200, origin);
 }

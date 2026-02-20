@@ -17,58 +17,19 @@ const log = createLogger('LLM');
  * Provider configurations
  */
 /**
- * Provider configurations with accurate free tier limits
+ * Provider configuration — Google AI Studio (Gemini) only
  *
- * Google AI Studio: 15 RPM, 1,500 requests/day, 1M tokens/day
- * Groq: 30 RPM, 14,400 requests/day, but token-limited per model
- * OpenRouter: Free models have ~10-20 requests/day typically
+ * Google AI Studio: 15 RPM, 1,500 requests/day, 1M tokens/day free tier
  */
 const PROVIDERS = {
   google: {
     name: 'Google AI Studio',
     endpoint: '/api/llm/google',
     model: 'gemini-2.0-flash',
-    dailyLimit: 1500,      // Actual: 1,500 requests/day free tier
-    rateLimit: 15,         // 15 requests per minute
+    dailyLimit: 1500,
+    rateLimit: 15,
     supportsJson: true,
     priority: 1
-  },
-  groq: {
-    name: 'Groq',
-    endpoint: '/api/llm/groq',
-    model: 'llama-3.3-70b-versatile',
-    dailyLimit: 14400,     // Actual: ~14,400 requests/day (token-limited though)
-    rateLimit: 30,         // 30 requests per minute
-    supportsJson: true,
-    priority: 2
-  },
-  openrouter: {
-    name: 'OpenRouter',
-    endpoint: '/api/llm/openrouter',
-    model: 'google/gemini-2.0-flash-exp:free',
-    dailyLimit: 50,        // Free models have decent limits
-    rateLimit: 10,
-    supportsJson: false,
-    priority: 3
-  },
-  // Additional free OpenRouter models as fallbacks
-  openrouter_llama: {
-    name: 'OpenRouter Llama',
-    endpoint: '/api/llm/openrouter',
-    model: 'meta-llama/llama-3.3-70b-instruct:free',
-    dailyLimit: 50,
-    rateLimit: 10,
-    supportsJson: false,
-    priority: 4
-  },
-  openrouter_gemma: {
-    name: 'OpenRouter Gemma',
-    endpoint: '/api/llm/openrouter',
-    model: 'google/gemma-2-9b-it:free',
-    dailyLimit: 50,
-    rateLimit: 10,
-    supportsJson: false,
-    priority: 5
   }
 };
 
@@ -93,11 +54,7 @@ class LLMClient {
    */
   loadQuotas() {
     const freshQuotas = {
-      google: PROVIDERS.google.dailyLimit,
-      groq: PROVIDERS.groq.dailyLimit,
-      openrouter: PROVIDERS.openrouter.dailyLimit,
-      openrouter_llama: PROVIDERS.openrouter_llama.dailyLimit,
-      openrouter_gemma: PROVIDERS.openrouter_gemma.dailyLimit
+      google: PROVIDERS.google.dailyLimit
     };
 
     try {
