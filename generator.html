@@ -791,6 +791,10 @@
       sourceContents.forEach(content => {
         content.classList.toggle('hidden', !content.id.includes(source));
       });
+      // Hide search results when switching away from search mode
+      if (source !== 'search') {
+        $('#search-results')?.classList.add('hidden');
+      }
       StateManager.set('source.type', source);
     });
 
@@ -845,12 +849,14 @@
       const validTypes = ['audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/m4a', 'audio/ogg', 'audio/webm'];
       if (!validTypes.includes(file.type) && !file.name.match(/\.(mp3|wav|m4a|ogg|webm|aac)$/i)) {
         showToast('error', 'Invalid file type', 'Please upload an audio file');
+        fileInput.value = '';
         return;
       }
 
       // Check file size (100MB max)
       if (file.size > 100 * 1024 * 1024) {
         showToast('error', 'File too large', 'Maximum file size is 100MB');
+        fileInput.value = '';
         return;
       }
 
@@ -1472,10 +1478,19 @@
       // Clear search results
       const searchResultsGrid = $('#search-results-grid');
       if (searchResultsGrid) searchResultsGrid.innerHTML = '';
+      $('#search-results')?.classList.add('hidden');
 
       // Clear YouTube input
       const youtubeInput = $('#youtube-url');
       if (youtubeInput) youtubeInput.value = '';
+
+      // Reset file upload state
+      $('#file-preview')?.classList.add('hidden');
+      dropZone?.classList.remove('hidden');
+      if (fileInput) fileInput.value = '';
+
+      // Clear recovery banner
+      $('#recovery-banner')?.classList.add('hidden');
 
       // Show toast
       showToast('success', 'Reset Complete', 'Ready to start a new lesson');
