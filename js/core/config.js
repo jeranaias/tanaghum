@@ -13,6 +13,9 @@ const Config = {
     YOUTUBE_METADATA: '/api/youtube/metadata',
     YOUTUBE_AUDIO: '/api/youtube/audio',
     LLM_GOOGLE: '/api/llm/google',
+    LLM_GROQ: '/api/llm/groq',
+    LLM_CEREBRAS: '/api/llm/cerebras',
+    LLM_OPENROUTER: '/api/llm/openrouter',
     TTS: '/api/tts',
     AUTH_GOOGLE: '/api/auth/google',
     AUTH_ME: '/api/auth/me',
@@ -30,7 +33,29 @@ const Config = {
         name: 'Google AI Studio',
         model: 'gemini-2.0-flash',
         dailyLimit: 1500,
-        priority: 1
+        priority: 1,
+        requiresOwnKey: false
+      },
+      groq: {
+        name: 'Groq',
+        model: 'llama-3.3-70b-versatile',
+        dailyLimit: 1000,
+        priority: 2,
+        requiresOwnKey: true
+      },
+      cerebras: {
+        name: 'Cerebras',
+        model: 'llama-3.3-70b',
+        dailyLimit: 1000,
+        priority: 3,
+        requiresOwnKey: true
+      },
+      openrouter: {
+        name: 'OpenRouter',
+        model: 'google/gemini-2.0-flash-exp:free',
+        dailyLimit: 200,
+        priority: 4,
+        requiresOwnKey: true
       }
     },
     // Temperature for different tasks

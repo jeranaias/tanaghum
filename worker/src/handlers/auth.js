@@ -294,7 +294,7 @@ export async function handleUserKeys(request, env, url, origin, user) {
   const pathParts = url.pathname.replace('/api/user/keys', '').split('/').filter(Boolean);
   const provider = pathParts[0]; // e.g. 'google'
 
-  const validProviders = ['google'];
+  const validProviders = ['google', 'groq', 'cerebras', 'openrouter'];
 
   switch (request.method) {
     case 'GET': {
@@ -315,7 +315,7 @@ export async function handleUserKeys(request, env, url, origin, user) {
 
     case 'PUT': {
       if (!provider || !validProviders.includes(provider)) {
-        return jsonResponse({ error: 'Invalid provider. Use: google' }, 400, origin);
+        return jsonResponse({ error: 'Invalid provider. Use: google, groq, cerebras, openrouter' }, 400, origin);
       }
 
       let body;

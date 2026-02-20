@@ -10,9 +10,30 @@ const PROVIDERS = [
   {
     id: 'google',
     name: 'Google AI Studio',
-    description: 'Gemini models — free tier: 1,500 requests/day',
+    description: 'Gemini 2.0 Flash — 1,500 req/day free',
     keyUrl: 'https://aistudio.google.com/apikey',
     placeholder: 'AIza...'
+  },
+  {
+    id: 'groq',
+    name: 'Groq',
+    description: 'Llama 3.3 70B + Arabic allam — 1,000 req/day free, ultra-fast',
+    keyUrl: 'https://console.groq.com/keys',
+    placeholder: 'gsk_...'
+  },
+  {
+    id: 'cerebras',
+    name: 'Cerebras',
+    description: 'Qwen3 32B & Llama 3.3 70B — 1M tokens/day free, fastest inference',
+    keyUrl: 'https://cloud.cerebras.ai/platform',
+    placeholder: 'csk-...'
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    description: '30+ free models including DeepSeek R1, Gemma, Mistral — 200 req/day each',
+    keyUrl: 'https://openrouter.ai/keys',
+    placeholder: 'sk-or-...'
   }
 ];
 

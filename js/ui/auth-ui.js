@@ -64,8 +64,36 @@ function updateAuthUI() {
     if (emailEl) {
       emailEl.textContent = authManager.user.email || '';
     }
+
+    // Fetch and display quota in dropdown
+    updateDropdownQuota();
   } else {
     authSection.dataset.state = 'logged-out';
+  }
+}
+
+/**
+ * Update the quota display in the dropdown
+ */
+async function updateDropdownQuota() {
+  const quotaValue = document.getElementById('dropdown-quota-value');
+  if (!quotaValue || !authManager.isAuthenticated) return;
+
+  try {
+    const quota = await authManager.getQuota();
+    if (quota) {
+      if (quota.tier === 'own_keys') {
+        quotaValue.textContent = 'Unlimited (own keys)';
+        quotaValue.className = 'dropdown-quota-value quota-good';
+      } else {
+        const remaining = quota.limit - quota.used;
+        quotaValue.textContent = `${remaining} / ${quota.limit} remaining`;
+        quotaValue.className = 'dropdown-quota-value ' +
+          (remaining <= 5 ? 'quota-low' : remaining <= 20 ? 'quota-mid' : 'quota-good');
+      }
+    }
+  } catch {
+    quotaValue.textContent = '--';
   }
 }
 
@@ -93,6 +121,15 @@ function setupUserDropdown() {
     settingsBtn.addEventListener('click', () => {
       dropdown.classList.remove('open');
       EventBus.emit('settings:open');
+    });
+  }
+
+  // My Usage button — opens settings to usage section
+  const usageBtn = document.getElementById('auth-usage-btn');
+  if (usageBtn) {
+    usageBtn.addEventListener('click', () => {
+      dropdown.classList.remove('open');
+      EventBus.emit('settings:open', { scrollTo: 'usage' });
     });
   }
 

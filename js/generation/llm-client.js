@@ -15,11 +15,8 @@ const log = createLogger('LLM');
 
 /**
  * Provider configurations
- */
-/**
- * Provider configuration — Google AI Studio (Gemini) only
- *
- * Google AI Studio: 15 RPM, 1,500 requests/day, 1M tokens/day free tier
+ * Google is the system default (owner key). Others require user's own free API key.
+ * All providers below have free tiers — no credit card needed.
  */
 const PROVIDERS = {
   google: {
@@ -29,7 +26,38 @@ const PROVIDERS = {
     dailyLimit: 1500,
     rateLimit: 15,
     supportsJson: true,
-    priority: 1
+    priority: 1,
+    requiresOwnKey: false
+  },
+  groq: {
+    name: 'Groq',
+    endpoint: '/api/llm/groq',
+    model: 'llama-3.3-70b-versatile',
+    dailyLimit: 1000,
+    rateLimit: 30,
+    supportsJson: true,
+    priority: 2,
+    requiresOwnKey: true
+  },
+  cerebras: {
+    name: 'Cerebras',
+    endpoint: '/api/llm/cerebras',
+    model: 'llama-3.3-70b',
+    dailyLimit: 1000,
+    rateLimit: 30,
+    supportsJson: true,
+    priority: 3,
+    requiresOwnKey: true
+  },
+  openrouter: {
+    name: 'OpenRouter',
+    endpoint: '/api/llm/openrouter',
+    model: 'google/gemini-2.0-flash-exp:free',
+    dailyLimit: 200,
+    rateLimit: 20,
+    supportsJson: false,
+    priority: 4,
+    requiresOwnKey: true
   }
 };
 
@@ -53,9 +81,10 @@ class LLMClient {
    * Load quotas from localStorage
    */
   loadQuotas() {
-    const freshQuotas = {
-      google: PROVIDERS.google.dailyLimit
-    };
+    const freshQuotas = {};
+    for (const [id, config] of Object.entries(PROVIDERS)) {
+      freshQuotas[id] = config.dailyLimit;
+    }
 
     try {
       const stored = localStorage.getItem(QUOTA_STORAGE_KEY);
