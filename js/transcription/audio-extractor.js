@@ -89,12 +89,12 @@ class AudioExtractor {
 
         try {
           const captureResult = await captureYouTubeAudio(videoId, {
-            playbackSpeed: 2.0,
+            playbackSpeed: 1.0,
             onProgress: (progress) => {
               onProgress?.({
                 stage: 'browser-capture',
                 percent: 5 + Math.round(progress.percent * 0.9),
-                message: `Capturing audio at 2x: ${Math.round(progress.currentTime || 0)}s / ${Math.round(progress.duration || 0)}s`
+                message: `Capturing audio: ${Math.round(progress.currentTime || 0)}s / ${Math.round(progress.duration || 0)}s`
               });
             }
           });
