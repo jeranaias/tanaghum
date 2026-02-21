@@ -142,8 +142,10 @@ class GalleryManager {
       this.lessons = data.lessons || [];
 
       // Merge with locally stored lessons from sharing system
-      const localLessons = LessonSharing.getAllLocalLessons();
-      this.lessons = [...this.lessons, ...localLessons];
+      const localLessons = await LessonSharing.getAllLocalLessons();
+      if (Array.isArray(localLessons)) {
+        this.lessons = [...this.lessons, ...localLessons];
+      }
 
     } catch (error) {
       console.error('Error loading lessons:', error);
