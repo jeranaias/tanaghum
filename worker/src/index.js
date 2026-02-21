@@ -7,6 +7,7 @@ import { handleYouTube } from './handlers/youtube.js';
 import { handleLLM } from './handlers/llm.js';
 import { handleProxy } from './handlers/proxy.js';
 import { handleAuth, handleUserKeys, handleUserQuota, verifyJWT } from './handlers/auth.js';
+import { handleGallery } from './handlers/gallery.js';
 
 // CORS headers
 const CORS_HEADERS = {
@@ -135,6 +136,11 @@ export default {
       // User quota
       if (path === '/api/user/quota') {
         return handleUserQuota(request, env, origin, user);
+      }
+
+      // Gallery endpoints
+      if (path.startsWith('/api/gallery/')) {
+        return handleGallery(request, env, url, origin, user);
       }
 
       // YouTube endpoints

@@ -482,6 +482,7 @@
         <div class="action-group">
           <button class="btn btn-secondary" id="preview-btn" type="button" disabled>Preview</button>
           <button class="btn btn-primary" id="export-btn" type="button" disabled>Export Lesson</button>
+          <button class="btn btn-primary" id="publish-gallery-btn" type="button" disabled style="display:none;" title="Share this lesson with all users">Publish to Gallery</button>
         </div>
       </div>
     </section>
@@ -552,6 +553,9 @@
 
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Gallery API for publishing -->
+  <script src="js/gallery/gallery-api.js"></script>
 
   <!-- Scripts -->
   <script type="module">
@@ -1234,6 +1238,7 @@
       $('#back-btn').disabled = false;
       $('#preview-btn').disabled = false;
       $('#export-btn').disabled = false;
+      showPublishButton();
 
       // Populate with real lesson data
       const lesson = StateManager.get('lesson');
@@ -1479,6 +1484,7 @@
       $('#back-btn').disabled = true;
       $('#preview-btn').disabled = true;
       $('#export-btn').disabled = true;
+      hidePublishButton();
 
       // Clear video preview
       hideVideoPreview();
@@ -1680,6 +1686,54 @@
       URL.revokeObjectURL(url);
       showToast('success', 'Exported', 'Lesson JSON downloaded');
     }
+
+    // Publish to Gallery
+    function showPublishButton() {
+      const btn = $('#publish-gallery-btn');
+      if (!btn) return;
+      // Show only if user is authenticated
+      try {
+        const auth = JSON.parse(localStorage.getItem('tanaghum_auth') || '{}');
+        if (auth.token) {
+          btn.style.display = '';
+          btn.disabled = false;
+        }
+      } catch {}
+    }
+
+    function hidePublishButton() {
+      const btn = $('#publish-gallery-btn');
+      if (!btn) return;
+      btn.style.display = 'none';
+      btn.disabled = true;
+    }
+
+    $('#publish-gallery-btn').addEventListener('click', async () => {
+      const lesson = StateManager.get('lesson');
+      if (!lesson) {
+        showToast('error', 'No lesson', 'Please generate a lesson first');
+        return;
+      }
+
+      const btn = $('#publish-gallery-btn');
+      btn.disabled = true;
+      btn.textContent = 'Publishing...';
+
+      try {
+        if (!window.GalleryAPI) {
+          throw new Error('Gallery API not available');
+        }
+
+        const result = await GalleryAPI.publishLesson(lesson);
+        showToast('success', 'Published!', 'Your lesson is now in the community gallery');
+        btn.textContent = 'Published';
+      } catch (err) {
+        console.error('Publish failed:', err);
+        showToast('error', 'Publish Failed', err.message || 'Could not publish lesson');
+        btn.disabled = false;
+        btn.textContent = 'Publish to Gallery';
+      }
+    });
 
     // Create a lesson object for preview/export
     // createPreviewLesson removed - now using real lesson data from workflow
@@ -2397,6 +2451,7 @@
           $('#back-btn').disabled = false;
           $('#preview-btn').disabled = false;
           $('#export-btn').disabled = false;
+          showPublishButton();
 
           // Populate the lesson data
           populateLessonData(state.lesson);

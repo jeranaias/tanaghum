@@ -231,6 +231,21 @@
       <!-- Lessons Grid -->
       <div class="gallery-grid hidden" id="gallery-grid"></div>
 
+      <!-- Pagination -->
+      <div class="pagination-container hidden" id="pagination-container" role="navigation" aria-label="Gallery pagination">
+        <div class="pagination">
+          <button class="btn btn-ghost pagination-btn" id="pagination-prev" type="button" disabled>
+            &larr; Previous
+          </button>
+          <div class="pagination-info">
+            Page <span id="pagination-current">1</span> of <span id="pagination-total">1</span>
+          </div>
+          <button class="btn btn-ghost pagination-btn" id="pagination-next" type="button">
+            Next &rarr;
+          </button>
+        </div>
+      </div>
+
       <!-- Empty State -->
       <div class="empty-state hidden" id="empty-state" role="status">
         <div class="empty-icon" aria-hidden="true">&#128269;</div>
@@ -287,6 +302,7 @@
   </footer>
 
   <!-- Scripts -->
+  <script src="js/gallery/gallery-api.js" defer></script>
   <script src="js/gallery/lesson-sharing.js" defer></script>
   <script src="js/gallery/rating-system.js" defer></script>
   <script src="js/gallery/gallery-manager.js" defer></script>

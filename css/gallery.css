@@ -911,3 +911,32 @@
     border: 2px solid currentColor;
   }
 }
+
+/* ============================================
+   Pagination
+   ============================================ */
+
+.pagination-container {
+  padding: var(--space-6) 0;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+}
+
+.pagination-btn {
+  min-width: 100px;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-info {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}

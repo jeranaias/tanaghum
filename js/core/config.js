@@ -20,7 +20,8 @@ const Config = {
     AUTH_GOOGLE: '/api/auth/google',
     AUTH_ME: '/api/auth/me',
     USER_KEYS: '/api/user/keys',
-    USER_QUOTA: '/api/user/quota'
+    USER_QUOTA: '/api/user/quota',
+    GALLERY_LESSONS: '/api/gallery/lessons'
   },
 
   // Google OAuth Client ID
