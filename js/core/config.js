@@ -32,7 +32,7 @@ const Config = {
     providers: {
       google: {
         name: 'Google AI Studio',
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash',
         dailyLimit: 1500,
         priority: 1,
         requiresOwnKey: false

@@ -42,53 +42,52 @@ class AudioExtractor {
     log.log('Extracting audio from YouTube:', videoId);
 
     try {
-      // Step 1: Try to get audio URL from worker (tries multiple methods)
-      onProgress?.({ stage: 'fetching', percent: 0, message: 'Requesting audio URL...' });
+      // Step 1: Try worker endpoint — it now streams audio bytes directly
+      onProgress?.({ stage: 'fetching', percent: 0, message: 'Requesting audio from server...' });
 
-      let audioMeta = null;
+      let response;
       let lastError = null;
 
-      // Method 1: Try worker endpoint (uses yt-dlp service)
       try {
-        const metaResponse = await fetch(`${this.workerUrl}/api/youtube/audio?v=${videoId}`, {
+        response = await fetch(`${this.workerUrl}/api/youtube/audio?v=${videoId}`, {
           method: 'GET'
         });
 
-        if (metaResponse.ok) {
-          audioMeta = await metaResponse.json();
-          if (audioMeta.available && audioMeta.audioUrl) {
-            log.log('Got audio URL from worker');
-          } else if (audioMeta.hasCaptions) {
-            // Worker says: use captions instead of audio
-            throw new Error(
-              'CAPTIONS_AVAILABLE:' + (audioMeta.message || 'Video has captions. Use caption-based transcription.')
-            );
-          } else {
-            lastError = audioMeta.error || audioMeta.suggestion;
-            audioMeta = null;
-          }
-        } else if (metaResponse.status === 404 || metaResponse.status === 501) {
-          lastError = 'Audio extraction service not available';
+        const contentType = response.headers.get('content-type') || '';
+
+        if (contentType.startsWith('audio/')) {
+          // Worker streamed audio bytes directly — read them
+          log.log('Got streamed audio from worker, source:', response.headers.get('x-audio-source') || 'unknown');
+          onProgress?.({ stage: 'downloading', percent: 10, message: 'Downloading audio...' });
+
         } else {
-          const err = await metaResponse.json().catch(() => ({}));
-          lastError = err.error || `HTTP ${metaResponse.status}`;
+          // JSON response — either error or captions fallback
+          const data = await response.json();
+
+          if (data.hasCaptions) {
+            throw new Error(
+              'CAPTIONS_AVAILABLE:' + (data.message || 'Video has captions. Use caption-based transcription.')
+            );
+          }
+
+          lastError = data.error || data.suggestion || 'No audio available';
+          response = null;
         }
       } catch (e) {
         if (e.message.startsWith('CAPTIONS_AVAILABLE:')) {
-          throw e; // Re-throw to trigger caption fallback
+          throw e;
         }
         log.warn('Worker audio fetch failed:', e.message);
         lastError = e.message;
+        response = null;
       }
 
-      // Method 2: If server-side failed, use browser audio capture
-      // This plays the video and captures the audio in real-time
-      if (!audioMeta || !audioMeta.available || !audioMeta.audioUrl) {
-        log.warn('Server-side extraction failed:', lastError || 'No audio URL returned');
+      // Step 2: If server-side failed, fall back to browser audio capture
+      if (!response) {
+        log.warn('Server-side extraction failed:', lastError);
         onProgress?.({ stage: 'browser-capture', percent: 5, message: 'Server extraction unavailable, capturing audio from browser...' });
 
         try {
-          // Use 2x speed - halves capture time; YouTube supports up to 2x
           const captureResult = await captureYouTubeAudio(videoId, {
             playbackSpeed: 2.0,
             onProgress: (progress) => {
@@ -102,10 +101,7 @@ class AudioExtractor {
 
           log.log('Browser audio capture successful');
 
-          // captureYouTubeAudio returns object with audio, realDuration, playbackSpeed
-          // We need to pass through the real duration for accurate lesson metadata
           if (captureResult && typeof captureResult === 'object' && captureResult.audio !== undefined) {
-            // Return object with audio and real duration metadata
             return {
               audio: captureResult.audio,
               realDuration: captureResult.realDuration,
@@ -113,8 +109,6 @@ class AudioExtractor {
               isCaptureResult: true
             };
           }
-
-          // Fallback for older format (shouldn't happen but be safe)
           return captureResult;
 
         } catch (captureError) {
@@ -126,64 +120,33 @@ class AudioExtractor {
         }
       }
 
-      log.log('Got audio URL from', audioMeta.source);
-      onProgress?.({ stage: 'fetching', percent: 10, message: `Downloading audio via ${audioMeta.source}...` });
-
-      // Step 2: Fetch actual audio - try direct first, then proxy through worker
-      let response;
-      try {
-        response = await fetch(audioMeta.audioUrl, { method: 'GET' });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      } catch (directError) {
-        log.warn('Direct audio fetch failed (likely CORS), trying worker proxy:', directError.message);
-        onProgress?.({ stage: 'fetching', percent: 12, message: 'Downloading audio via proxy...' });
-        try {
-          response = await fetch(`${this.workerUrl}/api/proxy?url=${encodeURIComponent(audioMeta.audioUrl)}`);
-          if (!response.ok) throw new Error(`Proxy HTTP ${response.status}`);
-        } catch (proxyError) {
-          log.warn('Proxy audio fetch also failed, falling back to browser capture:', proxyError.message);
-          // Fall back to browser audio capture
-          onProgress?.({ stage: 'browser-capture', percent: 5, message: 'Preparing browser audio capture...' });
-          const captureResult = await captureYouTubeAudio(videoId, {
-            playbackSpeed: 2.0,
-            onProgress: (progress) => {
-              onProgress?.({
-                stage: 'browser-capture',
-                percent: 5 + Math.round(progress.percent * 0.9),
-                message: `Capturing audio at 2x: ${Math.round(progress.currentTime || 0)}s / ${Math.round(progress.duration || 0)}s`
-              });
-            }
-          });
-          if (captureResult && typeof captureResult === 'object' && captureResult.audio !== undefined) {
-            return { audio: captureResult.audio, realDuration: captureResult.realDuration, playbackSpeed: captureResult.playbackSpeed, isCaptureResult: true };
-          }
-          return captureResult;
-        }
-      }
-
-      // Get total size for progress tracking
+      // Step 3: Read the streamed audio bytes with progress
       const contentLength = response.headers.get('content-length');
       const total = contentLength ? parseInt(contentLength, 10) : 0;
 
-      // Read response as array buffer with progress
       const reader = response.body.getReader();
       const chunks = [];
       let received = 0;
 
       while (true) {
         const { done, value } = await reader.read();
-
         if (done) break;
 
         chunks.push(value);
         received += value.length;
 
         if (total > 0) {
-          const percent = 10 + Math.round((received / total) * 85); // 10-95%
+          const percent = 10 + Math.round((received / total) * 85);
           onProgress?.({
             stage: 'downloading',
             percent: Math.min(percent, 95),
             message: `Downloading audio... ${Math.round(received / 1024 / 1024)}MB`
+          });
+        } else {
+          onProgress?.({
+            stage: 'downloading',
+            percent: Math.min(50, 10 + Math.round(received / 100000)),
+            message: `Downloading audio... ${Math.round(received / 1024)}KB`
           });
         }
       }
