@@ -72,12 +72,12 @@
     }
 
     .about-content {
-      padding: 60px 0;
+      padding: 40px 0;
     }
 
     .about-section {
       max-width: 800px;
-      margin: 0 auto 60px;
+      margin: 0 auto 40px;
       padding: 0 24px;
     }
 
@@ -197,6 +197,20 @@
     .credit-link:hover {
       text-decoration: underline;
     }
+
+    @media (max-width: 768px) {
+      .about-hero {
+        padding: 60px 0 30px;
+      }
+      .about-title { font-size: 2rem; }
+      .about-title-ar { font-size: 2.25rem; }
+      .about-content { padding: 24px 0; }
+      .about-section { margin: 0 auto 24px; }
+      .about-section h2 { font-size: 1.25rem; margin-bottom: 12px; }
+      .credit-section { padding: 24px; }
+      .tech-stack { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .tech-item { padding: 14px; }
+    }
   </style>
 </head>
 <body>
@@ -219,7 +233,7 @@
       <div class="auth-section" id="auth-section" data-state="loading">
         <div id="google-signin-btn" class="google-signin-container"></div>
         <div class="user-menu">
-          <img class="user-avatar" src="" alt="User avatar" width="32" height="32">
+          <img class="user-avatar" alt="User avatar" width="32" height="32">
           <span class="user-name"></span>
           <div class="user-dropdown">
             <div class="user-dropdown-email"></div>

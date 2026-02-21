@@ -308,73 +308,29 @@
         </p>
       </div>
 
-      <div class="legal-content" style="max-width: 800px; margin: 0 auto; line-height: 1.8; color: var(--text-secondary, #555);">
-        <div class="legal-block" style="background: white; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-          <h3 style="color: var(--text-primary, #333); margin-bottom: 0.5em; font-size: 1.2rem;">Educational Purpose</h3>
-          <p>
-            Tanaghum is designed exclusively as an educational tool for developing Arabic listening comprehension
-            skills. It is intended for use by language instructors and students at academic institutions,
-            including the Defense Language Institute Foreign Language Center (DLIFLC) and similar DoD, IC,
-            and academic language programs. The tool creates pedagogical exercises &mdash; not copies of source material.
+      <div class="legal-content" style="max-width: 800px; margin: 0 auto; line-height: 1.7; color: var(--text-secondary, #555);">
+        <div class="legal-block" style="background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+          <h3 style="color: var(--text-primary, #333); margin-bottom: 0.5em; font-size: 1.1rem;">Educational Purpose</h3>
+          <p style="margin: 0;">
+            Tanaghum is an educational tool for Arabic listening comprehension, intended for language instructors and students at academic institutions including DLIFLC and similar programs. It creates pedagogical exercises &mdash; not copies of source material.
           </p>
         </div>
 
-        <div class="legal-block" style="background: white; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-          <h3 style="color: var(--text-primary, #333); margin-bottom: 0.5em; font-size: 1.2rem;">Fair Use (17 U.S.C. &sect; 107)</h3>
-          <p style="margin-bottom: 1em;">
-            The use of publicly available content for educational materials is supported by the Fair Use doctrine:
-          </p>
-          <ul style="padding-left: 1.5em; margin: 0;">
-            <li style="margin-bottom: 0.5em;"><strong>Purpose:</strong> Nonprofit educational use for government/academic language instruction. Transformative &mdash; creates original exercises, not reproductions.</li>
-            <li style="margin-bottom: 0.5em;"><strong>Nature:</strong> Uses factual, publicly broadcast content (news, interviews, lectures, educational videos).</li>
-            <li style="margin-bottom: 0.5em;"><strong>Amount:</strong> Lessons reference content via YouTube's official embedded player. No audio or video files are copied, stored, or redistributed.</li>
-            <li><strong>Market Effect:</strong> No substitute for the original. May increase viewership by directing students to original content for educational purposes.</li>
-          </ul>
-        </div>
-
-        <div class="legal-block" style="background: white; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-          <h3 style="color: var(--text-primary, #333); margin-bottom: 0.5em; font-size: 1.2rem;">How Content Is Accessed</h3>
-          <p style="margin-bottom: 1em;">
-            <strong>Primary path (most videos):</strong> When captions are available, the tool uses those
-            existing captions (text only) to generate exercises. No audio is downloaded or processed.
-          </p>
-          <p style="margin-bottom: 1em;">
-            <strong>Fallback path:</strong> When captions are unavailable, the tool uses the browser's standard
-            <code>getDisplayMedia()</code> screen sharing API to capture audio for transcription.
-            This is the same Web API used by Google Meet, Zoom, Microsoft Teams, and all major video
-            conferencing applications. Audio is processed in-memory and is never stored, transmitted, or redistributed.
-          </p>
-          <p>
-            <strong>In generated lessons:</strong> YouTube's official iframe embed player is used for all
-            playback, ensuring content is served through YouTube's authorized channels at all times.
-          </p>
-        </div>
-
-        <div class="legal-block" style="background: white; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-          <h3 style="color: var(--text-primary, #333); margin-bottom: 0.5em; font-size: 1.2rem;">What This Tool Does NOT Do</h3>
-          <ul style="padding-left: 1.5em; margin: 0; list-style-type: '&#10060; ';">
-            <li style="margin-bottom: 0.4em;">Download, store, or host any copyrighted audio or video</li>
-            <li style="margin-bottom: 0.4em;">Redistribute any YouTube content</li>
-            <li style="margin-bottom: 0.4em;">Circumvent digital rights management (DRM)</li>
-            <li style="margin-bottom: 0.4em;">Collect, store, or transmit personal user data</li>
-            <li>Bypass YouTube's access controls or authentication</li>
-          </ul>
-        </div>
-
-        <div class="legal-block" style="background: white; border-radius: 12px; padding: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-          <h3 style="color: var(--text-primary, #333); margin-bottom: 0.5em; font-size: 1.2rem;">Open Source Accountability</h3>
-          <p>
-            The complete source code is publicly available and auditable on GitHub. Institutional compliance
-            officers, legal counsel, and security reviewers are welcome and encouraged to review the codebase
-            to verify all claims independently. For questions, contact the developer or open a GitHub issue.
-          </p>
-        </div>
+        <details class="legal-details" style="background: white; border-radius: 12px; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+          <summary style="padding: 1.5rem; cursor: pointer; font-weight: 600; color: var(--text-primary, #333); font-size: 1.1rem;">Fair Use, Content Access &amp; Limitations</summary>
+          <div style="padding: 0 1.5rem 1.5rem;">
+            <p style="margin-bottom: 0.75em;"><strong>Fair Use (17 U.S.C. &sect; 107):</strong> Nonprofit educational use. Transformative &mdash; creates original exercises, not reproductions. Uses factual, publicly broadcast content. Lessons reference content via YouTube embeds. No files copied or redistributed. May increase viewership of original content.</p>
+            <p style="margin-bottom: 0.75em;"><strong>Content Access:</strong> Primarily uses existing captions (text only). Fallback uses browser <code>getDisplayMedia()</code> API (same as Google Meet/Zoom) for in-memory audio transcription. Generated lessons use YouTube's official embed player.</p>
+            <p style="margin-bottom: 0.75em;"><strong>This tool does NOT:</strong> download/store copyrighted media, redistribute YouTube content, circumvent DRM, collect personal data, or bypass YouTube access controls.</p>
+            <p style="margin: 0;"><strong>Open Source:</strong> Complete source code is <a href="https://github.com/jeranaias/tanaghum">publicly auditable on GitHub</a>.</p>
+          </div>
+        </details>
       </div>
     </div>
   </section>
 
   <!-- Final CTA Section -->
-  <section class="landing-hero" style="min-height: 60vh;" aria-labelledby="cta-title">
+  <section class="landing-hero landing-cta" aria-labelledby="cta-title">
     <div class="container">
       <div class="landing-hero-content">
         <h2 class="landing-hero-title" id="cta-title" style="font-size: clamp(2rem, 5vw, 3.5rem);">

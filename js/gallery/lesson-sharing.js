@@ -586,5 +586,5 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// ES Module export for dynamic imports
-export { LessonSharing, LessonSharing as lessonSharing };
+// Make available globally for non-module scripts
+window.LessonSharing = LessonSharing;
