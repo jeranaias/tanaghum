@@ -279,6 +279,14 @@ export async function handleYouTube(request, env, url, origin) {
       return await searchVideos(query, origin, options);
     }
 
+    // WAA proxy — browser generates BotGuard response, worker proxies API calls to avoid CORS
+    if (path === 'waa') {
+      if (request.method !== 'POST') {
+        return jsonResponse({ error: 'POST required' }, 405, origin);
+      }
+      return await handleWaaProxy(request, origin);
+    }
+
     // Other endpoints require video ID
     if (!videoId) {
       return jsonResponse({ error: 'Missing video ID' }, 400, origin);
@@ -314,6 +322,108 @@ export async function handleYouTube(request, env, url, origin) {
   } catch (error) {
     console.error('YouTube handler error:', error);
     return jsonResponse({ error: error.message }, 500, origin);
+  }
+}
+
+/**
+ * Proxy WAA (Web Anti-Abuse) API calls for PO token generation.
+ * The browser runs BotGuard but can't call Google's APIs directly due to CORS.
+ */
+const WAA_BASE = 'https://jnn-pa.googleapis.com/$rpc/google.internal.waa.v1.Waa';
+const WAA_API_KEY = 'AIzaSyDyT5W0Jh49F30Pqqtyfdf7pDLFKLJoAnw';
+
+async function handleWaaProxy(request, origin) {
+  try {
+    const body = await request.json();
+    const { action, requestKey, botguardResponse } = body;
+
+    if (action === 'create') {
+      // Fetch BotGuard challenge
+      const payload = [requestKey || 'O43z0dpjhgX20SCx4KAo'];
+      const response = await fetch(`${WAA_BASE}/Create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json+protobuf',
+          'x-goog-api-key': WAA_API_KEY,
+          'x-user-agent': 'grpc-web-javascript/0.1'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        console.log(`[WAA] Create failed: HTTP ${response.status}`);
+        return jsonResponse({ error: `WAA Create failed: ${response.status}` }, 200, origin);
+      }
+
+      const result = await response.json();
+      console.log(`[WAA] Create success, interpreter length: ${result[0]?.length || 0}`);
+      return jsonResponse({ result }, 200, origin);
+    }
+
+    if (action === 'generateIT') {
+      // Generate integrity token using BotGuard response from browser
+      if (!botguardResponse) {
+        return jsonResponse({ error: 'Missing botguardResponse' }, 400, origin);
+      }
+
+      const payload = [requestKey || 'O43z0dpjhgX20SCx4KAo', botguardResponse];
+      const response = await fetch(`${WAA_BASE}/GenerateIT`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json+protobuf',
+          'x-goog-api-key': WAA_API_KEY,
+          'x-user-agent': 'grpc-web-javascript/0.1'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        console.log(`[WAA] GenerateIT failed: HTTP ${response.status}`);
+        return jsonResponse({ error: `WAA GenerateIT failed: ${response.status}` }, 200, origin);
+      }
+
+      const result = await response.json();
+      console.log(`[WAA] GenerateIT success, token length: ${result[0]?.length || 0}`);
+      return jsonResponse({ result }, 200, origin);
+    }
+
+    if (action === 'visitorData') {
+      // Fetch visitor data from YouTube InnerTube
+      const response = await fetch(
+        'https://www.youtube.com/youtubei/v1/visitor_id?key=' + INNERTUBE_API_KEY,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'X-Youtube-Client-Name': '1',
+            'X-Youtube-Client-Version': '2.20250131.00.00'
+          },
+          body: JSON.stringify({
+            context: {
+              client: {
+                clientName: 'WEB',
+                clientVersion: '2.20250131.00.00'
+              }
+            }
+          })
+        }
+      );
+
+      if (!response.ok) {
+        return jsonResponse({ error: 'Visitor data fetch failed' }, 200, origin);
+      }
+
+      const data = await response.json();
+      const visitorData = data.responseContext?.visitorData;
+      console.log(`[WAA] Visitor data: ${visitorData ? 'ok' : 'missing'}`);
+      return jsonResponse({ visitorData }, 200, origin);
+    }
+
+    return jsonResponse({ error: 'Unknown WAA action' }, 400, origin);
+  } catch (e) {
+    console.error('[WAA] Proxy error:', e.message);
+    return jsonResponse({ error: e.message }, 500, origin);
   }
 }
 

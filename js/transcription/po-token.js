@@ -4,12 +4,11 @@
  * These tokens are required for WEB client InnerTube requests to get streaming URLs.
  */
 
+import { Config } from '../core/config.js';
 import { createLogger } from '../core/utils.js';
 
 const log = createLogger('PoToken');
 
-const WAA_URL = 'https://jnn-pa.googleapis.com/$rpc/google.internal.waa.v1.Waa';
-const GOOGLE_API_KEY = 'AIzaSyDyT5W0Jh49F30Pqqtyfdf7pDLFKLJoAnw';
 const REQUEST_KEY = 'O43z0dpjhgX20SCx4KAo';
 
 // Cache the minter so we don't re-init BotGuard for every request
@@ -97,14 +96,12 @@ export async function generatePoToken(identifier) {
  */
 async function fetchChallenge() {
   try {
-    const response = await fetch(`${WAA_URL}/Create`, {
+    // Proxy through our worker to avoid CORS issues with Google's API
+    const workerUrl = Config.WORKER_URL;
+    const response = await fetch(`${workerUrl}/api/youtube/waa`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json+protobuf',
-        'x-goog-api-key': GOOGLE_API_KEY,
-        'x-user-agent': 'grpc-web-javascript/0.1'
-      },
-      body: JSON.stringify([REQUEST_KEY])
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'create', requestKey: REQUEST_KEY })
     });
 
     if (!response.ok) {
@@ -113,13 +110,19 @@ async function fetchChallenge() {
     }
 
     const data = await response.json();
+    if (data.error) {
+      log.warn('WAA Create error:', data.error);
+      return null;
+    }
+
     // data format: [challengeData, interpreterHash, program, globalName, ...]
+    const result = data.result;
     return {
-      interpreterJavascript: data[0],
-      interpreterHash: data[1],
-      program: data[2],
-      globalName: data[3],
-      clientExperimentsStateBlob: data[4]
+      interpreterJavascript: result[0],
+      interpreterHash: result[1],
+      program: result[2],
+      globalName: result[3],
+      clientExperimentsStateBlob: result[4]
     };
   } catch (e) {
     log.error('Challenge fetch error:', e);
@@ -193,14 +196,11 @@ async function executeBotGuard(challenge) {
  */
 async function getIntegrityToken(botguardResponse) {
   try {
-    const response = await fetch(`${WAA_URL}/GenerateIT`, {
+    const workerUrl = Config.WORKER_URL;
+    const response = await fetch(`${workerUrl}/api/youtube/waa`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json+protobuf',
-        'x-goog-api-key': GOOGLE_API_KEY,
-        'x-user-agent': 'grpc-web-javascript/0.1'
-      },
-      body: JSON.stringify([REQUEST_KEY, botguardResponse])
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'generateIT', requestKey: REQUEST_KEY, botguardResponse })
     });
 
     if (!response.ok) {
@@ -209,8 +209,13 @@ async function getIntegrityToken(botguardResponse) {
     }
 
     const data = await response.json();
-    // data format: [integrityToken, estimatedTtlSecs, mintRefreshThreshold, websafeFallbackToken]
-    return data[0]; // integrityToken as base64
+    if (data.error) {
+      log.warn('GenerateIT error:', data.error);
+      return null;
+    }
+
+    // result format: [integrityToken, estimatedTtlSecs, mintRefreshThreshold, websafeFallbackToken]
+    return data.result[0]; // integrityToken as base64
   } catch (e) {
     log.error('Integrity token error:', e);
     return null;
@@ -279,34 +284,20 @@ async function mintToken(minter, identifier) {
  */
 async function fetchVisitorData() {
   try {
-    // Use InnerTube API to get visitor data
-    const response = await fetch('https://www.youtube.com/youtubei/v1/visitor_id?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w', {
+    const workerUrl = Config.WORKER_URL;
+    const response = await fetch(`${workerUrl}/api/youtube/waa`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Youtube-Client-Name': '1',
-        'X-Youtube-Client-Version': '2.20250131.00.00'
-      },
-      body: JSON.stringify({
-        context: {
-          client: {
-            clientName: 'WEB',
-            clientVersion: '2.20250131.00.00'
-          }
-        }
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'visitorData' })
     });
 
     if (!response.ok) {
-      // Fallback: extract from YouTube page
-      const pageResp = await fetch('https://www.youtube.com/', { credentials: 'omit' });
-      const html = await pageResp.text();
-      const match = html.match(/"visitorData"\s*:\s*"([^"]+)"/);
-      return match?.[1] || null;
+      log.warn('Visitor data fetch failed:', response.status);
+      return null;
     }
 
     const data = await response.json();
-    return data.responseContext?.visitorData || null;
+    return data.visitorData || null;
   } catch (e) {
     log.error('Visitor data fetch error:', e);
     return null;
