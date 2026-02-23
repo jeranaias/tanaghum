@@ -8,6 +8,7 @@ import { EventBus, Events } from '../core/event-bus.js';
 import { StateManager } from '../core/state-manager.js';
 import { createLogger } from '../core/utils.js';
 import { captureYouTubeAudio } from './browser-audio-capture.js';
+import { generatePoToken } from './po-token.js';
 
 const log = createLogger('AudioExtractor');
 
@@ -49,9 +50,32 @@ class AudioExtractor {
       let lastError = null;
 
       try {
-        response = await fetch(`${this.workerUrl}/api/youtube/audio?v=${videoId}`, {
-          method: 'GET'
-        });
+        // Generate PO token in the browser (real browser passes BotGuard checks)
+        let poToken = null;
+        let visitorData = null;
+        try {
+          onProgress?.({ stage: 'fetching', percent: 2, message: 'Generating auth token...' });
+          const tokenResult = await generatePoToken();
+          if (tokenResult) {
+            poToken = tokenResult.poToken;
+            visitorData = tokenResult.visitorData;
+            log.log('PO token generated, length:', poToken?.length);
+          }
+        } catch (e) {
+          log.warn('PO token generation failed (will try without):', e.message);
+        }
+
+        // Send video ID + PO token to worker
+        const audioUrl = `${this.workerUrl}/api/youtube/audio?v=${videoId}`;
+        if (poToken && visitorData) {
+          response = await fetch(audioUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ videoId, poToken, visitorData })
+          });
+        } else {
+          response = await fetch(audioUrl, { method: 'GET' });
+        }
 
         const contentType = response.headers.get('content-type') || '';
 

@@ -19,5 +19,9 @@
     "llm"
   ],
   "author": "SSgt Jesse Morgan, USMC",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "bgutils-js": "^3.2.0",
+    "youtubei.js": "^16.0.1"
+  }
 }

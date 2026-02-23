@@ -297,6 +297,15 @@ export async function handleYouTube(request, env, url, origin) {
         return await getVideoCaptions(videoId, origin);
 
       case 'audio':
+        // Accept POST with { poToken, visitorData } for authenticated requests
+        if (request.method === 'POST') {
+          try {
+            const body = await request.json();
+            return await getVideoAudio(videoId, origin, env, body);
+          } catch (e) {
+            return await getVideoAudio(videoId, origin, env);
+          }
+        }
         return await getVideoAudio(videoId, origin, env);
 
       default:
@@ -979,8 +988,8 @@ async function getAudioViaCobalt(videoId, env) {
  * The ?mode=stream query param (default) streams binary audio.
  * The ?mode=info query param returns JSON metadata only.
  */
-async function getVideoAudio(videoId, origin, env) {
-  const audioUrl = await resolveAudioUrl(videoId, env, origin);
+async function getVideoAudio(videoId, origin, env, tokenData = null) {
+  const audioUrl = await resolveAudioUrl(videoId, env, origin, tokenData);
 
   if (!audioUrl) {
     // Fallback: Check if captions are available (can skip audio extraction entirely)
@@ -1005,7 +1014,7 @@ async function getVideoAudio(videoId, origin, env) {
       videoId,
       available: false,
       error: 'Audio extraction unavailable from server. Browser audio capture will be used.',
-      suggestion: 'The app will capture audio at 2x speed via your browser.'
+      suggestion: 'The app will capture audio via your browser.'
     }, 200, origin);
   }
 
@@ -1055,7 +1064,17 @@ async function getVideoAudio(videoId, origin, env) {
  * Resolve a playable audio URL from multiple sources.
  * Returns { url, mimeType, source, duration, title } or null.
  */
-async function resolveAudioUrl(videoId, env, origin) {
+async function resolveAudioUrl(videoId, env, origin, tokenData = null) {
+  // Method 0: If browser sent a PO token, try WEB client with it first (most reliable)
+  if (tokenData?.poToken && tokenData?.visitorData) {
+    try {
+      const webResult = await resolveWithPoToken(videoId, tokenData.poToken, tokenData.visitorData);
+      if (webResult) return webResult;
+    } catch (e) {
+      console.error('WEB+PO token audio error:', e.message);
+    }
+  }
+
   // Method 1: Try Cobalt API first
   try {
     const cobaltResult = await getAudioViaCobalt(videoId, env);
@@ -1115,7 +1134,98 @@ async function resolveAudioUrl(videoId, env, origin) {
 }
 
 /**
- * Resolve audio URL via InnerTube API (ANDROID, IOS, TV clients).
+ * Resolve audio URL via InnerTube WEB client with PO token from browser.
+ * Returns { url, mimeType, source, duration, title } or null.
+ */
+async function resolveWithPoToken(videoId, poToken, visitorData) {
+  const INNERTUBE_URL = 'https://www.youtube.com/youtubei/v1/player?key=' + INNERTUBE_API_KEY;
+
+  console.log(`[Audio] Trying WEB client with PO token for ${videoId}`);
+
+  const response = await fetch(INNERTUBE_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'X-Youtube-Client-Name': '1',
+      'X-Youtube-Client-Version': '2.20250131.00.00'
+    },
+    body: JSON.stringify({
+      videoId,
+      context: {
+        client: {
+          clientName: 'WEB',
+          clientVersion: '2.20250131.00.00',
+          visitorData,
+          hl: 'en',
+          gl: 'US'
+        }
+      },
+      serviceIntegrityDimensions: {
+        poToken
+      },
+      contentCheckOk: true,
+      racyCheckOk: true
+    })
+  });
+
+  if (!response.ok) {
+    console.log(`[Audio] WEB+PO returned HTTP ${response.status}`);
+    return null;
+  }
+
+  const data = await response.json();
+  const status = data.playabilityStatus?.status;
+  if (status !== 'OK') {
+    console.log(`[Audio] WEB+PO playability: ${status} - ${data.playabilityStatus?.reason || 'unknown'}`);
+    return null;
+  }
+
+  const streamingData = data.streamingData;
+  if (!streamingData) {
+    console.log('[Audio] WEB+PO: no streaming data');
+    return null;
+  }
+
+  const adaptiveFormats = streamingData.adaptiveFormats || [];
+
+  // Look for direct audio URLs
+  let directAudio = adaptiveFormats.filter(f =>
+    f.mimeType?.startsWith('audio/') && f.url
+  );
+
+  if (directAudio.length === 0) {
+    // Check for signatureCipher — WEB client may return these
+    const ciphered = adaptiveFormats.filter(f =>
+      f.mimeType?.startsWith('audio/') && f.signatureCipher
+    );
+    console.log(`[Audio] WEB+PO: ${directAudio.length} direct, ${ciphered.length} ciphered audio streams`);
+    return null;
+  }
+
+  // Sort: prefer opus, then highest bitrate
+  directAudio.sort((a, b) => {
+    const aIsOpus = a.mimeType?.includes('opus') ? 1 : 0;
+    const bIsOpus = b.mimeType?.includes('opus') ? 1 : 0;
+    if (aIsOpus !== bIsOpus) return bIsOpus - aIsOpus;
+    return (b.bitrate || 0) - (a.bitrate || 0);
+  });
+
+  const best = directAudio[0];
+  const duration = parseInt(data.videoDetails?.lengthSeconds || 0);
+  console.log(`[Audio] WEB+PO success: ${best.mimeType}, ${best.bitrate}bps, ${duration}s`);
+
+  return {
+    url: best.url,
+    mimeType: best.mimeType,
+    source: 'innertube-web-po',
+    duration,
+    title: data.videoDetails?.title || ''
+  };
+}
+
+/**
+ * Resolve audio URL via InnerTube API (ANDROID_VR, WEB_EMBEDDED clients).
  * Returns { url, mimeType, source, duration, title } or null.
  */
 async function resolveInnerTubeAudio(videoId) {
@@ -1123,45 +1233,33 @@ async function resolveInnerTubeAudio(videoId) {
 
   const clients = [
     {
-      name: 'ANDROID',
+      name: 'ANDROID_VR',
       context: {
         client: {
-          clientName: 'ANDROID',
-          clientVersion: '19.09.37',
-          androidSdkVersion: 30,
+          clientName: 'ANDROID_VR',
+          clientVersion: '1.62.27',
+          androidSdkVersion: 32,
+          deviceMake: 'Oculus',
+          deviceModel: 'Quest 3',
+          osName: 'Android',
+          osVersion: '12L',
           hl: 'en',
           gl: 'US'
         }
       },
-      userAgent: 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip'
+      userAgent: 'com.google.android.apps.youtube.vr.oculus/1.62.27 (Linux; U; Android 12L; Quest 3 Build/SQ3A.220605.009.A1) gzip'
     },
     {
-      name: 'IOS',
+      name: 'WEB_EMBEDDED',
       context: {
         client: {
-          clientName: 'IOS',
-          clientVersion: '19.09.3',
-          deviceModel: 'iPhone14,3',
+          clientName: 'WEB_EMBEDDED_PLAYER',
+          clientVersion: '1.20250310.01.00',
           hl: 'en',
           gl: 'US'
         }
       },
-      userAgent: 'com.google.ios.youtube/19.09.3 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)'
-    },
-    {
-      name: 'TVHTML5_SIMPLY_EMBEDDED_PLAYER',
-      context: {
-        client: {
-          clientName: 'TVHTML5_SIMPLY_EMBEDDED_PLAYER',
-          clientVersion: '2.0',
-          hl: 'en',
-          gl: 'US'
-        },
-        thirdParty: {
-          embedUrl: 'https://www.google.com'
-        }
-      },
-      userAgent: 'Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/5.0 Chrome/85.0.4183.93 TV Safari/537.36'
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
     }
   ];
 
@@ -1200,11 +1298,25 @@ async function resolveInnerTubeAudio(videoId) {
       if (!streamingData) continue;
 
       const adaptiveFormats = streamingData.adaptiveFormats || [];
-      const directAudio = adaptiveFormats.filter(f =>
+
+      // Look for direct audio URLs first
+      let directAudio = adaptiveFormats.filter(f =>
         f.mimeType?.startsWith('audio/') && f.url
       );
 
-      if (directAudio.length === 0) continue;
+      // If no direct URLs, try to decode signatureCipher URLs
+      if (directAudio.length === 0) {
+        const ciphered = adaptiveFormats.filter(f =>
+          f.mimeType?.startsWith('audio/') && f.signatureCipher
+        );
+
+        if (ciphered.length > 0) {
+          console.log(`[Audio] ${client.name} has ${ciphered.length} ciphered audio streams (cannot decode server-side)`);
+          continue; // Skip — we can't decipher without the player JS
+        }
+
+        continue;
+      }
 
       // Sort: prefer opus, then highest bitrate
       directAudio.sort((a, b) => {
