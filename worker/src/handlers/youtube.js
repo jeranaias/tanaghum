@@ -420,6 +420,31 @@ async function handleWaaProxy(request, origin) {
       return jsonResponse({ visitorData }, 200, origin);
     }
 
+    if (action === 'fetchScript') {
+      // Fetch BotGuard interpreter script (browser can't due to CORS)
+      const scriptUrl = body.url;
+      if (!scriptUrl || typeof scriptUrl !== 'string') {
+        return jsonResponse({ error: 'Missing script URL' }, 400, origin);
+      }
+      // Only allow google.com URLs for security
+      try {
+        const parsed = new URL(scriptUrl);
+        if (!parsed.hostname.endsWith('google.com') && !parsed.hostname.endsWith('googleapis.com')) {
+          return jsonResponse({ error: 'URL not allowed' }, 400, origin);
+        }
+      } catch {
+        return jsonResponse({ error: 'Invalid URL' }, 400, origin);
+      }
+
+      const scriptResp = await fetch(scriptUrl);
+      if (!scriptResp.ok) {
+        return jsonResponse({ error: `Script fetch failed: ${scriptResp.status}` }, 200, origin);
+      }
+      const script = await scriptResp.text();
+      console.log(`[WAA] Fetched script, length: ${script.length}`);
+      return jsonResponse({ script }, 200, origin);
+    }
+
     return jsonResponse({ error: 'Unknown WAA action' }, 400, origin);
   } catch (e) {
     console.error('[WAA] Proxy error:', e.message);

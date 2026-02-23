@@ -1,7 +1,13 @@
 /**
  * PO Token Generator
  * Generates YouTube Proof of Origin tokens using BotGuard in the browser.
- * These tokens are required for WEB client InnerTube requests to get streaming URLs.
+ * Based on bgutils-js (https://github.com/LuanRT/BgUtils).
+ *
+ * Flow:
+ * 1. Worker fetches challenge from Google WAA API (avoids CORS)
+ * 2. Browser loads & runs BotGuard VM (needs real browser env)
+ * 3. Worker fetches integrity token using BotGuard response (avoids CORS)
+ * 4. Browser mints PO token using integrity token + visitor data
  */
 
 import { Config } from '../core/config.js';
@@ -11,278 +17,282 @@ const log = createLogger('PoToken');
 
 const REQUEST_KEY = 'O43z0dpjhgX20SCx4KAo';
 
-// Cache the minter so we don't re-init BotGuard for every request
+// Cache
 let cachedMinter = null;
 let cachedVisitorData = null;
 let cacheExpiry = 0;
 const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
 
+// --- Helpers from bgutils-js ---
+
+function base64ToU8(base64) {
+  const base64Mod = base64.replace(/[-_.]/g, m => ({ '-': '+', '_': '/', '.': '=' })[m] || m);
+  const bin = atob(base64Mod);
+  return new Uint8Array([...bin].map(c => c.charCodeAt(0)));
+}
+
+function u8ToBase64(u8, urlSafe = false) {
+  const result = btoa(String.fromCharCode(...u8));
+  if (urlSafe) return result.replace(/\+/g, '-').replace(/\//g, '_');
+  return result;
+}
+
+function descramble(scrambledChallenge) {
+  const buffer = base64ToU8(scrambledChallenge);
+  if (buffer.length) return new TextDecoder().decode(buffer.map(b => b + 97));
+  return null;
+}
+
+function parseChallengeData(rawData) {
+  let challengeData = [];
+  if (rawData.length > 1 && typeof rawData[1] === 'string') {
+    const descrambled = descramble(rawData[1]);
+    challengeData = JSON.parse(descrambled || '[]');
+  } else if (rawData.length && typeof rawData[0] === 'object') {
+    challengeData = rawData[0];
+  }
+
+  const [messageId, wrappedScript, wrappedUrl, interpreterHash, program, globalName, , clientExperimentsStateBlob] = challengeData;
+
+  const scriptValue = Array.isArray(wrappedScript)
+    ? wrappedScript.find(v => v && typeof v === 'string')
+    : null;
+
+  const urlValue = Array.isArray(wrappedUrl)
+    ? wrappedUrl.find(v => v && typeof v === 'string')
+    : null;
+
+  return { messageId, scriptValue, urlValue, interpreterHash, program, globalName, clientExperimentsStateBlob };
+}
+
+// --- Cold start token (no BotGuard needed, works for initial playback) ---
+
+function generateColdStartToken(identifier) {
+  const encoded = new TextEncoder().encode(identifier);
+  const timestamp = Math.floor(Date.now() / 1000);
+  const keys = [Math.floor(Math.random() * 256), Math.floor(Math.random() * 256)];
+  const header = [...keys, 0, 1,
+    (timestamp >> 24) & 0xFF, (timestamp >> 16) & 0xFF,
+    (timestamp >> 8) & 0xFF, timestamp & 0xFF
+  ];
+
+  const packet = new Uint8Array(2 + header.length + encoded.length);
+  packet[0] = 34;
+  packet[1] = header.length + encoded.length;
+  packet.set(header, 2);
+  packet.set(encoded, 2 + header.length);
+
+  const payload = packet.subarray(2);
+  for (let i = keys.length; i < payload.length; i++) {
+    payload[i] ^= payload[i % keys.length];
+  }
+
+  return u8ToBase64(packet, true);
+}
+
+// --- Main API ---
+
 /**
- * Get or create a PO token for the given identifier (visitorData or videoId).
- * Returns { poToken, visitorData } or null on failure.
+ * Generate a PO token. Tries full BotGuard flow, falls back to cold-start token.
+ * Returns { poToken, visitorData } or null.
  */
 export async function generatePoToken(identifier) {
   try {
-    // Use cached minter if available and not expired
+    // Use cached minter if available
     if (cachedMinter && Date.now() < cacheExpiry) {
-      const poToken = await mintToken(cachedMinter, identifier || cachedVisitorData);
-      if (poToken) {
-        return { poToken, visitorData: cachedVisitorData };
+      try {
+        const poToken = await cachedMinter.mintAsWebsafeString(identifier || cachedVisitorData);
+        if (poToken) return { poToken, visitorData: cachedVisitorData };
+      } catch (e) {
+        log.warn('Cached minter failed, reinitializing:', e.message);
+        cachedMinter = null;
       }
-      // Minter failed, clear cache and retry
-      cachedMinter = null;
     }
 
-    log.log('Initializing BotGuard...');
-
-    // Step 1: Fetch challenge from Web Anti-Abuse API
-    const challenge = await fetchChallenge();
-    if (!challenge) {
-      log.warn('Failed to fetch BotGuard challenge');
-      return null;
-    }
-
-    // Step 2: Load and execute the BotGuard VM
-    const bgResult = await executeBotGuard(challenge);
-    if (!bgResult) {
-      log.warn('BotGuard execution failed');
-      return null;
-    }
-
-    // Step 3: Get integrity token
-    const integrityToken = await getIntegrityToken(bgResult.response);
-    if (!integrityToken) {
-      log.warn('Failed to get integrity token');
-      return null;
-    }
-
-    // Step 4: Create minter from webPoSignalOutput
-    const minter = await createMinter(bgResult.webPoSignalOutput, integrityToken);
-    if (!minter) {
-      log.warn('Failed to create token minter');
-      return null;
-    }
-
-    // Step 5: Get visitor data
+    // Get visitor data first (needed for both flows)
     const visitorData = await fetchVisitorData();
     if (!visitorData) {
-      log.warn('Failed to fetch visitor data');
+      log.warn('No visitor data');
       return null;
     }
 
-    // Cache the minter
-    cachedMinter = minter;
-    cachedVisitorData = visitorData;
-    cacheExpiry = Date.now() + CACHE_TTL;
+    log.log('Attempting full BotGuard flow...');
 
-    // Step 6: Mint the token
-    const poToken = await mintToken(minter, identifier || visitorData);
-    if (!poToken) {
-      log.warn('Token minting failed');
-      return null;
-    }
+    // Try full BotGuard flow
+    const fullResult = await tryFullBotGuardFlow(visitorData, identifier);
+    if (fullResult) return fullResult;
 
-    log.log('PO token generated successfully');
-    return { poToken, visitorData };
+    // Fall back to cold-start token
+    log.log('Full BotGuard failed, using cold-start token');
+    const coldToken = generateColdStartToken(identifier || visitorData);
+    return { poToken: coldToken, visitorData };
 
   } catch (e) {
     log.error('PO token generation failed:', e);
+    // Last resort: cold-start token
+    try {
+      const visitorData = cachedVisitorData || await fetchVisitorData();
+      if (visitorData) {
+        const coldToken = generateColdStartToken(identifier || visitorData);
+        return { poToken: coldToken, visitorData };
+      }
+    } catch (e2) {
+      log.error('Cold-start token also failed:', e2);
+    }
     return null;
   }
 }
 
-/**
- * Fetch BotGuard challenge from Google's WAA API
- */
-async function fetchChallenge() {
+async function tryFullBotGuardFlow(visitorData, identifier) {
+  const workerUrl = Config.WORKER_URL;
+
   try {
-    // Proxy through our worker to avoid CORS issues with Google's API
-    const workerUrl = Config.WORKER_URL;
-    const response = await fetch(`${workerUrl}/api/youtube/waa`, {
+    // Step 1: Fetch challenge via worker
+    log.log('Fetching BotGuard challenge...');
+    const chResp = await fetch(`${workerUrl}/api/youtube/waa`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'create', requestKey: REQUEST_KEY })
     });
 
-    if (!response.ok) {
-      log.warn('WAA Create failed:', response.status);
+    if (!chResp.ok) { log.warn('Challenge fetch failed:', chResp.status); return null; }
+    const chData = await chResp.json();
+    if (chData.error) { log.warn('Challenge error:', chData.error); return null; }
+
+    // Parse the challenge
+    const challenge = parseChallengeData(chData.result);
+    if (!challenge.program || !challenge.globalName) {
+      log.warn('Challenge missing program or globalName');
       return null;
     }
 
-    const data = await response.json();
-    if (data.error) {
-      log.warn('WAA Create error:', data.error);
+    log.log('Challenge parsed, globalName:', challenge.globalName);
+
+    // Step 2: Load the interpreter JS
+    let interpreterLoaded = false;
+    if (challenge.scriptValue) {
+      try {
+        new Function(challenge.scriptValue)();
+        interpreterLoaded = true;
+      } catch (e) {
+        log.warn('Inline interpreter failed:', e.message);
+      }
+    }
+
+    if (!interpreterLoaded && challenge.urlValue) {
+      try {
+        // Fetch the interpreter script via worker proxy to avoid CORS
+        const scriptResp = await fetch(`${workerUrl}/api/youtube/waa`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'fetchScript', url: challenge.urlValue })
+        });
+        const scriptData = await scriptResp.json();
+        if (scriptData.script) {
+          new Function(scriptData.script)();
+          interpreterLoaded = true;
+        }
+      } catch (e) {
+        log.warn('Script fetch failed:', e.message);
+      }
+    }
+
+    if (!interpreterLoaded) {
+      log.warn('Could not load BotGuard interpreter');
       return null;
     }
 
-    // data format: [challengeData, interpreterHash, program, globalName, ...]
-    const result = data.result;
-    return {
-      interpreterJavascript: result[0],
-      interpreterHash: result[1],
-      program: result[2],
-      globalName: result[3],
-      clientExperimentsStateBlob: result[4]
-    };
-  } catch (e) {
-    log.error('Challenge fetch error:', e);
-    return null;
-  }
-}
-
-/**
- * Execute the BotGuard VM in the browser
- */
-async function executeBotGuard(challenge) {
-  try {
-    // Load the interpreter script
-    if (challenge.interpreterJavascript) {
-      // Execute in an isolated scope
-      new Function(challenge.interpreterJavascript)();
-    }
-
-    // Access the VM from the global scope
+    // Step 3: Execute BotGuard VM
     const vm = window[challenge.globalName];
     if (!vm || typeof vm.a !== 'function') {
       log.warn('BotGuard VM not found on window.' + challenge.globalName);
       return null;
     }
 
-    // Execute the program
-    const webPoSignalOutput = [];
-    let asyncSnapshotFunction = null;
+    log.log('Running BotGuard VM...');
 
-    const vmFunctionsCallback = (asyncFn, shutdownFn, passFn, checkFn) => {
-      asyncSnapshotFunction = asyncFn;
-    };
+    const webPoSignalOutput = [];
+    let asyncSnapshotFn = null;
+
+    const vmCallback = (asyncFn) => { asyncSnapshotFn = asyncFn; };
 
     try {
-      vm.a(
-        challenge.program,
-        vmFunctionsCallback,
-        true,
-        undefined,
-        () => {},
-        [[], []]
-      );
+      vm.a(challenge.program, vmCallback, true, undefined, () => {}, [[], []]);
     } catch (e) {
-      log.warn('BotGuard program execution error:', e.message);
-    }
-
-    // Run the async snapshot to get the BotGuard response
-    if (!asyncSnapshotFunction) {
-      log.warn('No async snapshot function from BotGuard');
+      log.warn('BotGuard VM load error:', e.message);
       return null;
     }
 
-    const response = await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('BotGuard snapshot timeout')), 10000);
-      asyncSnapshotFunction((result) => {
+    if (!asyncSnapshotFn) {
+      log.warn('No async snapshot function');
+      return null;
+    }
+
+    // Take snapshot
+    const bgResponse = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('BotGuard timeout')), 10000);
+      asyncSnapshotFn((response) => {
         clearTimeout(timeout);
-        resolve(result);
+        resolve(response);
       }, [null, null, webPoSignalOutput, null]);
     });
 
-    return { response, webPoSignalOutput };
+    log.log('BotGuard snapshot complete, getting integrity token...');
 
-  } catch (e) {
-    log.error('BotGuard execution error:', e);
-    return null;
-  }
-}
-
-/**
- * Get integrity token from WAA GenerateIT endpoint
- */
-async function getIntegrityToken(botguardResponse) {
-  try {
-    const workerUrl = Config.WORKER_URL;
-    const response = await fetch(`${workerUrl}/api/youtube/waa`, {
+    // Step 4: Get integrity token via worker
+    const itResp = await fetch(`${workerUrl}/api/youtube/waa`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'generateIT', requestKey: REQUEST_KEY, botguardResponse })
+      body: JSON.stringify({ action: 'generateIT', requestKey: REQUEST_KEY, botguardResponse: bgResponse })
     });
 
-    if (!response.ok) {
-      log.warn('GenerateIT failed:', response.status);
-      return null;
-    }
+    if (!itResp.ok) { log.warn('GenerateIT failed:', itResp.status); return null; }
+    const itData = await itResp.json();
+    if (itData.error) { log.warn('GenerateIT error:', itData.error); return null; }
 
-    const data = await response.json();
-    if (data.error) {
-      log.warn('GenerateIT error:', data.error);
-      return null;
-    }
+    const integrityToken = itData.result[0];
+    if (!integrityToken) { log.warn('No integrity token in response'); return null; }
 
-    // result format: [integrityToken, estimatedTtlSecs, mintRefreshThreshold, websafeFallbackToken]
-    return data.result[0]; // integrityToken as base64
-  } catch (e) {
-    log.error('Integrity token error:', e);
-    return null;
-  }
-}
-
-/**
- * Create a minter function from webPoSignalOutput and integrity token
- */
-async function createMinter(webPoSignalOutput, integrityTokenBase64) {
-  try {
-    const getMinter = webPoSignalOutput?.[0];
+    // Step 5: Create minter from webPoSignalOutput
+    const getMinter = webPoSignalOutput[0];
     if (typeof getMinter !== 'function') {
       log.warn('No minter function in webPoSignalOutput');
       return null;
     }
 
-    // Decode the integrity token from base64
-    const binaryString = atob(integrityTokenBase64);
-    const integrityTokenBytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      integrityTokenBytes[i] = binaryString.charCodeAt(i);
-    }
-
-    // Get the mint callback
-    const mintCallback = await getMinter(integrityTokenBytes);
+    const mintCallback = await getMinter(base64ToU8(integrityToken));
     if (typeof mintCallback !== 'function') {
       log.warn('Minter did not return a function');
       return null;
     }
 
-    return mintCallback;
+    // Create minter wrapper
+    const minter = {
+      mintAsWebsafeString: async (id) => {
+        const result = await mintCallback(new TextEncoder().encode(id));
+        if (!(result instanceof Uint8Array)) throw new Error('Invalid mint result');
+        return u8ToBase64(result, true);
+      }
+    };
+
+    // Cache it
+    cachedMinter = minter;
+    cachedVisitorData = visitorData;
+    cacheExpiry = Date.now() + CACHE_TTL;
+
+    // Step 6: Mint the token
+    const poToken = await minter.mintAsWebsafeString(identifier || visitorData);
+    log.log('PO token minted successfully, length:', poToken.length);
+    return { poToken, visitorData };
+
   } catch (e) {
-    log.error('Create minter error:', e);
+    log.warn('Full BotGuard flow failed:', e.message);
     return null;
   }
 }
 
-/**
- * Mint a PO token for a given identifier
- */
-async function mintToken(minter, identifier) {
-  try {
-    const identifierBytes = new TextEncoder().encode(identifier);
-    const result = await minter(identifierBytes);
-
-    if (!(result instanceof Uint8Array)) {
-      log.warn('Minter returned non-Uint8Array:', typeof result);
-      return null;
-    }
-
-    // Convert to URL-safe base64
-    const binaryString = String.fromCharCode.apply(null, result);
-    let base64 = btoa(binaryString);
-    base64 = base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-
-    return base64;
-  } catch (e) {
-    log.error('Mint token error:', e);
-    return null;
-  }
-}
-
-/**
- * Fetch visitor data from YouTube
- */
 async function fetchVisitorData() {
+  if (cachedVisitorData) return cachedVisitorData;
   try {
     const workerUrl = Config.WORKER_URL;
     const response = await fetch(`${workerUrl}/api/youtube/waa`, {
@@ -290,13 +300,9 @@ async function fetchVisitorData() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'visitorData' })
     });
-
-    if (!response.ok) {
-      log.warn('Visitor data fetch failed:', response.status);
-      return null;
-    }
-
+    if (!response.ok) return null;
     const data = await response.json();
+    if (data.visitorData) cachedVisitorData = data.visitorData;
     return data.visitorData || null;
   } catch (e) {
     log.error('Visitor data fetch error:', e);
