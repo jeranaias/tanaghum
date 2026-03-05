@@ -224,7 +224,7 @@ export async function fetchWithRetry(url, options = {}) {
         throw new DOMException('Aborted', 'AbortError');
       }
       // Listen to external abort
-      externalSignal.addEventListener('abort', () => timeoutController.abort());
+      externalSignal.addEventListener('abort', () => timeoutController.abort(), { once: true });
     }
 
     try {
@@ -235,9 +235,14 @@ export async function fetchWithRetry(url, options = {}) {
 
       clearTimeout(timeoutId);
 
-      // Retry on server errors (5xx)
-      if (response.status >= 500) {
-        throw new Error(`Server error: ${response.status}`);
+      // Retry on server errors (5xx) and rate limits (429)
+      if (response.status >= 500 || response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        const is429 = response.status === 429;
+        const err = new Error(`Server error: ${response.status}`);
+        err._retryAfter = retryAfter ? parseInt(retryAfter) * 1000 : null;
+        err._is429 = is429;
+        throw err;
       }
 
       return response;
@@ -251,14 +256,17 @@ export async function fetchWithRetry(url, options = {}) {
         throw error;
       }
 
-      // Don't retry on 4xx errors (they won't succeed on retry)
-      if (error.status >= 400 && error.status < 500) {
-        throw error;
-      }
-
-      // Retry with exponential backoff
+      // Retry with backoff — use longer delays for 429 rate limits
       if (attempt < maxRetries - 1) {
-        const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+        let delay;
+        if (error._retryAfter) {
+          delay = error._retryAfter;
+        } else if (error._is429) {
+          // Rate limits need longer backoff (5s, 15s, 30s)
+          delay = Math.min(5000 * Math.pow(3, attempt), 30000);
+        } else {
+          delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+        }
         console.log(`[Fetch] Retry ${attempt + 1}/${maxRetries} after ${delay}ms...`);
         await sleep(delay);
       }
@@ -328,7 +336,7 @@ export const ERROR_MESSAGES = {
  * @returns {Object} {title, message, action, retry}
  */
 export function getActionableError(error) {
-  const msg = (error.message || error || '').toLowerCase();
+  const msg = (typeof error === 'string' ? error : (error?.message || String(error || ''))).toLowerCase();
 
   for (const [key, config] of Object.entries(ERROR_MESSAGES)) {
     if (msg.includes(key.toLowerCase())) {

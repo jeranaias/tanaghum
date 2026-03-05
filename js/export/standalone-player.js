@@ -208,7 +208,16 @@
       this.segments = segments || [];
       this.words = words || []; // Word-level data for per-word confidence coloring
       this.activeIndex = -1;
+      // Detect if confidence data is genuinely varied or just a uniform default
+      this._hasVariedConfidence = this._detectConfidenceVariation();
       this.render();
+    }
+
+    _detectConfidenceVariation() {
+      const segs = this.segments;
+      if (!segs || segs.length < 2) return false;
+      const values = new Set(segs.map(s => Math.round((s.confidence || 0.8) * 100)));
+      return values.size > 1;
     }
 
     /**
@@ -216,6 +225,7 @@
      * Green (high) -> Yellow (medium) -> Red (low)
      */
     getConfidenceClass(confidence) {
+      if (!this._hasVariedConfidence) return 'conf-high';
       if (confidence >= 0.9) return 'conf-high';
       if (confidence >= 0.7) return 'conf-medium';
       if (confidence >= 0.5) return 'conf-low';
@@ -415,29 +425,29 @@
 
     checkAnswer(questionId, answer) {
       const question = this.getAllQuestions().find(q => q.id === questionId);
-
-      // Support both old format (correctAnswer) and new format (correct_answer)
-      const correctAnswer = question?.correctAnswer || question?.correct_answer;
-      if (!question || !correctAnswer) {
-        return null; // Cannot verify
-      }
+      if (!question) return null;
 
       // Support both old format (format) and new format (type)
       const questionType = question.format || question.type;
 
       if (questionType === 'multiple_choice') {
-        // For object options, check if the selected option is correct
+        // For object options, check if the selected option is correct via is_correct flag
         if (question.options && question.options[0] && typeof question.options[0] === 'object') {
           const selectedOption = question.options.find(o => o.id === answer || o.text_ar === answer || o.text_en === answer);
           return selectedOption?.is_correct === true;
         }
-        return answer === correctAnswer;
+        // Fallback for legacy string options
+        const correctAnswer = question.correctAnswer || question.correct_answer;
+        return correctAnswer != null ? answer === correctAnswer : null;
       } else if (questionType === 'true_false') {
+        const correctAnswer = question.correctAnswer || question.correct_answer;
         // Handle boolean comparison
         return answer === correctAnswer;
       } else if (questionType === 'fill_blank') {
+        const correctWord = question.correct_word || question.correctAnswer || question.correct_answer;
+        if (!correctWord) return null;
         const normalized = String(answer).trim().toLowerCase();
-        const correct = String(correctAnswer).toLowerCase();
+        const correct = String(correctWord).toLowerCase();
         return normalized === correct;
       }
 

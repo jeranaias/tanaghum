@@ -24,7 +24,7 @@
 .gallery-title .ar {
   display: block;
   font-family: var(--font-arabic);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   font-size: 0.85em;
   margin-bottom: var(--space-2);
 }
@@ -72,13 +72,14 @@
   border: 2px solid var(--color-border);
   border-radius: var(--radius-full);
   background-color: var(--color-bg);
+  color: var(--color-text);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .search-input:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 4px rgba(26, 95, 74, 0.1);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
 }
 
 .search-clear {
@@ -111,6 +112,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  border: none;
+  padding: 0;
 }
 
 .filter-label {
@@ -179,6 +182,7 @@
 .filter-select:focus {
   outline: none;
   border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
 /* Active Filters */
@@ -381,7 +385,7 @@
   font-family: var(--font-arabic);
   display: block;
   margin-bottom: var(--space-1);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .card-title-en {
@@ -400,11 +404,11 @@
   border-radius: var(--radius-full);
 }
 
-.card-ilr-badge.ilr-1 { background-color: #22c55e; }
+.card-ilr-badge.ilr-1 { background-color: var(--color-success); }
 .card-ilr-badge.ilr-1-plus { background-color: #16a34a; }
-.card-ilr-badge.ilr-2 { background-color: #3b82f6; }
-.card-ilr-badge.ilr-2-plus { background-color: #2563eb; }
-.card-ilr-badge.ilr-3 { background-color: #a855f7; }
+.card-ilr-badge.ilr-2 { background-color: var(--color-info); }
+.card-ilr-badge.ilr-2-plus { background-color: var(--color-primary-dark); }
+.card-ilr-badge.ilr-3 { background-color: var(--color-accent); }
 .card-ilr-badge.ilr-3-plus { background-color: #7c3aed; }
 
 /* Card Meta */
@@ -600,7 +604,7 @@
 .preview-title-ar {
   font-family: var(--font-arabic);
   font-size: var(--text-3xl);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   margin-bottom: var(--space-2);
 }
 
@@ -677,7 +681,7 @@
   display: block;
   font-size: var(--text-2xl);
   font-weight: 700;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   margin-bottom: var(--space-1);
 }
 
@@ -714,7 +718,7 @@
 .footer-logo-arabic {
   font-family: var(--font-arabic);
   font-size: var(--text-xl);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .footer-links {
@@ -729,7 +733,7 @@
 }
 
 .footer-link:hover {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .footer-copy {
@@ -847,7 +851,7 @@
 .search-input:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 4px rgba(26, 95, 74, 0.15);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
 }
 
 /* ============================================

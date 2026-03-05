@@ -121,6 +121,10 @@ class BrowserAudioCapture {
       return null;
     }
 
+    // Immediately mark as not capturing to prevent double invocation
+    // (onended track handler and YT.PlayerState.ENDED can race)
+    this.isCapturing = false;
+
     log.log('Stopping audio capture...');
 
     return new Promise((resolve, reject) => {
@@ -229,6 +233,7 @@ class BrowserAudioCapture {
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
       log.log('Decoded successfully:', audioBuffer.duration, 'seconds');
+      audioContext.close(); // Release resources
       return audioBuffer;
     } catch (decodeError) {
       log.warn('decodeAudioData failed:', decodeError.message);
@@ -249,6 +254,7 @@ async function captureYouTubeAudio(videoId, options = {}) {
   const { onProgress, onPlayerReady, playbackSpeed = 1.0 } = options;
 
   const capture = new BrowserAudioCapture();
+  let progressInterval = null; // Track progress interval locally (not on `this`)
 
   if (!capture.isSupported()) {
     throw new Error('Browser audio capture not supported. Please use Chrome or Edge.');
@@ -318,7 +324,11 @@ async function captureYouTubeAudio(videoId, options = {}) {
         tag.src = 'https://www.youtube.com/iframe_api';
         document.head.appendChild(tag);
 
-        window.onYouTubeIframeAPIReady = resolve;
+        const originalCallback = window.onYouTubeIframeAPIReady;
+        window.onYouTubeIframeAPIReady = () => {
+          if (originalCallback) originalCallback();
+          resolve();
+        };
       });
     };
 
@@ -365,8 +375,10 @@ async function captureYouTubeAudio(videoId, options = {}) {
             },
             onStateChange: async (event) => {
               if (event.data === YT.PlayerState.PLAYING) {
+                // Clear any existing progress interval (prevents accumulation on pause/resume)
+                if (progressInterval) clearInterval(progressInterval);
                 // Update progress
-                const updateProgress = setInterval(() => {
+                progressInterval = setInterval(() => {
                   if (!captureStarted) return;
 
                   const currentTime = player.getCurrentTime();
@@ -383,12 +395,17 @@ async function captureYouTubeAudio(videoId, options = {}) {
                   });
 
                   if (currentTime >= duration - 0.5) {
-                    clearInterval(updateProgress);
+                    clearInterval(progressInterval);
+                    progressInterval = null;
                   }
                 }, 500);
 
+              } else if (event.data === YT.PlayerState.PAUSED) {
+                // Clear progress interval on pause
+                if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
               } else if (event.data === YT.PlayerState.ENDED) {
                 // Video finished - stop capture
+                if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
                 log.log('Video ended, stopping capture...');
                 statusEl.textContent = 'Processing captured audio...';
 

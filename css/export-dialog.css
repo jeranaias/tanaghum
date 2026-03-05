@@ -10,11 +10,12 @@
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: var(--z-modal-backdrop, 300);
   animation: fadeIn 0.2s ease;
   padding: 20px;
 }
@@ -30,7 +31,7 @@
 
 /* Modal Dialog */
 .modal-dialog {
-  background: var(--color-bg-primary, #ffffff);
+  background: var(--color-surface, #18181b);
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   max-width: 600px;
@@ -60,7 +61,7 @@
 /* Modal Header */
 .modal-header {
   padding: 24px 24px 20px;
-  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  border-bottom: 1px solid var(--color-border, #27272a);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -69,7 +70,7 @@
 .modal-title {
   font-size: 22px;
   font-weight: 600;
-  color: var(--color-text-primary, #0f172a);
+  color: var(--color-text, #fafafa);
   margin: 0;
 }
 
@@ -79,7 +80,7 @@
   border-radius: 6px;
   border: none;
   background: transparent;
-  color: var(--color-text-secondary, #64748b);
+  color: var(--color-text-secondary, #a1a1aa);
   font-size: 24px;
   line-height: 1;
   cursor: pointer;
@@ -90,8 +91,8 @@
 }
 
 .modal-close:hover {
-  background: var(--color-bg-tertiary, #f1f5f9);
-  color: var(--color-text-primary, #0f172a);
+  background: var(--color-surface-elevated, #27272a);
+  color: var(--color-text, #fafafa);
 }
 
 /* Modal Body */
@@ -103,7 +104,7 @@
 
 .export-description {
   margin: 0 0 24px;
-  color: var(--color-text-secondary, #64748b);
+  color: var(--color-text-secondary, #a1a1aa);
   line-height: 1.6;
   font-size: 15px;
 }
@@ -116,7 +117,7 @@
 .section-subtitle {
   font-size: 16px;
   font-weight: 600;
-  color: var(--color-text-primary, #0f172a);
+  color: var(--color-text, #fafafa);
   margin: 0 0 16px;
 }
 
@@ -135,7 +136,7 @@
 }
 
 .checkbox-label:hover {
-  background: var(--color-bg-secondary, #f8fafc);
+  background: var(--color-bg-alt, #18181b);
 }
 
 .checkbox-label input[type="checkbox"] {
@@ -156,12 +157,12 @@
 .checkbox-title {
   font-size: 15px;
   font-weight: 500;
-  color: var(--color-text-primary, #0f172a);
+  color: var(--color-text, #fafafa);
 }
 
 .checkbox-desc {
   font-size: 13px;
-  color: var(--color-text-secondary, #64748b);
+  color: var(--color-text-secondary, #a1a1aa);
 }
 
 .select-label {
@@ -173,23 +174,24 @@
 .select-title {
   font-size: 14px;
   font-weight: 500;
-  color: var(--color-text-primary, #0f172a);
+  color: var(--color-text, #fafafa);
 }
 
 .form-select {
   padding: 8px 12px;
-  border: 1px solid var(--color-border, #e2e8f0);
+  border: 1px solid var(--color-border, #27272a);
   border-radius: 6px;
-  background: var(--color-bg-primary, #ffffff);
-  color: var(--color-text-primary, #0f172a);
+  background: var(--color-surface, #18181b);
+  color: var(--color-text, #fafafa);
   font-size: 14px;
   cursor: pointer;
   transition: border-color 0.2s ease;
 }
 
-.form-select:focus {
-  outline: none;
-  border-color: var(--color-primary, #2563eb);
+.form-select:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-color: var(--color-primary);
 }
 
 /* Export Info Cards */
@@ -201,8 +203,8 @@
 }
 
 .info-card {
-  background: var(--color-bg-secondary, #f8fafc);
-  border: 1px solid var(--color-border, #e2e8f0);
+  background: var(--color-bg-alt, #18181b);
+  border: 1px solid var(--color-border, #27272a);
   border-radius: 8px;
   padding: 16px;
   display: flex;
@@ -221,7 +223,7 @@
 
 .info-title {
   font-size: 12px;
-  color: var(--color-text-secondary, #64748b);
+  color: var(--color-text-secondary, #a1a1aa);
   margin-bottom: 2px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -231,19 +233,19 @@
 .info-value {
   font-size: 16px;
   font-weight: 600;
-  color: var(--color-text-primary, #0f172a);
+  color: var(--color-text, #fafafa);
 }
 
 /* Warning */
 .export-warning {
-  background: #fef3c7;
-  border: 1px solid #f59e0b;
+  background: var(--color-warning-bg, rgba(234, 179, 8, 0.1));
+  border: 1px solid rgba(234, 179, 8, 0.3);
   border-radius: 8px;
   padding: 12px 16px;
   display: flex;
   align-items: center;
   gap: 12px;
-  color: #92400e;
+  color: var(--color-warning, #eab308);
   font-size: 14px;
 }
 
@@ -263,54 +265,12 @@
 /* Modal Footer */
 .modal-footer {
   padding: 16px 24px;
-  border-top: 1px solid var(--color-border, #e2e8f0);
+  border-top: 1px solid var(--color-border, #27272a);
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  background: var(--color-bg-secondary, #f8fafc);
-}
-
-/* Button Styles (if not already defined globally) */
-.btn {
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-size: 15px;
-  font-weight: 500;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: var(--color-primary, #2563eb);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--color-primary-hover, #1d4ed8);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-}
-
-.btn-secondary {
-  background: var(--color-bg-tertiary, #f1f5f9);
-  color: var(--color-text-primary, #0f172a);
-  border: 1px solid var(--color-border, #e2e8f0);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--color-bg-primary, #ffffff);
-  border-color: var(--color-border-hover, #cbd5e1);
+  background: var(--color-bg-alt, #18181b);
 }
 
 /* Spinner */
@@ -351,7 +311,7 @@
     flex-direction: column;
   }
 
-  .btn {
+  .modal-footer .btn {
     width: 100%;
     justify-content: center;
   }
@@ -361,19 +321,17 @@
   }
 }
 
-/* Dark theme support */
-@media (prefers-color-scheme: dark) {
-  .modal-dialog {
-    background: var(--color-bg-primary, #1e293b);
-  }
+/* Light theme override */
+[data-theme="light"] .modal-dialog {
+  background: var(--color-surface);
+}
 
-  .info-card {
-    background: var(--color-bg-tertiary, #334155);
-  }
+[data-theme="light"] .info-card {
+  background: var(--color-surface-elevated);
+}
 
-  .modal-footer {
-    background: var(--color-bg-tertiary, #334155);
-  }
+[data-theme="light"] .modal-footer {
+  background: var(--color-surface-elevated);
 }
 
 /* ============================================
@@ -416,7 +374,7 @@
 .modal-close:focus-visible {
   outline: 2px solid var(--color-primary, #2563eb);
   outline-offset: 2px;
-  background: var(--color-bg-tertiary, #f1f5f9);
+  background: var(--color-surface-elevated, #27272a);
 }
 
 .checkbox-label:focus-within {
@@ -426,11 +384,6 @@
 }
 
 .form-select:focus-visible {
-  outline: 2px solid var(--color-primary, #2563eb);
-  outline-offset: 2px;
-}
-
-.btn:focus-visible {
   outline: 2px solid var(--color-primary, #2563eb);
   outline-offset: 2px;
 }
@@ -455,10 +408,6 @@
   }
 
   .form-select {
-    min-height: 44px;
-  }
-
-  .btn {
     min-height: 44px;
   }
 }

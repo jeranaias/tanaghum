@@ -408,10 +408,43 @@ class LessonGeneratorWorkflow {
   }
 
   /**
+   * Estimate duration from transcript segments when metadata duration is unavailable
+   */
+  estimateDurationFromSegments(segments) {
+    if (!segments || segments.length === 0) return 0;
+    const last = segments[segments.length - 1];
+    return Math.ceil((last.start || 0) + (last.duration || 3));
+  }
+
+  /**
+   * Calculate question counts based on transcript length
+   * Short clips get fewer questions; long clips get more.
+   */
+  getQuestionCounts(wordCount) {
+    // Scale: ~120-150 Arabic words per minute of speech
+    // Under 50 words (~20s): minimal
+    // 50-200 words (~1-1.5min): reduced
+    // 200-500 words (~1.5-4min): standard
+    // 500-1000 words (~4-8min): full
+    // 1000+ words (~8min+): expanded
+    if (wordCount < 50) {
+      return { pre: 1, while: 2, post: 1 };
+    } else if (wordCount < 200) {
+      return { pre: 2, while: 4, post: 2 };
+    } else if (wordCount < 500) {
+      return { pre: 2, while: 6, post: 3 };
+    } else if (wordCount < 1000) {
+      return { pre: 3, while: 8, post: 4 };
+    } else {
+      return { pre: 3, while: 10, post: 5 };
+    }
+  }
+
+  /**
    * Generate comprehension questions
    */
   async generateQuestions(transcription, options = {}) {
-    const { targetIlr = 2.0, topic = 'general', analysis = {}, onProgress = () => {} } = options;
+    const { targetIlr = 2.0, topic = 'general', analysis = {}, signal, onProgress = () => {} } = options;
 
     log.log('Generating questions');
 
@@ -420,6 +453,14 @@ class LessonGeneratorWorkflow {
       topic
     });
 
+    // Calculate adaptive question counts based on transcript length
+    const wordCount = transcription.wordCount || (transcription.text || '').split(/\s+/).filter(w => w.length > 0).length;
+    const duration = transcription.audioDuration || transcription.duration || 0;
+    const counts = this.getQuestionCounts(wordCount);
+    const expectedTotal = counts.pre + counts.while + counts.post;
+
+    log.log(`Transcript: ${wordCount} words, ${Math.round(duration)}s → targeting ${expectedTotal} questions (${counts.pre}/${counts.while}/${counts.post})`);
+
     // Questions object lives outside try blocks so partial results are preserved
     const questions = {
       pre: [],
@@ -427,16 +468,28 @@ class LessonGeneratorWorkflow {
       post: []
     };
 
+    // Shared options for all phases
+    const shared = { ilrLevel: targetIlr, topic, duration, signal };
+
+    // Helper: generate with one retry on empty result
+    const generatePhase = async (phase, count, existingQuestions = []) => {
+      let result = await llmClient.generateQuestions(transcription.text, {
+        phase, count, existingQuestions, ...shared
+      });
+      if (result.length === 0 && count > 0) {
+        log.warn(`${phase}-listening returned 0 questions, retrying once...`);
+        result = await llmClient.generateQuestions(transcription.text, {
+          phase, count, existingQuestions, ...shared
+        });
+      }
+      return result;
+    };
+
     // Generate each phase independently — partial failures preserve earlier phases
     // Pre-listening questions
     try {
       onProgress(0.1);
-      questions.pre = await llmClient.generateQuestions(transcription.text, {
-        phase: 'pre',
-        count: 3,
-        ilrLevel: targetIlr,
-        topic
-      });
+      questions.pre = await generatePhase('pre', counts.pre);
       EventBus.emit(Events.QUESTIONS_PROGRESS, { phase: 'pre', count: questions.pre.length });
     } catch (error) {
       log.error('Pre-listening question generation failed:', error.message);
@@ -445,13 +498,7 @@ class LessonGeneratorWorkflow {
     // While-listening questions
     try {
       onProgress(0.4);
-      questions.while = await llmClient.generateQuestions(transcription.text, {
-        phase: 'while',
-        count: 10,
-        ilrLevel: targetIlr,
-        topic,
-        existingQuestions: questions.pre
-      });
+      questions.while = await generatePhase('while', counts.while, questions.pre);
       EventBus.emit(Events.QUESTIONS_PROGRESS, { phase: 'while', count: questions.while.length });
     } catch (error) {
       log.error('While-listening question generation failed:', error.message);
@@ -460,13 +507,7 @@ class LessonGeneratorWorkflow {
     // Post-listening questions
     try {
       onProgress(0.7);
-      questions.post = await llmClient.generateQuestions(transcription.text, {
-        phase: 'post',
-        count: 5,
-        ilrLevel: targetIlr,
-        topic,
-        existingQuestions: [...questions.pre, ...questions.while]
-      });
+      questions.post = await generatePhase('post', counts.post, [...questions.pre, ...questions.while]);
       EventBus.emit(Events.QUESTIONS_PROGRESS, { phase: 'post', count: questions.post.length });
     } catch (error) {
       log.error('Post-listening question generation failed:', error.message);
@@ -483,8 +524,8 @@ class LessonGeneratorWorkflow {
         error: 'No comprehension questions could be generated. The lesson will be incomplete.',
         recoverable: true
       });
-    } else if (totalQuestions < 18) {
-      log.warn(`Only ${totalQuestions} questions generated (expected ~18)`);
+    } else if (totalQuestions < expectedTotal) {
+      log.warn(`Only ${totalQuestions} questions generated (expected ~${expectedTotal})`);
     }
 
     // Update state
@@ -493,7 +534,7 @@ class LessonGeneratorWorkflow {
     EventBus.emit(Events.QUESTIONS_COMPLETE, {
       total: totalQuestions,
       questions,
-      incomplete: totalQuestions < 10
+      incomplete: totalQuestions < Math.ceil(expectedTotal / 2)
     });
 
     return questions;
@@ -548,7 +589,7 @@ class LessonGeneratorWorkflow {
           fileName: contentData.fileName,
           author: contentData.author
         },
-        duration: contentData.duration || transcription.audioDuration || 0,
+        duration: contentData.duration || transcription.audioDuration || this.estimateDurationFromSegments(transcription.segments) || 0,
         wordCount: transcription.wordCount || 0,
         ilr: {
           detected: analysis.ilrLevel ?? null,

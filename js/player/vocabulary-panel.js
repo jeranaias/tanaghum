@@ -80,7 +80,7 @@ class VocabularyPanel {
         <div class="vocab-search">
           <input type="text" class="vocab-search-input"
                  placeholder="Search vocabulary..."
-                 value="${this.searchTerm}">
+                 value="${escapeHtml(this.searchTerm)}">
         </div>
         <div class="vocab-filters">
           <button class="vocab-filter-btn${this.filter === 'all' ? ' active' : ''}" data-filter="all">
@@ -133,13 +133,14 @@ class VocabularyPanel {
     const definitionEn = escapeHtml(item.definition_en || item.definitionEn || '');
     const exampleAr = escapeHtml(item.example_ar || item.exampleAr || '');
     const exampleEn = escapeHtml(item.example_en || item.exampleEn || '');
-    const frequency = item.frequency || '';
+    const frequency = escapeHtml(item.frequency || '');
 
     // Generate transliteration if enabled
     const transliteration = this.showTranslit ? this.transliterate(item.word_ar || item.arabic || item.word || '') : '';
 
-    // Frequency badge
-    const freqBadge = frequency ? `<span class="vocab-freq freq-${frequency}" title="${frequency} frequency">${frequency.charAt(0).toUpperCase()}</span>` : '';
+    // Frequency badge — sanitize for class name (letters only)
+    const freqClass = frequency.replace(/[^a-zA-Z]/g, '');
+    const freqBadge = frequency ? `<span class="vocab-freq freq-${freqClass}" title="${frequency} frequency">${frequency.charAt(0).toUpperCase()}</span>` : '';
 
     return `
       <div class="vocab-item" data-index="${index}">

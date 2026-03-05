@@ -32,20 +32,20 @@
 </head>
 <body>
   <!-- Skip Navigation Link -->
-  <a href="#main-content" class="skip-link" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:9999;padding:1rem;background:#1a73e8;color:#fff;text-decoration:none;">Skip to main content</a>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
 
   <!-- Header -->
   <header class="header" role="banner">
     <div class="header-inner">
       <a href="index.html" class="logo">
-        <span class="logo-arabic">تناغم</span>
+        <span class="logo-arabic" lang="ar">تناغم</span>
         <span>Tanaghum</span>
       </a>
       <nav class="nav" aria-label="Main navigation">
-        <a href="index.html#features" class="nav-link">Features</a>
-        <a href="index.html#how-it-works" class="nav-link">How It Works</a>
+        <a href="index.html" class="nav-link">Home</a>
+        <a href="generator.html" class="nav-link">Generate</a>
         <a href="gallery.html" class="nav-link active" aria-current="page">Gallery</a>
-        <a href="generator.html" class="btn btn-primary btn-sm">Create Lesson</a>
+        <a href="about.html" class="nav-link">About</a>
       </nav>
       <div class="auth-section" id="auth-section" data-state="loading">
         <div id="google-signin-btn" class="google-signin-container"></div>
@@ -166,8 +166,8 @@
           <div class="filter-select-group">
             <label for="sort-filter" class="filter-label">Sort By</label>
             <select id="sort-filter" class="filter-select">
-              <option value="popular">Most Popular</option>
               <option value="newest">Newest First</option>
+              <option value="popular">Most Popular</option>
               <option value="rating">Highest Rated</option>
               <option value="title">Title (A-Z)</option>
             </select>
@@ -249,8 +249,8 @@
       <!-- Empty State -->
       <div class="empty-state hidden" id="empty-state" role="status">
         <div class="empty-icon" aria-hidden="true">&#128269;</div>
-        <h3 class="empty-title">No lessons found</h3>
-        <p class="empty-message">Try adjusting your filters or search terms</p>
+        <h3 class="empty-title" id="empty-title">No lessons found</h3>
+        <p class="empty-message" id="empty-message">Try adjusting your filters or search terms</p>
         <button class="btn btn-secondary" id="reset-filters" type="button">Reset Filters</button>
       </div>
     </div>
@@ -291,7 +291,7 @@
         </div>
         <nav class="footer-links" aria-label="Footer navigation">
           <a href="about.html" class="footer-link">About</a>
-          <a href="docs/user-guide.md" class="footer-link">Documentation</a>
+          <a href="about.html#how-it-works" class="footer-link">How It Works</a>
           <a href="https://github.com/jeranaias/tanaghum" class="footer-link" target="_blank" rel="noopener noreferrer">GitHub<span class="visually-hidden"> (opens in new tab)</span></a>
         </nav>
       </div>

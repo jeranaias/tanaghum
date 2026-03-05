@@ -34,9 +34,15 @@ class ExportDialog {
     }
 
     this.currentLesson = lesson;
+    this._previousFocus = document.activeElement;
     this.createDialog();
     this.updateEstimatedSize();
     this.isOpen = true;
+
+    // Focus the dialog for accessibility
+    const dialog = document.getElementById('export-dialog');
+    const firstFocusable = dialog?.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    if (firstFocusable) firstFocusable.focus();
   }
 
   /**
@@ -268,14 +274,19 @@ class ExportDialog {
     const previewBtn = document.getElementById('export-preview-btn');
     const originalText = previewBtn.innerHTML;
 
+    // Open window synchronously to avoid popup blocker (must be in user gesture callstack)
+    const previewWindow = window.open('about:blank', '_blank');
+    if (!previewWindow) {
+      this.showError('Preview blocked by popup blocker. Please allow popups for this site.');
+      return;
+    }
+
     try {
       previewBtn.disabled = true;
       previewBtn.innerHTML = '<span class="spinner"></span> Generating...';
 
       const html = await lessonExporter.preview(this.currentLesson, this.options);
 
-      // Open in new window
-      const previewWindow = window.open('', '_blank');
       previewWindow.document.write(html);
       previewWindow.document.close();
 
@@ -283,6 +294,7 @@ class ExportDialog {
 
     } catch (error) {
       log.error('Preview failed:', error);
+      previewWindow.close();
       this.showError('Preview failed: ' + error.message);
     } finally {
       previewBtn.disabled = false;
@@ -308,9 +320,6 @@ class ExportDialog {
 
       log.log('Export completed:', result);
       this.showSuccess(`Downloaded: ${result.filename} (${result.size})`);
-
-      // Close dialog after successful download
-      setTimeout(() => this.close(), 1500);
 
     } catch (error) {
       log.error('Export failed:', error);
@@ -360,6 +369,12 @@ class ExportDialog {
 
     this.isOpen = false;
     this.currentLesson = null;
+
+    // Restore focus to the element that opened the dialog
+    if (this._previousFocus && typeof this._previousFocus.focus === 'function') {
+      this._previousFocus.focus();
+      this._previousFocus = null;
+    }
   }
 }
 

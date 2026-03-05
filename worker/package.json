@@ -9,7 +9,7 @@
     "deploy:prod": "wrangler deploy --env production"
   },
   "devDependencies": {
-    "wrangler": "^3.0.0"
+    "wrangler": "^4.67.0"
   },
   "keywords": [
     "cloudflare",

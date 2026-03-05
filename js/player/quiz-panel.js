@@ -274,10 +274,11 @@ class QuizPanel {
           const isSelected = answer === i || answer === optValue;
           // Check if this option is correct - handle various formats
           // LLM returns is_correct on each option, or correct_answer as index/value
+          // Use == for index comparison (LLM may return "2" or 2)
           const isCorrect = opt?.is_correct === true ||
-                           question.correct_answer === i ||
+                           Number(question.correct_answer) === i ||
                            question.correct_answer === optValue ||
-                           question.correct_answer === opt?.id;
+                           String(question.correct_answer) === String(opt?.id);
           const showResult = answer !== undefined && this.showFeedback;
 
           let optClass = 'option-btn';
@@ -309,7 +310,9 @@ class QuizPanel {
       <div class="options-list true-false">
         ${options.map(opt => {
           const isSelected = answer === opt.value;
-          const isCorrect = question.correct_answer === opt.value;
+          // Normalize boolean comparison (LLM may return "true"/"false" strings)
+          const normCorrect = question.correct_answer === true || question.correct_answer === 'true';
+          const isCorrect = opt.value === normCorrect;
           const showResult = answer !== undefined && this.showFeedback;
 
           let optClass = 'option-btn';
@@ -439,15 +442,31 @@ class QuizPanel {
       const options = question.options || [];
       // Answer is typically the index
       if (typeof answer === 'number' && options[answer]) {
-        return options[answer].is_correct === true;
+        // If option is an object with is_correct, use that
+        if (typeof options[answer] === 'object' && options[answer] !== null) {
+          return options[answer].is_correct === true;
+        }
+        // For plain string options, check against correct_answer index (handle string/number mismatch)
+        if (Number(answer) === Number(question.correct_answer)) return true;
+        // Also check by string value match
+        if (typeof question.correct_answer === 'string') {
+          return String(options[answer]).trim().toLowerCase() === question.correct_answer.trim().toLowerCase();
+        }
+        return false;
       }
       // Or check by option id
-      const selectedOption = options.find(opt => opt.id === answer);
+      const selectedOption = options.find(opt => typeof opt === 'object' && opt.id === answer);
       if (selectedOption) {
         return selectedOption.is_correct === true;
       }
     }
 
+    // Normalize boolean/string comparison (LLM may return "true"/"false" as strings)
+    if (typeof answer === 'boolean' || typeof question.correct_answer === 'boolean') {
+      const normAnswer = answer === true || answer === 'true';
+      const normCorrect = question.correct_answer === true || question.correct_answer === 'true';
+      return normAnswer === normCorrect;
+    }
     return answer === question.correct_answer;
   }
 

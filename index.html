@@ -57,53 +57,55 @@
   <link rel="stylesheet" href="css/landing.css">
 </head>
 <body>
-  <!-- Skip Navigation Link for Accessibility -->
-  <a href="#main-content" class="skip-link" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:9999;padding:1rem;background:#1a73e8;color:#fff;text-decoration:none;">Skip to main content</a>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
 
-  <!-- Main Content -->
+  <!-- Header -->
+  <header class="header" role="banner">
+    <div class="header-inner">
+      <a href="index.html" class="logo">
+        <span class="logo-arabic" lang="ar">تناغم</span>
+        <span>Tanaghum</span>
+      </a>
+      <nav class="nav" aria-label="Main navigation">
+        <a href="index.html" class="nav-link active" aria-current="page">Home</a>
+        <a href="generator.html" class="nav-link">Generate</a>
+        <a href="gallery.html" class="nav-link">Gallery</a>
+        <a href="about.html" class="nav-link">About</a>
+      </nav>
+    </div>
+  </header>
+
   <main id="main-content">
 
   <!-- Hero Section -->
   <section class="landing-hero">
-    <!-- Decorative Pattern Elements -->
-    <div class="pattern-decoration top-left"></div>
-    <div class="pattern-decoration bottom-right"></div>
-
     <div class="container">
       <div class="landing-hero-content">
-        <!-- Badge -->
         <div class="landing-hero-badge">
           <span>ILR-Leveled</span>
-          <span class="separator">•</span>
+          <span class="separator">/</span>
           <span>Research-Backed</span>
-          <span class="separator">•</span>
+          <span class="separator">/</span>
           <span>100% Free</span>
-          <span class="separator">•</span>
-          <span>No Sign-Up</span>
         </div>
 
-        <!-- Massive Headline -->
         <h1 class="landing-hero-title">
-          Generate <span class="landing-hero-title-highlight">Professional Arabic</span> Listening Lessons in Minutes
+          Master Arabic<br>Through <span class="landing-hero-title-highlight">Listening</span>
         </h1>
 
-        <!-- Arabic Subtitle -->
         <p class="landing-hero-arabic" lang="ar">
           أنشئ دروس استماع عربية احترافية في دقائق
         </p>
 
-        <!-- Subheading -->
         <p class="landing-hero-subtitle">
-          AI-powered listening comprehension generator using Whisper transcription and LLM-generated exercises.
-          Pedagogically sound, ILR-calibrated, and completely free. Everything runs in your browser.
+          AI-powered lesson generator using real YouTube content. Whisper transcription, LLM-generated exercises, ILR-calibrated. Everything runs in your browser.
         </p>
 
-        <!-- CTA Buttons -->
         <div class="landing-hero-actions">
           <a href="generator.html" class="landing-btn-primary" role="button">
             <span>Start Generating</span>
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-              <path d="M7.5 15L12.5 10L7.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </a>
           <a href="gallery.html" class="landing-btn-secondary" role="button">
@@ -114,236 +116,73 @@
     </div>
   </section>
 
-  <!-- Feature Cards Section -->
+  <!-- Features Section -->
   <section class="landing-features" aria-labelledby="features-title">
     <div class="container">
       <div class="landing-section-header">
         <h2 class="landing-section-title" id="features-title">Built for Real Language Learning</h2>
         <p class="landing-section-subtitle">
-          Every feature designed with second language acquisition research and pedagogical best practices in mind
-        </p>
-      </div>
-
-      <div class="landing-features-grid" role="list">
-        <!-- Feature 1: Pedagogically Sound -->
-        <div class="landing-feature-card" role="listitem">
-          <div class="landing-feature-icon" data-icon="" aria-hidden="true">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-              <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M12 6V12L16 14" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-          <h3 class="landing-feature-title">Pedagogically Sound</h3>
-          <p class="landing-feature-desc">
-            Pre-listening, while-listening, and post-listening framework based on proven second language acquisition research.
-            Every lesson follows established best practices for developing listening comprehension skills.
-          </p>
-        </div>
-
-        <!-- Feature 2: AI-Powered -->
-        <div class="landing-feature-card" role="listitem">
-          <div class="landing-feature-icon" data-icon="" aria-hidden="true">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-              <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-          <h3 class="landing-feature-title">AI-Powered Generation</h3>
-          <p class="landing-feature-desc">
-            Whisper transcription for accuracy, LLM-generated comprehension questions with multiple formats.
-            Advanced AI runs entirely in your browser—no server uploads, complete privacy.
-          </p>
-        </div>
-
-        <!-- Feature 3: Share Everything -->
-        <div class="landing-feature-card" role="listitem">
-          <div class="landing-feature-icon" data-icon="" aria-hidden="true">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-              <path d="M4 12V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V12" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M16 6L12 2L8 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M12 2V15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-          <h3 class="landing-feature-title">Share Everything</h3>
-          <p class="landing-feature-desc">
-            Export self-contained HTML lessons that work offline, share directly with students, or publish to the community gallery.
-            Collaborate with colleagues worldwide and browse hundreds of existing lessons.
-          </p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Stats Section -->
-  <section class="landing-stats" aria-labelledby="stats-title">
-    <div class="container">
-      <h2 class="landing-stats-title" id="stats-title">Built for Arabic Educators</h2>
-      <div class="landing-stats-grid">
-        <div class="landing-stat-box">
-          <div class="landing-stat-value">ILR 1-3.5</div>
-          <div class="landing-stat-label">Proficiency Levels</div>
-        </div>
-        <div class="landing-stat-box">
-          <div class="landing-stat-value">12+ Topics</div>
-          <div class="landing-stat-label">Content Categories</div>
-        </div>
-        <div class="landing-stat-box">
-          <div class="landing-stat-value">100% Free</div>
-          <div class="landing-stat-label">Forever & Open Source</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- How It Works Section -->
-  <section class="landing-how-it-works" id="how-it-works" aria-labelledby="how-it-works-title">
-    <div class="container">
-      <div class="landing-section-header">
-        <h2 class="landing-section-title" id="how-it-works-title">How It Works</h2>
-        <p class="landing-section-subtitle">
-          Full transparency into the technology behind every lesson
-        </p>
-      </div>
-
-      <ol class="landing-steps" role="list">
-        <!-- Step 1 -->
-        <li class="landing-step">
-          <div class="landing-step-number" aria-hidden="true">1</div>
-          <h3 class="landing-step-title">Choose Content</h3>
-          <p class="landing-step-desc">
-            Paste a YouTube URL, search for authentic Arabic content, or upload your own audio file.
-            Supports MSA and major dialects. You select the content &mdash; the tool never downloads or stores videos.
-          </p>
-        </li>
-
-        <!-- Step 2 -->
-        <li class="landing-step">
-          <div class="landing-step-number" aria-hidden="true">2</div>
-          <h3 class="landing-step-title">Transcription</h3>
-          <p class="landing-step-desc">
-            If the video has existing captions, those are used directly. Otherwise, the audio is captured through
-            your browser's built-in screen sharing API and transcribed locally using OpenAI's Whisper model.
-            Audio is processed in-memory and never uploaded to external servers.
-          </p>
-        </li>
-
-        <!-- Step 3 -->
-        <li class="landing-step">
-          <div class="landing-step-number" aria-hidden="true">3</div>
-          <h3 class="landing-step-title">AI Generates Exercises</h3>
-          <p class="landing-step-desc">
-            Google Gemini generates pedagogically-structured comprehension
-            questions across pre-listening, while-listening, and post-listening phases. The transcript text is sent
-            to the API &mdash; never audio data. All API calls are made through a Cloudflare Worker proxy.
-          </p>
-        </li>
-
-        <!-- Step 4 -->
-        <li class="landing-step">
-          <div class="landing-step-number" aria-hidden="true">4</div>
-          <h3 class="landing-step-title">Teach &amp; Share</h3>
-          <p class="landing-step-desc">
-            Export self-contained HTML lessons that work offline, share directly with students via link,
-            or publish to the community gallery. Lessons reference the original YouTube video &mdash; they do not
-            contain copies of the source material.
-          </p>
-        </li>
-      </ol>
-    </div>
-  </section>
-
-  <!-- Technical Transparency Section -->
-  <section class="landing-features" id="transparency" aria-labelledby="transparency-title" style="background: var(--bg-secondary, #f8f9fa);">
-    <div class="container">
-      <div class="landing-section-header">
-        <h2 class="landing-section-title" id="transparency-title">Technical Transparency</h2>
-        <p class="landing-section-subtitle">
-          Open source, auditable, and designed with privacy in mind
+          Pedagogically sound exercises from authentic Arabic content
         </p>
       </div>
 
       <div class="landing-features-grid" role="list">
         <div class="landing-feature-card" role="listitem">
           <div class="landing-feature-icon" aria-hidden="true">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="white" stroke-width="2"/><path d="M9 12L11 14L15 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </div>
-          <h3 class="landing-feature-title">No Data Collection</h3>
+          <h3 class="landing-feature-title">AI-Powered Questions</h3>
           <p class="landing-feature-desc">
-            No user accounts, no analytics tracking, no cookies. Audio processing happens entirely
-            in your browser. The only external calls are for YouTube metadata and LLM text generation.
+            Pre-listening, while-listening, and post-listening exercises generated by LLMs. Multiple choice, true/false, and fill-in-the-blank.
           </p>
         </div>
 
         <div class="landing-feature-card" role="listitem">
           <div class="landing-feature-icon" aria-hidden="true">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V7.5L14.5 2Z" stroke="white" stroke-width="2"/><path d="M14 2V8H20" stroke="white" stroke-width="2"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="2"/>
+              <path d="M10 9L15 12L10 15V9Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </div>
-          <h3 class="landing-feature-title">Fully Open Source</h3>
+          <h3 class="landing-feature-title">Real YouTube Content</h3>
           <p class="landing-feature-desc">
-            Every line of code is publicly auditable on GitHub. The entire application &mdash; frontend,
-            worker proxy, and extraction service &mdash; is transparent and open for review.
+            Use authentic Arabic media. Paste any YouTube URL and the tool transcribes, generates exercises, and builds a complete lesson.
           </p>
         </div>
 
         <div class="landing-feature-card" role="listitem">
           <div class="landing-feature-icon" aria-hidden="true">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 22S20 18 20 12V5L12 2L4 5V12C4 18 12 22 12 22Z" stroke="white" stroke-width="2"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M4 19.5C4 18.837 4.26339 18.2011 4.73223 17.7322C5.20107 17.2634 5.83696 17 6.5 17H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M6.5 2H20V22H6.5C5.83696 22 5.20107 21.7366 4.73223 21.2678C4.26339 20.7989 4 20.163 4 19.5V4.5C4 3.83696 4.26339 3.20107 4.73223 2.73223C5.20107 2.26339 5.83696 2 6.5 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </div>
-          <h3 class="landing-feature-title">Reference-Only Lessons</h3>
+          <h3 class="landing-feature-title">ILR-Leveled Lessons</h3>
           <p class="landing-feature-desc">
-            Generated lessons embed YouTube's official player to reference original content. No audio
-            or video files are stored, copied, or redistributed. Content remains on YouTube's servers.
+            Calibrated to ILR proficiency levels 1 through 3+. Export self-contained HTML lessons that work offline and share with students.
           </p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Legal & Fair Use Section -->
-  <section class="landing-how-it-works" id="legal" aria-labelledby="legal-title">
-    <div class="container">
-      <div class="landing-section-header">
-        <h2 class="landing-section-title" id="legal-title">Legal &amp; Fair Use</h2>
-        <p class="landing-section-subtitle">
-          Designed for educational use within established legal frameworks
-        </p>
-      </div>
-
-      <div class="legal-content" style="max-width: 800px; margin: 0 auto; line-height: 1.7; color: var(--text-secondary, #555);">
-        <div class="legal-block" style="background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-          <h3 style="color: var(--text-primary, #333); margin-bottom: 0.5em; font-size: 1.1rem;">Educational Purpose</h3>
-          <p style="margin: 0;">
-            Tanaghum is an educational tool for Arabic listening comprehension, intended for language instructors and students at academic institutions including DLIFLC and similar programs. It creates pedagogical exercises &mdash; not copies of source material.
-          </p>
-        </div>
-
-        <details class="legal-details" style="background: white; border-radius: 12px; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-          <summary style="padding: 1.5rem; cursor: pointer; font-weight: 600; color: var(--text-primary, #333); font-size: 1.1rem;">Fair Use, Content Access &amp; Limitations</summary>
-          <div style="padding: 0 1.5rem 1.5rem;">
-            <p style="margin-bottom: 0.75em;"><strong>Fair Use (17 U.S.C. &sect; 107):</strong> Nonprofit educational use. Transformative &mdash; creates original exercises, not reproductions. Uses factual, publicly broadcast content. Lessons reference content via YouTube embeds. No files copied or redistributed. May increase viewership of original content.</p>
-            <p style="margin-bottom: 0.75em;"><strong>Content Access:</strong> Primarily uses existing captions (text only). Fallback uses browser <code>getDisplayMedia()</code> API (same as Google Meet/Zoom) for in-memory audio transcription. Generated lessons use YouTube's official embed player.</p>
-            <p style="margin-bottom: 0.75em;"><strong>This tool does NOT:</strong> download/store copyrighted media, redistribute YouTube content, circumvent DRM, collect personal data, or bypass YouTube access controls.</p>
-            <p style="margin: 0;"><strong>Open Source:</strong> Complete source code is <a href="https://github.com/jeranaias/tanaghum">publicly auditable on GitHub</a>.</p>
-          </div>
-        </details>
-      </div>
-    </div>
-  </section>
-
-  <!-- Final CTA Section -->
+  <!-- CTA Section -->
   <section class="landing-hero landing-cta" aria-labelledby="cta-title">
     <div class="container">
       <div class="landing-hero-content">
-        <h2 class="landing-hero-title" id="cta-title" style="font-size: clamp(2rem, 5vw, 3.5rem);">
+        <h2 class="landing-hero-title" id="cta-title">
           Ready to Create Your First Lesson?
         </h2>
-        <p class="landing-hero-subtitle" style="margin-bottom: var(--space-8);">
-          No account required. No credit card. No installation. Start generating professional Arabic listening lessons right now.
+        <p class="landing-hero-subtitle">
+          No account required. No installation. Start generating professional Arabic listening lessons right now.
         </p>
         <div class="landing-hero-actions">
           <a href="generator.html" class="landing-btn-primary" role="button">
             <span>Open Generator</span>
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-              <path d="M7.5 15L12.5 10L7.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </a>
           <a href="gallery.html" class="landing-btn-secondary" role="button">
@@ -367,9 +206,8 @@
         <nav class="landing-footer-links" aria-label="Footer navigation">
           <a href="generator.html" class="landing-footer-link">Generator</a>
           <a href="gallery.html" class="landing-footer-link">Gallery</a>
-          <a href="#how-it-works" class="landing-footer-link">How It Works</a>
-          <a href="#legal" class="landing-footer-link">Legal &amp; Fair Use</a>
-          <a href="https://github.com/jeranaias/tanaghum" class="landing-footer-link" target="_blank" rel="noopener noreferrer">GitHub<span class="visually-hidden"> (opens in new tab)</span></a>
+          <a href="about.html" class="landing-footer-link">About</a>
+          <a href="https://github.com/jeranaias/tanaghum" class="landing-footer-link" target="_blank" rel="noopener noreferrer">GitHub</a>
         </nav>
       </div>
       <div class="landing-footer-bottom">
@@ -378,47 +216,12 @@
         </p>
         <p class="landing-footer-toolkit">
           Part of the Arabic learning toolkit:
-          <a href="https://harakat.app">Harakat</a> •
-          <a href="https://nahawi.app">Nahawi</a> •
+          <a href="https://harakat.app" target="_blank" rel="noopener noreferrer">Harakat</a> &middot;
+          <a href="https://nahawi.app" target="_blank" rel="noopener noreferrer">Nahawi</a> &middot;
           Tanaghum
         </p>
       </div>
     </div>
   </footer>
-
-  <!-- Smooth Scroll Script -->
-  <script>
-    // Smooth scroll for anchor links
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-      anchor.addEventListener('click', function(e) {
-        e.preventDefault();
-        const target = document.querySelector(this.getAttribute('href'));
-        if (target) {
-          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      });
-    });
-
-    // Intersection Observer for scroll animations
-    const observerOptions = {
-      threshold: 0.1,
-      rootMargin: '0px 0px -50px 0px'
-    };
-
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('scroll-visible');
-        }
-      });
-    }, observerOptions);
-
-    // Observe feature cards and steps for scroll animations
-    // Use CSS class-based approach so content is visible by default (no flash of invisible content)
-    document.querySelectorAll('.landing-feature-card, .landing-step, .landing-stat-box').forEach(el => {
-      el.classList.add('scroll-animate');
-      observer.observe(el);
-    });
-  </script>
 </body>
 </html>

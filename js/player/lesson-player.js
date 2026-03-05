@@ -76,8 +76,8 @@ class LessonPlayer {
       log.warn('No audio source available for playback');
     }
 
-    // Initialize state
-    this.duration = lesson.metadata?.duration || 0;
+    // Initialize state — preserve duration from audio element if already set (metadata may be missing)
+    this.duration = lesson.metadata?.duration || this.duration || 0;
     this.activeSegmentIndex = -1;
     this.completedQuestions.clear();
 
@@ -115,6 +115,12 @@ class LessonPlayer {
       this.audioElement.preload = 'metadata';
     }
 
+    // Remove any existing listeners before adding new ones (prevents duplication on reload)
+    this.audioElement.removeEventListener('timeupdate', this.handleTimeUpdate);
+    this.audioElement.removeEventListener('play', this.handlePlay);
+    this.audioElement.removeEventListener('pause', this.handlePause);
+    this.audioElement.removeEventListener('ended', this.handleEnded);
+
     this.audioElement.addEventListener('timeupdate', this.handleTimeUpdate);
     this.audioElement.addEventListener('play', this.handlePlay);
     this.audioElement.addEventListener('pause', this.handlePause);
@@ -137,7 +143,7 @@ class LessonPlayer {
       const onError = (e) => {
         this.audioElement.removeEventListener('loadedmetadata', onLoaded);
         this.audioElement.removeEventListener('error', onError);
-        reject(new Error(`Failed to load audio: ${e.message || 'Unknown error'}`));
+        reject(new Error(`Failed to load audio: ${e.target?.error?.message || e.message || 'Unknown error'}`));
       };
       this.audioElement.addEventListener('loadedmetadata', onLoaded);
       this.audioElement.addEventListener('error', onError);
@@ -169,12 +175,19 @@ class LessonPlayer {
       }
 
       // Get the player from the existing iframe
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
+        // Timeout in case onReady never fires (broken iframe, network issue)
+        const timeout = setTimeout(() => {
+          log.warn('YouTube iframe onReady timed out after 15s');
+          resolve(); // Resolve anyway so the player isn't stuck
+        }, 15000);
+
         // Try to initialize YT.Player on the existing iframe
         try {
           this.ytPlayer = new YT.Player('yt-iframe', {
             events: {
               onReady: () => {
+                clearTimeout(timeout);
                 this.duration = this.ytPlayer.getDuration() || 0;
                 this.startYouTubeTimeUpdate();
                 resolve();
@@ -192,6 +205,7 @@ class LessonPlayer {
           });
         } catch (e) {
           // If we can't control the iframe, just resolve and let it play standalone
+          clearTimeout(timeout);
           log.warn('Could not initialize YT.Player on existing iframe:', e);
           resolve();
         }
@@ -549,7 +563,8 @@ class LessonPlayer {
       this.audioElement.removeEventListener('pause', this.handlePause);
       this.audioElement.removeEventListener('ended', this.handleEnded);
       this.audioElement.pause();
-      this.audioElement.src = '';
+      this.audioElement.removeAttribute('src');
+      this.audioElement.load(); // Reset the audio element properly
       this.audioElement = null;
     }
   }

@@ -25,7 +25,7 @@
 </head>
 <body>
   <!-- Skip Navigation Link -->
-  <a href="#main-content" class="skip-link" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:9999;padding:1rem;background:#1a73e8;color:#fff;text-decoration:none;">Skip to main content</a>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
 
   <!-- Header -->
   <header class="header" role="banner">
@@ -75,10 +75,17 @@
     </div>
   </header>
 
+  <!-- Mobile Panel Toggle -->
+  <div class="mobile-panel-toggle" role="tablist" aria-label="Panel switcher">
+    <button class="panel-toggle-btn active" data-panel="player" type="button" role="tab" aria-selected="true" aria-controls="panel-player">Player</button>
+    <button class="panel-toggle-btn" data-panel="transcript" type="button" role="tab" aria-selected="false" aria-controls="panel-transcript">Transcript</button>
+    <button class="panel-toggle-btn" data-panel="quiz" type="button" role="tab" aria-selected="false" aria-controls="quiz-container">Quiz</button>
+  </div>
+
   <!-- Player Layout -->
   <main class="player-layout" id="main-content">
     <!-- Left Panel: Transcript -->
-    <section class="panel panel-transcript" aria-labelledby="transcript-heading">
+    <section class="panel panel-transcript" id="panel-transcript" aria-labelledby="transcript-heading">
       <div class="panel-header">
         <h2 id="transcript-heading">Transcript</h2>
         <div class="panel-controls">
@@ -98,7 +105,7 @@
     </section>
 
     <!-- Center: Video/Audio Player -->
-    <section class="panel panel-player" aria-labelledby="lesson-title">
+    <section class="panel panel-player" id="panel-player" aria-labelledby="lesson-title">
       <!-- Lesson Info -->
       <div class="lesson-info" id="lesson-info">
         <h1 class="lesson-title" id="lesson-title">Loading lesson...</h1>
@@ -375,7 +382,7 @@
         // Use captured audio - more reliable than YouTube iframe
         mediaContainer.innerHTML = `
           <div class="audio-player-container">
-            <audio id="audio-player" controls style="width: 100%;">
+            <audio id="audio-player" style="width: 100%; display: none;">
               <source src="${escapeHtml(capturedUrl)}" type="audio/webm">
               <source src="${escapeHtml(capturedUrl)}" type="audio/mp4">
               Your browser does not support the audio element.
@@ -435,8 +442,9 @@
         showTranslation: $('#toggle-translation').checked,
         autoScroll: $('#toggle-autoscroll').checked,
         onSegmentClick: (index, segment) => {
+          const wasPlaying = player?.isPlaying;
           player.seekToSegment(index);
-          player.play();
+          if (wasPlaying) player.play();
         }
       });
 
@@ -507,6 +515,7 @@
       const percent = duration > 0 ? (current / duration) * 100 : 0;
       progressFill.style.width = `${percent}%`;
       progressHandle.style.left = `${percent}%`;
+      progressBar.setAttribute('aria-valuenow', Math.round(percent));
       currentTimeEl.textContent = formatTime(current);
     }
 
@@ -561,8 +570,38 @@
     });
 
     // Speed control
-    speedBtn.addEventListener('click', () => {
-      speedMenu.classList.toggle('hidden');
+    function toggleSpeedMenu(show) {
+      const isOpen = show ?? speedMenu.classList.contains('hidden');
+      speedMenu.classList.toggle('hidden', !isOpen);
+      speedBtn.setAttribute('aria-expanded', String(isOpen));
+      if (isOpen) {
+        const active = speedMenu.querySelector('.active') || speedMenu.querySelector('button');
+        active?.focus();
+      }
+    }
+
+    speedBtn.addEventListener('click', () => toggleSpeedMenu());
+
+    speedMenu.addEventListener('keydown', (e) => {
+      const items = [...speedMenu.querySelectorAll('button')];
+      const idx = items.indexOf(document.activeElement);
+      if (e.key === 'Escape') {
+        toggleSpeedMenu(false);
+        speedBtn.focus();
+        e.preventDefault();
+      } else if (e.key === 'ArrowDown') {
+        items[(idx + 1) % items.length]?.focus();
+        e.preventDefault();
+      } else if (e.key === 'ArrowUp') {
+        items[(idx - 1 + items.length) % items.length]?.focus();
+        e.preventDefault();
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!speedBtn.contains(e.target) && !speedMenu.contains(e.target)) {
+        toggleSpeedMenu(false);
+      }
     });
 
     speedMenu.querySelectorAll('button').forEach(btn => {
@@ -570,10 +609,33 @@
         const speed = parseFloat(btn.dataset.speed);
         player?.setPlaybackRate(speed);
         $('#speed-label').textContent = `${speed}x`;
+        speedBtn.setAttribute('aria-label', `Playback speed: ${speed}x`);
 
-        speedMenu.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        speedMenu.querySelectorAll('button').forEach(b => {
+          b.classList.remove('active');
+          b.removeAttribute('aria-current');
+        });
         btn.classList.add('active');
-        speedMenu.classList.add('hidden');
+        btn.setAttribute('aria-current', 'true');
+        toggleSpeedMenu(false);
+        speedBtn.focus();
+      });
+    });
+
+    // Mobile panel toggle
+    document.querySelectorAll('.panel-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const panel = btn.dataset.panel;
+        const layout = document.querySelector('.player-layout');
+        layout.classList.remove('show-transcript', 'show-quiz');
+        if (panel === 'transcript') layout.classList.add('show-transcript');
+        if (panel === 'quiz') layout.classList.add('show-quiz');
+        document.querySelectorAll('.panel-toggle-btn').forEach(b => {
+          b.classList.remove('active');
+          b.setAttribute('aria-selected', 'false');
+        });
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
       });
     });
 
@@ -706,6 +768,7 @@
           const newRateUp = Math.min(2, (player?.playbackRate || 1) + 0.25);
           player?.setPlaybackRate(newRateUp);
           $('#speed-label').textContent = `${newRateUp}x`;
+          speedBtn.setAttribute('aria-label', `Playback speed ${newRateUp}x`);
           speedMenu.querySelectorAll('button').forEach(b => {
             b.classList.toggle('active', parseFloat(b.dataset.speed) === newRateUp);
           });
@@ -716,6 +779,7 @@
           const newRateDown = Math.max(0.5, (player?.playbackRate || 1) - 0.25);
           player?.setPlaybackRate(newRateDown);
           $('#speed-label').textContent = `${newRateDown}x`;
+          speedBtn.setAttribute('aria-label', `Playback speed ${newRateDown}x`);
           speedMenu.querySelectorAll('button').forEach(b => {
             b.classList.toggle('active', parseFloat(b.dataset.speed) === newRateDown);
           });
@@ -730,6 +794,33 @@
 
     modalClose.addEventListener('click', () => {
       loadModal.classList.add('hidden');
+    });
+
+    // Close modal on backdrop click
+    loadModal.addEventListener('click', (e) => {
+      if (e.target === loadModal || e.target.classList.contains('modal-backdrop')) {
+        loadModal.classList.add('hidden');
+      }
+    });
+
+    // Load from URL button
+    $('#btn-load-url')?.addEventListener('click', async () => {
+      const urlInput = $('#lesson-url-input');
+      const url = urlInput?.value?.trim();
+      if (!url) {
+        showToast('error', 'No URL', 'Please enter a lesson URL');
+        return;
+      }
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const lesson = await response.json();
+        await loadAndInitPlayer(lesson, 'url');
+        loadModal.classList.add('hidden');
+        showToast('success', 'Lesson Loaded', 'Loaded from URL');
+      } catch (error) {
+        showToast('error', 'Load Failed', 'Could not load lesson from URL: ' + error.message);
+      }
     });
 
     $('#btn-load-file').addEventListener('click', () => {

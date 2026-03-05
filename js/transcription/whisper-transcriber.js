@@ -410,12 +410,15 @@ class WhisperTranscriber {
     // Merge overlapping segments
     const mergedSegments = this.mergeOverlappingSegments(allSegments);
 
+    // Build fullText from deduplicated merged segments (not raw concatenation)
+    const deduplicatedText = mergedSegments.map(s => s.text).join(' ');
+
     return {
-      text: fullText.trim(),
+      text: deduplicatedText.trim(),
       segments: mergedSegments,
       avgConfidence: 0.8,
       audioDuration: totalDuration,
-      wordCount: fullText.split(/\s+/).filter(w => w.length > 0).length
+      wordCount: deduplicatedText.trim().split(/\s+/).filter(w => w.length > 0).length
     };
   }
 

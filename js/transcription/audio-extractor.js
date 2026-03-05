@@ -8,7 +8,6 @@ import { EventBus, Events } from '../core/event-bus.js';
 import { StateManager } from '../core/state-manager.js';
 import { createLogger } from '../core/utils.js';
 import { captureYouTubeAudio } from './browser-audio-capture.js';
-import { generatePoToken } from './po-token.js';
 
 const log = createLogger('AudioExtractor');
 
@@ -50,32 +49,14 @@ class AudioExtractor {
       let lastError = null;
 
       try {
-        // Generate PO token in the browser (real browser passes BotGuard checks)
-        let poToken = null;
-        let visitorData = null;
-        try {
-          onProgress?.({ stage: 'fetching', percent: 2, message: 'Generating auth token...' });
-          const tokenResult = await generatePoToken();
-          if (tokenResult) {
-            poToken = tokenResult.poToken;
-            visitorData = tokenResult.visitorData;
-            log.log('PO token generated, length:', poToken?.length);
-          }
-        } catch (e) {
-          log.warn('PO token generation failed (will try without):', e.message);
-        }
-
-        // Send video ID + PO token to worker
+        // Fast server-side attempt — GET request with 20s timeout
+        // PO token skipped: CF Worker IPs are blocked by YouTube regardless
         const audioUrl = `${this.workerUrl}/api/youtube/audio?v=${videoId}`;
-        if (poToken && visitorData) {
-          response = await fetch(audioUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ videoId, poToken, visitorData })
-          });
-        } else {
-          response = await fetch(audioUrl, { method: 'GET' });
-        }
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+
+        response = await fetch(audioUrl, { method: 'GET', signal: controller.signal });
+        clearTimeout(timeout);
 
         const contentType = response.headers.get('content-type') || '';
 
@@ -319,7 +300,7 @@ class AudioExtractor {
    */
   extractMonoChannel(buffer) {
     if (buffer.numberOfChannels === 1) {
-      return buffer.getChannelData(0);
+      return new Float32Array(buffer.getChannelData(0));
     }
 
     // Mix down stereo/multi-channel to mono

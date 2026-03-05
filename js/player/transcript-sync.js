@@ -88,13 +88,16 @@ class TranscriptSync {
   render() {
     if (!this.container) return;
 
+    // Remove previous scroll listener before re-rendering (prevents accumulation)
+    this.container.removeEventListener('scroll', this.handleUserScroll);
+
     this.container.innerHTML = '';
 
     // Show message if no segments
     if (!this.segments || this.segments.length === 0) {
       const emptyMsg = document.createElement('div');
       emptyMsg.className = 'transcript-empty';
-      emptyMsg.style.cssText = 'padding: 2rem; text-align: center; color: #666;';
+      emptyMsg.style.cssText = 'padding: 2rem; text-align: center; color: var(--color-text-muted, #a1a1aa);';
       emptyMsg.innerHTML = '<p>No transcript available</p><p style="font-size: 0.9em; margin-top: 0.5rem;">Listen to the audio and follow along.</p>';
       this.container.appendChild(emptyMsg);
       log.log('No transcript segments to render');
@@ -104,6 +107,9 @@ class TranscriptSync {
     this.segments.forEach((segment, index) => {
       const line = document.createElement('div');
       line.className = 'transcript-line';
+      line.setAttribute('role', 'button');
+      line.setAttribute('tabindex', '0');
+      line.setAttribute('aria-label', `Segment ${index + 1}: ${this.formatTime(segment.start)}`);
       line.dataset.index = index;
       line.dataset.start = segment.start;
       line.dataset.end = segment.end || segment.start + 5;
@@ -138,10 +144,17 @@ class TranscriptSync {
 
       line.appendChild(content);
 
-      // Click handler
-      line.addEventListener('click', () => {
+      // Click and keyboard handler
+      const activateLine = () => {
         this.onSegmentClick(index, segment);
         EventBus.emit(Events.TRANSCRIPT_CLICK, { index, segment });
+      };
+      line.addEventListener('click', activateLine);
+      line.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          activateLine();
+        }
       });
 
       this.container.appendChild(line);
@@ -207,7 +220,12 @@ class TranscriptSync {
    */
   toggleTranslation(show) {
     this.showTranslation = show;
+    const prevActive = this.activeIndex;
+    this.activeIndex = -1; // Reset so setActiveSegment doesn't early-return
     this.render();
+    if (prevActive >= 0) {
+      this.setActiveSegment(prevActive); // Re-apply active highlight
+    }
   }
 
   /**
@@ -227,6 +245,27 @@ class TranscriptSync {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  /**
+   * Get current active segment index
+   * @returns {number} Current segment index (-1 if none)
+   */
+  getCurrentSegmentIndex() {
+    return this.activeIndex;
+  }
+
+  /**
+   * Jump to a specific segment (seek audio and activate)
+   * @param {number} index - Target segment index
+   */
+  jumpToSegment(index) {
+    if (index < 0 || index >= this.segments.length) return;
+    const segment = this.segments[index];
+    if (segment) {
+      this.onSegmentClick(index, segment);
+      this.setActiveSegment(index);
+    }
   }
 
   /**

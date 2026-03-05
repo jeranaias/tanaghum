@@ -445,6 +445,56 @@ async function handleWaaProxy(request, origin) {
       return jsonResponse({ script }, 200, origin);
     }
 
+    // Debug: Test multiple InnerTube clients to find which ones work
+    if (action === 'testClients') {
+      const videoId = body.videoId || 'eyzIzZBWV7Y';
+      const playerUrl = `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_API_KEY}&prettyPrint=false`;
+      const clients = [
+        { name: 'WEB', context: { client: { clientName: 'WEB', clientVersion: '2.20250131.00.00' } }, ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+        { name: 'MWEB', context: { client: { clientName: 'MWEB', clientVersion: '2.20250131.00.00' } }, ua: 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36' },
+        { name: 'ANDROID', context: { client: { clientName: 'ANDROID', clientVersion: '19.09.37', androidSdkVersion: 30 } }, ua: 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip' },
+        { name: 'ANDROID_VR', context: { client: { clientName: 'ANDROID_VR', clientVersion: '1.62.27', androidSdkVersion: 32, deviceMake: 'Oculus', deviceModel: 'Quest 3', osName: 'Android', osVersion: '12L' } }, ua: 'com.google.android.apps.youtube.vr.oculus/1.62.27 gzip' },
+        { name: 'IOS', context: { client: { clientName: 'IOS', clientVersion: '20.03.02', deviceMake: 'Apple', deviceModel: 'iPhone16,2', osName: 'iPhone', osVersion: '18.2.1.22C161' } }, ua: 'com.google.ios.youtube/20.03.02 (iPhone16,2; U; CPU iOS 18_2_1 like Mac OS X;)' },
+        { name: 'TVHTML5_EMBEDDED', context: { client: { clientName: 'TVHTML5_SIMPLY_EMBEDDED_PLAYER', clientVersion: '2.0' } }, ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+        { name: 'MEDIA_CONNECT', context: { client: { clientName: 'MEDIA_CONNECT_FRONTEND', clientVersion: '0.1' } }, ua: 'Mozilla/5.0' },
+      ];
+
+      const results = {};
+      for (const c of clients) {
+        try {
+          const reqBody = { videoId, context: c.context, contentCheckOk: true, racyCheckOk: true };
+          // Add PO token for WEB client if provided
+          if (c.name === 'WEB' && body.poToken) {
+            reqBody.serviceIntegrityDimensions = { poToken: body.poToken };
+            if (body.visitorData) c.context.client.visitorData = decodeURIComponent(body.visitorData);
+          }
+          const resp = await fetch(playerUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': c.ua,
+              'Origin': 'https://www.youtube.com',
+              'Referer': 'https://www.youtube.com/'
+            },
+            body: JSON.stringify(reqBody)
+          });
+          const data = await resp.json();
+          const af = data.streamingData?.adaptiveFormats || [];
+          const audio = af.filter(f => f.mimeType?.startsWith('audio/'));
+          results[c.name] = {
+            status: data.playabilityStatus?.status,
+            reason: data.playabilityStatus?.reason?.substring(0, 60),
+            audioFormats: audio.length,
+            directUrls: audio.filter(f => f.url).length,
+            ciphered: audio.filter(f => f.signatureCipher).length
+          };
+        } catch (e) {
+          results[c.name] = { error: e.message };
+        }
+      }
+      return jsonResponse({ results }, 200, origin);
+    }
+
     return jsonResponse({ error: 'Unknown WAA action' }, 400, origin);
   } catch (e) {
     console.error('[WAA] Proxy error:', e.message);
@@ -1124,50 +1174,116 @@ async function getAudioViaCobalt(videoId, env) {
  * The ?mode=info query param returns JSON metadata only.
  */
 async function getVideoAudio(videoId, origin, env, tokenData = null) {
-  const audioUrl = await resolveAudioUrl(videoId, env, origin, tokenData);
+  const _debug = [];
+  const ytdlpServiceUrl = env?.YTDLP_SERVICE_URL || 'https://tanaghum-ytdlp.fly.dev';
+
+  // Method 1: yt-dlp service (extract URL, then stream through WARP proxy)
+  try {
+    console.log(`[Audio] Trying yt-dlp for ${videoId}`);
+
+    // Step 1: Extract audio URL (yt-dlp with WARP + PO token)
+    const extractCtrl = new AbortController();
+    const extractTimeout = setTimeout(() => extractCtrl.abort(), 25000);
+    const extractRes = await fetch(`${ytdlpServiceUrl}/extract?url=${videoId}&format=info`, {
+      signal: extractCtrl.signal,
+      headers: { 'Accept': 'application/json' }
+    });
+    clearTimeout(extractTimeout);
+
+    if (extractRes.ok) {
+      const extractData = await extractRes.json();
+      if (extractData.available && extractData.audioUrl) {
+        // Step 2: Stream audio through yt-dlp's WARP proxy (matches extraction IP)
+        const proxyCtrl = new AbortController();
+        const proxyTimeout = setTimeout(() => proxyCtrl.abort(), 90000);
+        const mimeType = `audio/${extractData.mimeType || 'webm'}`;
+        const proxyRes = await fetch(`${ytdlpServiceUrl}/proxy`, {
+          method: 'POST',
+          signal: proxyCtrl.signal,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: extractData.audioUrl, contentType: mimeType })
+        });
+        clearTimeout(proxyTimeout);
+
+        if (proxyRes.ok) {
+          const contentType = proxyRes.headers.get('Content-Type') || mimeType;
+          if (contentType.startsWith('audio/')) {
+            console.log(`[Audio] yt-dlp success for ${videoId}`);
+            const headers = new Headers();
+            headers.set('Content-Type', contentType);
+            headers.set('Access-Control-Allow-Origin', origin || '*');
+            headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+            headers.set('Access-Control-Allow-Headers', 'Content-Type');
+            headers.set('X-Audio-Source', 'ytdlp');
+            headers.set('X-Audio-Duration', String(extractData.duration || 0));
+            headers.set('X-Audio-Title', extractData.title || '');
+            const cl = proxyRes.headers.get('Content-Length');
+            if (cl) headers.set('Content-Length', cl);
+            return new Response(proxyRes.body, { status: 200, headers });
+          }
+        }
+        _debug.push({ method: 'ytdlp-proxy', status: proxyRes.status });
+        console.log(`[Audio] yt-dlp proxy failed for ${videoId}: HTTP ${proxyRes.status}`);
+      } else {
+        _debug.push({ method: 'ytdlp', result: 'unavailable', blocked: extractData.blocked });
+      }
+    } else {
+      _debug.push({ method: 'ytdlp', status: extractRes.status });
+    }
+  } catch (e) {
+    _debug.push({ method: 'ytdlp', error: e.message });
+    console.error('[Audio] yt-dlp error:', e.message);
+  }
+
+  // Method 2+: Try other audio sources (PO token, Cobalt, Piped, InnerTube)
+  // Skip if yt-dlp reported IP blocking (403 = blocked) — CF Worker IPs are also blocked by YouTube
+  const ytdlpBlocked = _debug.some(d => d.blocked === true || d.status === 403);
+  let resolveResult = { _debug: [] };
+  let audioUrl = null;
+  if (!ytdlpBlocked) {
+    resolveResult = await resolveAudioUrl(videoId, env, origin, tokenData);
+    audioUrl = resolveResult?.url ? resolveResult : null;
+  } else {
+    _debug.push({ method: 'skip-fallbacks', reason: 'IP blocked by YouTube' });
+  }
+  const _resolveDebug = [..._debug, ...(resolveResult?._debug || [])];
 
   if (!audioUrl) {
-    // Fallback: Check if captions are available (can skip audio extraction entirely)
-    try {
-      const captionsResult = await getVideoCaptions(videoId, origin);
-      const captionsData = await captionsResult.json();
-
-      if (captionsData.available) {
-        return jsonResponse({
-          videoId,
-          available: false,
-          hasCaptions: true,
-          message: 'Audio extraction unavailable, but this video has captions.',
-          captionsLanguage: captionsData.language
-        }, 200, origin);
+    // Skip slow captions check when IP is blocked — just fail fast
+    if (!ytdlpBlocked) {
+      try {
+        const captionsResult = await getVideoCaptions(videoId, origin);
+        const captionsData = await captionsResult.json();
+        if (captionsData.available) {
+          return jsonResponse({
+            videoId, available: false, hasCaptions: true,
+            message: 'Audio extraction unavailable, but this video has captions.',
+            captionsLanguage: captionsData.language
+          }, 200, origin);
+        }
+      } catch (e) {
+        console.error('Captions check error:', e.message);
       }
-    } catch (e) {
-      console.error('Captions check error:', e.message);
     }
 
     return jsonResponse({
-      videoId,
-      available: false,
+      videoId, available: false,
       error: 'Audio extraction unavailable from server. Browser audio capture will be used.',
-      suggestion: 'The app will capture audio via your browser.'
+      suggestion: 'The app will capture audio via your browser.',
+      _debug: _resolveDebug
     }, 200, origin);
   }
 
-  // Stream the audio bytes through the worker (avoids IP-lock and CORS issues)
+  // Stream audio from the resolved source
   try {
-    console.log(`[Audio] Streaming audio for ${videoId} from ${audioUrl.source}`);
+    console.log(`[Audio] Streaming ${videoId} from ${audioUrl.source}`);
     const audioResponse = await fetch(audioUrl.url);
 
     if (!audioResponse.ok) {
       console.error(`[Audio] Upstream fetch failed: HTTP ${audioResponse.status}`);
-      return jsonResponse({
-        videoId,
-        available: false,
-        error: `Audio fetch failed (HTTP ${audioResponse.status})`
-      }, 200, origin);
+      return jsonResponse({ videoId, available: false, error: `Audio fetch failed (HTTP ${audioResponse.status})` }, 200, origin);
     }
 
-    // Stream the response body directly through the worker
     const headers = new Headers();
     headers.set('Content-Type', audioUrl.mimeType || audioResponse.headers.get('Content-Type') || 'audio/webm');
     headers.set('Access-Control-Allow-Origin', origin || '*');
@@ -1176,41 +1292,37 @@ async function getVideoAudio(videoId, origin, env, tokenData = null) {
     headers.set('X-Audio-Source', audioUrl.source);
     headers.set('X-Audio-Duration', String(audioUrl.duration || 0));
     headers.set('X-Audio-Title', audioUrl.title || '');
+    const cl = audioResponse.headers.get('Content-Length');
+    if (cl) headers.set('Content-Length', cl);
 
-    const contentLength = audioResponse.headers.get('Content-Length');
-    if (contentLength) headers.set('Content-Length', contentLength);
-
-    return new Response(audioResponse.body, {
-      status: 200,
-      headers
-    });
-
+    return new Response(audioResponse.body, { status: 200, headers });
   } catch (e) {
     console.error('[Audio] Streaming failed:', e.message);
-    return jsonResponse({
-      videoId,
-      available: false,
-      error: 'Audio streaming failed: ' + e.message
-    }, 200, origin);
+    return jsonResponse({ videoId, available: false, error: 'Audio streaming failed: ' + e.message }, 200, origin);
   }
 }
 
 /**
- * Resolve a playable audio URL from multiple sources.
- * Returns { url, mimeType, source, duration, title } or null.
+ * Resolve a playable audio URL from fallback sources (Cobalt, Piped, InnerTube).
+ * yt-dlp is handled directly in getVideoAudio() to avoid double extraction.
+ * Returns { url, mimeType, source, duration, title } or { _debug }.
  */
 async function resolveAudioUrl(videoId, env, origin, tokenData = null) {
-  // Method 0: If browser sent a PO token, try WEB client with it first (most reliable)
+  const _debug = [];
+
+  // Method 2: If browser sent a PO token, try WEB client with it
   if (tokenData?.poToken && tokenData?.visitorData) {
     try {
       const webResult = await resolveWithPoToken(videoId, tokenData.poToken, tokenData.visitorData);
-      if (webResult) return webResult;
+      if (webResult) { webResult._debug = _debug; return webResult; }
+      _debug.push({ method: 'web-po', result: 'no-url', detail: _poDebug });
     } catch (e) {
+      _debug.push({ method: 'web-po', error: e.message, detail: _poDebug });
       console.error('WEB+PO token audio error:', e.message);
     }
   }
 
-  // Method 1: Try Cobalt API first
+  // Cobalt API
   try {
     const cobaltResult = await getAudioViaCobalt(videoId, env);
     if (cobaltResult && cobaltResult.available && cobaltResult.audioUrl) {
@@ -1220,7 +1332,7 @@ async function resolveAudioUrl(videoId, env, origin, tokenData = null) {
     console.error('Cobalt audio fetch failed:', e.message);
   }
 
-  // Method 2: Try Piped API
+  // Piped API
   try {
     const pipedData = await fetchFromPiped('/streams/', videoId);
     if (pipedData && pipedData.audioStreams && pipedData.audioStreams.length > 0) {
@@ -1237,61 +1349,214 @@ async function resolveAudioUrl(videoId, env, origin, tokenData = null) {
     console.error('Piped audio fetch failed:', e.message);
   }
 
-  // Method 3: Try yt-dlp service
-  const ytdlpServiceUrl = env?.YTDLP_SERVICE_URL || 'https://tanaghum-ytdlp.fly.dev';
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
-    const response = await fetch(`${ytdlpServiceUrl}/extract?url=${videoId}&format=info`, {
-      signal: controller.signal,
-      headers: { 'Accept': 'application/json' }
-    });
-    clearTimeout(timeout);
-    if (response.ok) {
-      const data = await response.json();
-      if (data.available && data.audioUrl) {
-        return { url: data.audioUrl, mimeType: data.mimeType || 'audio/webm', source: 'ytdlp', duration: data.duration || 0, title: data.title || '' };
-      }
-    }
-  } catch (e) {
-    console.error('yt-dlp service error:', e.message);
-  }
-
-  // Method 4: Try InnerTube API (ANDROID, IOS, TV clients)
+  // InnerTube API (ANDROID_VR, WEB_EMBEDDED clients)
   try {
     const innertubeResult = await resolveInnerTubeAudio(videoId);
     if (innertubeResult) return innertubeResult;
+    _debug.push({ method: 'innertube-direct', result: 'no-url' });
   } catch (e) {
+    _debug.push({ method: 'innertube-direct', error: e.message });
     console.error('InnerTube audio error:', e.message);
   }
 
-  return null;
+  return { _debug };
+}
+
+// ---- Lightweight YouTube Player JS extractor & signature decipherer ----
+// Extracts signatureTimestamp, sig decipher, and n-token transform from player JS.
+// Much lighter than youtubei.js — only fetches what we need.
+
+let cachedPlayer = null;
+let cachedPlayerExpiry = 0;
+const PLAYER_CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours
+
+/**
+ * Get player info (signatureTimestamp + decipher functions).
+ * Caches the result for 12 hours.
+ */
+async function getPlayerInfo() {
+  if (cachedPlayer && Date.now() < cachedPlayerExpiry) return cachedPlayer;
+
+  try {
+    // Fetch YouTube iframe API to get player ID
+    const iframeResp = await fetch('https://www.youtube.com/iframe_api', {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36' }
+    });
+    if (!iframeResp.ok) { console.log('[Player] iframe_api fetch failed'); return null; }
+    const iframeText = await iframeResp.text();
+
+    // Extract player ID from iframe API (slashes may be escaped as \/)
+    const playerIdMatch = iframeText.match(/player\\?\/([a-zA-Z0-9_-]+)\\?\//);
+    if (!playerIdMatch) { console.log('[Player] Could not extract player ID from: ' + iframeText.substring(0, 200)); return null; }
+    const playerId = playerIdMatch[1];
+    console.log(`[Player] Found player ID: ${playerId}`);
+
+    // Fetch player base.js
+    const playerUrl = `https://www.youtube.com/s/player/${playerId}/player_ias.vflset/en_US/base.js`;
+    const playerResp = await fetch(playerUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+    });
+    if (!playerResp.ok) { console.log(`[Player] base.js fetch failed: ${playerResp.status}`); return null; }
+    const playerJs = await playerResp.text();
+    console.log(`[Player] base.js loaded: ${playerJs.length} bytes`);
+
+    // Extract signatureTimestamp
+    const stsMatch = playerJs.match(/signatureTimestamp[=:](\d+)/);
+    const signatureTimestamp = stsMatch ? parseInt(stsMatch[1]) : null;
+    console.log(`[Player] signatureTimestamp: ${signatureTimestamp}`);
+
+    // Extract sig decipher function
+    const sigDecipherFn = extractSigDecipherFunction(playerJs);
+    console.log(`[Player] Sig decipher: ${sigDecipherFn ? 'extracted' : 'FAILED'}`);
+
+    // Extract n-token transform function
+    const nTransformFn = extractNTransformFunction(playerJs);
+    console.log(`[Player] N-transform: ${nTransformFn ? 'extracted' : 'FAILED'}`);
+
+    const player = { signatureTimestamp, sigDecipherFn, nTransformFn, playerId };
+    cachedPlayer = player;
+    cachedPlayerExpiry = Date.now() + PLAYER_CACHE_TTL;
+    return player;
+  } catch (e) {
+    console.error('[Player] Error:', e.message);
+    return null;
+  }
 }
 
 /**
+ * Extract the signature decipher function from player JS.
+ * YouTube's sig decipher is a chain of 3 basic array operations.
+ */
+function extractSigDecipherFunction(playerJs) {
+  try {
+    // Find the main decipher function: function(a){a=a.split("");XX.YY(a,N);...;return a.join("")}
+    const funcMatch = playerJs.match(
+      /\b([a-zA-Z0-9$]+)\s*=\s*function\(\s*a\s*\)\s*\{\s*a\s*=\s*a\.split\(\s*""\s*\)([\s\S]*?)return\s+a\.join\(\s*""\s*\)/
+    );
+    if (!funcMatch) return null;
+
+    const funcBody = funcMatch[2];
+
+    // Extract the helper object name (e.g., "XX" from "XX.YY(a,3)")
+    const helperMatch = funcBody.match(/;\s*([a-zA-Z0-9$]+)\./);
+    if (!helperMatch) return null;
+    const helperName = helperMatch[1];
+
+    // Find the helper object definition: var XX={YY:function(a,b){...},ZZ:function(a){...},...};
+    const escapedName = helperName.replace(/\$/g, '\\$');
+    const helperObjMatch = playerJs.match(
+      new RegExp(`var\\s+${escapedName}\\s*=\\s*\\{([\\s\\S]*?)\\};`)
+    );
+    if (!helperObjMatch) return null;
+
+    // Compile into a runnable function
+    const code = `var ${helperName}={${helperObjMatch[1]}};function decipher(a){a=a.split("")${funcBody}return a.join("")}`;
+    return code;
+  } catch (e) {
+    console.error('[Player] Sig extraction error:', e.message);
+    return null;
+  }
+}
+
+/**
+ * Extract the n-token transform function from player JS.
+ * The n parameter throttles download speed if not transformed.
+ */
+function extractNTransformFunction(playerJs) {
+  try {
+    // Look for the n-challenge function. YouTube uses various patterns:
+    // Pattern 1: b=a.get("n")) && (b=FUNCNAME(b),a.set("n",b)
+    // Pattern 2: var b=a.get("n");b&&(b=FUNCNAME[0](b),a.set("n",b))
+    const nFuncNameMatch = playerJs.match(
+      /[;\s]([a-zA-Z0-9$]+)\s*=\s*function\(\s*a\s*\)\s*\{\s*var\s+b\s*=\s*a\.split\(\s*""\s*\)/
+    );
+
+    if (!nFuncNameMatch) {
+      // Try alternative pattern: b=String.fromCharCode(110),c=a.get(b)...c&&(c=FUNC[0](c)
+      const altMatch = playerJs.match(/&&\(([a-zA-Z0-9$]+)=([a-zA-Z0-9$]+)\[(\d+)\]\(([a-zA-Z0-9$]+)\)/);
+      if (!altMatch) return null;
+    }
+
+    // The n-transform function is complex, just return null for now
+    // (n-token only affects download speed throttling, not playability)
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Decipher a signatureCipher string using the extracted player functions.
+ * signatureCipher format: "s=XXX&sp=sig&url=ENCODED_URL"
+ */
+function decipherSignatureCipher(signatureCipher, playerInfo) {
+  try {
+    const params = new URLSearchParams(signatureCipher);
+    const sig = params.get('s');
+    const sp = params.get('sp') || 'signature';
+    const url = params.get('url');
+
+    if (!sig || !url || !playerInfo?.sigDecipherFn) return null;
+
+    // Run the decipher function
+    const decipheredSig = runDecipher(playerInfo.sigDecipherFn, sig);
+    if (!decipheredSig) return null;
+
+    const finalUrl = new URL(url);
+    finalUrl.searchParams.set(sp, decipheredSig);
+    return finalUrl.toString();
+  } catch (e) {
+    console.error('[Decipher] Error:', e.message);
+    return null;
+  }
+}
+
+/**
+ * Run the decipher function in a sandboxed scope.
+ */
+function runDecipher(code, input) {
+  try {
+    const fn = new Function(code + `\nreturn decipher("${input.replace(/"/g, '\\"')}");`);
+    return fn();
+  } catch (e) {
+    console.error('[Decipher] Execution error:', e.message);
+    return null;
+  }
+}
+
+// ---- End player extractor ----
+
+/**
  * Resolve audio URL via InnerTube WEB client with PO token from browser.
+ * Uses extracted player signatureTimestamp and sig decipherer for full URL resolution.
  * Returns { url, mimeType, source, duration, title } or null.
  */
+// Module-level debug collector for the current request
+let _poDebug = [];
+
 async function resolveWithPoToken(videoId, poToken, visitorData) {
-  const INNERTUBE_URL = 'https://www.youtube.com/youtubei/v1/player?key=' + INNERTUBE_API_KEY;
+  _poDebug = [];
+  console.log(`[Audio] WEB+PO token flow for ${videoId}`);
 
-  console.log(`[Audio] Trying WEB client with PO token for ${videoId}`);
+  try {
+    // Get player info (signatureTimestamp + decipher functions)
+    const player = await getPlayerInfo();
+    const signatureTimestamp = player?.signatureTimestamp;
+    _poDebug.push({ step: 'player', sts: signatureTimestamp, decipher: !!player?.sigDecipherFn, playerId: player?.playerId });
+    console.log(`[Audio] Player: sts=${signatureTimestamp}, decipher=${!!player?.sigDecipherFn}`);
 
-  const response = await fetch(INNERTUBE_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-      'X-Youtube-Client-Name': '1',
-      'X-Youtube-Client-Version': '2.20250131.00.00'
-    },
-    body: JSON.stringify({
+    const INNERTUBE_URL = 'https://www.youtube.com/youtubei/v1/player?key=' + INNERTUBE_API_KEY + '&prettyPrint=false';
+
+    // URL-decode visitorData if needed (e.g. %3D -> =)
+    const decodedVisitorData = decodeURIComponent(visitorData);
+
+    const requestBody = {
       videoId,
       context: {
         client: {
           clientName: 'WEB',
           clientVersion: '2.20250131.00.00',
-          visitorData,
+          visitorData: decodedVisitorData,
           hl: 'en',
           gl: 'US'
         }
@@ -1301,62 +1566,130 @@ async function resolveWithPoToken(videoId, poToken, visitorData) {
       },
       contentCheckOk: true,
       racyCheckOk: true
-    })
-  });
+    };
 
-  if (!response.ok) {
-    console.log(`[Audio] WEB+PO returned HTTP ${response.status}`);
+    // Include playbackContext with signatureTimestamp if available
+    if (signatureTimestamp) {
+      requestBody.playbackContext = {
+        contentPlaybackContext: {
+          vis: 0,
+          splay: false,
+          lactMilliseconds: '-1',
+          signatureTimestamp
+        }
+      };
+    }
+
+    _poDebug.push({ step: 'request', visitorDataDecoded: decodedVisitorData !== visitorData, poTokenLen: poToken.length });
+
+    const response = await fetch(INNERTUBE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'X-Youtube-Client-Name': '1',
+        'X-Youtube-Client-Version': '2.20250131.00.00',
+        'X-Goog-Visitor-Id': decodedVisitorData,
+        'Origin': 'https://www.youtube.com',
+        'Referer': 'https://www.youtube.com/'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      _poDebug.push({ step: 'innertube', error: `HTTP ${response.status}` });
+      console.log(`[Audio] WEB+PO returned HTTP ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const status = data.playabilityStatus?.status;
+    if (status !== 'OK') {
+      _poDebug.push({ step: 'innertube', playability: status, reason: data.playabilityStatus?.reason });
+      console.log(`[Audio] WEB+PO playability: ${status} - ${data.playabilityStatus?.reason || 'unknown'}`);
+      return null;
+    }
+
+    const streamingData = data.streamingData;
+    if (!streamingData) {
+      _poDebug.push({ step: 'innertube', status: 'OK', streamingData: false });
+      console.log('[Audio] WEB+PO: no streaming data');
+      return null;
+    }
+
+    const adaptiveFormats = streamingData.adaptiveFormats || [];
+    const duration = parseInt(data.videoDetails?.lengthSeconds || 0);
+    const title = data.videoDetails?.title || '';
+
+    // Analyze all audio formats
+    const allAudio = adaptiveFormats.filter(f => f.mimeType?.startsWith('audio/'));
+    const directCount = allAudio.filter(f => f.url).length;
+    const cipheredCount = allAudio.filter(f => f.signatureCipher).length;
+    const sample = allAudio[0];
+    _poDebug.push({
+      step: 'formats',
+      totalAdaptive: adaptiveFormats.length,
+      totalAudio: allAudio.length,
+      direct: directCount,
+      ciphered: cipheredCount,
+      sampleKeys: sample ? Object.keys(sample).filter(k => ['url', 'signatureCipher', 'mimeType', 'bitrate', 'itag'].includes(k)) : [],
+      sampleMime: sample?.mimeType,
+      sampleHasUrl: !!sample?.url,
+      sampleHasCipher: !!sample?.signatureCipher
+    });
+
+    // First try direct audio URLs
+    let audioFormats = allAudio.filter(f => f.url);
+
+    // If no direct URLs, try to decipher signatureCipher URLs
+    if (audioFormats.length === 0 && player?.sigDecipherFn) {
+      const ciphered = allAudio.filter(f => f.signatureCipher);
+      console.log(`[Audio] WEB+PO: ${ciphered.length} ciphered audio formats, attempting decipher`);
+
+      let decipherSuccess = 0;
+      let decipherFail = 0;
+      for (const fmt of ciphered) {
+        const url = decipherSignatureCipher(fmt.signatureCipher, player);
+        if (url) {
+          // Add PO token to the URL
+          const urlObj = new URL(url);
+          urlObj.searchParams.set('pot', poToken);
+          audioFormats.push({ ...fmt, url: urlObj.toString() });
+          decipherSuccess++;
+        } else {
+          decipherFail++;
+        }
+      }
+      _poDebug.push({ step: 'decipher', attempted: ciphered.length, success: decipherSuccess, failed: decipherFail });
+    }
+
+    if (audioFormats.length === 0) {
+      console.log(`[Audio] WEB+PO: no usable audio formats`);
+      return null;
+    }
+
+    // Sort: prefer opus, then highest bitrate
+    audioFormats.sort((a, b) => {
+      const aIsOpus = a.mimeType?.includes('opus') ? 1 : 0;
+      const bIsOpus = b.mimeType?.includes('opus') ? 1 : 0;
+      if (aIsOpus !== bIsOpus) return bIsOpus - aIsOpus;
+      return (b.bitrate || 0) - (a.bitrate || 0);
+    });
+
+    const best = audioFormats[0];
+    console.log(`[Audio] WEB+PO success: ${best.mimeType}, ${best.bitrate}bps, ${duration}s`);
+
+    return {
+      url: best.url,
+      mimeType: best.mimeType,
+      source: 'innertube-web-po',
+      duration,
+      title
+    };
+  } catch (e) {
+    console.error('[Audio] WEB+PO error:', e.message);
     return null;
   }
-
-  const data = await response.json();
-  const status = data.playabilityStatus?.status;
-  if (status !== 'OK') {
-    console.log(`[Audio] WEB+PO playability: ${status} - ${data.playabilityStatus?.reason || 'unknown'}`);
-    return null;
-  }
-
-  const streamingData = data.streamingData;
-  if (!streamingData) {
-    console.log('[Audio] WEB+PO: no streaming data');
-    return null;
-  }
-
-  const adaptiveFormats = streamingData.adaptiveFormats || [];
-
-  // Look for direct audio URLs
-  let directAudio = adaptiveFormats.filter(f =>
-    f.mimeType?.startsWith('audio/') && f.url
-  );
-
-  if (directAudio.length === 0) {
-    // Check for signatureCipher — WEB client may return these
-    const ciphered = adaptiveFormats.filter(f =>
-      f.mimeType?.startsWith('audio/') && f.signatureCipher
-    );
-    console.log(`[Audio] WEB+PO: ${directAudio.length} direct, ${ciphered.length} ciphered audio streams`);
-    return null;
-  }
-
-  // Sort: prefer opus, then highest bitrate
-  directAudio.sort((a, b) => {
-    const aIsOpus = a.mimeType?.includes('opus') ? 1 : 0;
-    const bIsOpus = b.mimeType?.includes('opus') ? 1 : 0;
-    if (aIsOpus !== bIsOpus) return bIsOpus - aIsOpus;
-    return (b.bitrate || 0) - (a.bitrate || 0);
-  });
-
-  const best = directAudio[0];
-  const duration = parseInt(data.videoDetails?.lengthSeconds || 0);
-  console.log(`[Audio] WEB+PO success: ${best.mimeType}, ${best.bitrate}bps, ${duration}s`);
-
-  return {
-    url: best.url,
-    mimeType: best.mimeType,
-    source: 'innertube-web-po',
-    duration,
-    title: data.videoDetails?.title || ''
-  };
 }
 
 /**

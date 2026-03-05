@@ -4,6 +4,17 @@
  * Loads from API first, falls back to static gallery.json + IndexedDB
  */
 
+/** Escape HTML to prevent XSS */
+function escapeHtmlGallery(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 class GalleryManager {
   constructor() {
     this.lessons = [];
@@ -22,7 +33,7 @@ class GalleryManager {
       sort: 'newest'
     };
 
-    this.init();
+    this.init().catch(err => console.error('Gallery init failed:', err));
   }
 
   async init() {
@@ -95,10 +106,12 @@ class GalleryManager {
     // ILR filters
     this.ilrFilters.addEventListener('click', (e) => {
       if (e.target.classList.contains('filter-pill')) {
-        this.ilrFilters.querySelectorAll('.filter-pill').forEach(btn =>
-          btn.classList.remove('active')
-        );
+        this.ilrFilters.querySelectorAll('.filter-pill').forEach(btn => {
+          btn.classList.remove('active');
+          btn.setAttribute('aria-checked', 'false');
+        });
         e.target.classList.add('active');
+        e.target.setAttribute('aria-checked', 'true');
         this.currentFilters.ilr = e.target.dataset.ilr;
         this.currentPage = 1;
         this.loadLessons();
@@ -108,10 +121,12 @@ class GalleryManager {
     // Topic filters
     this.topicFilters.addEventListener('click', (e) => {
       if (e.target.classList.contains('filter-pill')) {
-        this.topicFilters.querySelectorAll('.filter-pill').forEach(btn =>
-          btn.classList.remove('active')
-        );
+        this.topicFilters.querySelectorAll('.filter-pill').forEach(btn => {
+          btn.classList.remove('active');
+          btn.setAttribute('aria-checked', 'false');
+        });
         e.target.classList.add('active');
+        e.target.setAttribute('aria-checked', 'true');
         this.currentFilters.topic = e.target.dataset.topic;
         this.currentPage = 1;
         this.loadLessons();
@@ -341,7 +356,14 @@ class GalleryManager {
       if (this.currentFilters.ilr !== 'all') {
         this.activeFiltersList.appendChild(
           this.createFilterTag('ILR', this.currentFilters.ilr, () => {
-            this.ilrFilters.querySelector('[data-ilr="all"]').click();
+            // Reset filter directly (avoid .click() which triggers loadLessons again)
+            this.ilrFilters.querySelectorAll('.filter-pill').forEach(btn => {
+              btn.classList.remove('active');
+              btn.setAttribute('aria-checked', 'false');
+            });
+            const allBtn = this.ilrFilters.querySelector('[data-ilr="all"]');
+            if (allBtn) { allBtn.classList.add('active'); allBtn.setAttribute('aria-checked', 'true'); }
+            this.currentFilters.ilr = 'all';
           })
         );
       }
@@ -349,7 +371,14 @@ class GalleryManager {
       if (this.currentFilters.topic !== 'all') {
         this.activeFiltersList.appendChild(
           this.createFilterTag('Topic', this.currentFilters.topic, () => {
-            this.topicFilters.querySelector('[data-topic="all"]').click();
+            // Reset filter directly (avoid .click() which triggers loadLessons again)
+            this.topicFilters.querySelectorAll('.filter-pill').forEach(btn => {
+              btn.classList.remove('active');
+              btn.setAttribute('aria-checked', 'false');
+            });
+            const allBtn = this.topicFilters.querySelector('[data-topic="all"]');
+            if (allBtn) { allBtn.classList.add('active'); allBtn.setAttribute('aria-checked', 'true'); }
+            this.currentFilters.topic = 'all';
           })
         );
       }
@@ -369,7 +398,7 @@ class GalleryManager {
     const tag = document.createElement('div');
     tag.className = 'active-filter-tag';
     tag.innerHTML = `
-      <span>${label}: ${value}</span>
+      <span>${escapeHtmlGallery(label)}: ${escapeHtmlGallery(value)}</span>
       <button aria-label="Remove filter">\u00d7</button>
     `;
 
@@ -392,8 +421,21 @@ class GalleryManager {
       sort: 'newest'
     };
 
-    this.ilrFilters.querySelector('[data-ilr="all"]').click();
-    this.topicFilters.querySelector('[data-topic="all"]').click();
+    // Update filter pill UI directly (avoid .click() which triggers extra loadLessons)
+    this.ilrFilters.querySelectorAll('.filter-pill').forEach(btn => {
+      btn.classList.remove('active');
+      btn.setAttribute('aria-checked', 'false');
+    });
+    const ilrAll = this.ilrFilters.querySelector('[data-ilr="all"]');
+    if (ilrAll) { ilrAll.classList.add('active'); ilrAll.setAttribute('aria-checked', 'true'); }
+
+    this.topicFilters.querySelectorAll('.filter-pill').forEach(btn => {
+      btn.classList.remove('active');
+      btn.setAttribute('aria-checked', 'false');
+    });
+    const topicAll = this.topicFilters.querySelector('[data-topic="all"]');
+    if (topicAll) { topicAll.classList.add('active'); topicAll.setAttribute('aria-checked', 'true'); }
+
     this.durationFilter.value = 'all';
     this.sortFilter.value = 'newest';
     this.clearSearchBtn.classList.add('hidden');
@@ -416,6 +458,20 @@ class GalleryManager {
     if (displayLessons.length === 0) {
       this.galleryGrid.classList.add('hidden');
       this.emptyState.classList.remove('hidden');
+      // Differentiate: no filters active means no content exists yet
+      const hasFilters = this.currentFilters.search || this.currentFilters.ilr !== 'all' ||
+        this.currentFilters.topic !== 'all' || this.currentFilters.duration !== 'all';
+      const emptyTitle = document.getElementById('empty-title');
+      const emptyMsg = document.getElementById('empty-message');
+      if (emptyTitle && emptyMsg) {
+        if (hasFilters) {
+          emptyTitle.textContent = 'No lessons match';
+          emptyMsg.textContent = 'Try adjusting your filters or search terms';
+        } else {
+          emptyTitle.textContent = 'No lessons published yet';
+          emptyMsg.textContent = 'Be the first to generate and publish a lesson!';
+        }
+      }
       this.hidePagination();
       return;
     }
@@ -431,6 +487,9 @@ class GalleryManager {
 
     // Attach card event listeners
     this.attachCardListeners();
+
+    // Scroll gallery into view after rendering (especially after pagination)
+    this.galleryGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   updatePagination() {
@@ -463,7 +522,7 @@ class GalleryManager {
       <div class="lesson-card" data-lesson-id="${lesson.id}">
         <div class="card-thumbnail">
           ${lesson.thumbnail ?
-            `<img src="${lesson.thumbnail}" alt="${lesson.titleEn}">` :
+            `<img src="${escapeHtmlGallery(lesson.thumbnail)}" alt="${escapeHtmlGallery(lesson.titleEn)}">` :
             `<div class="card-thumbnail-placeholder">${this.getTopicIcon(lesson.topic)}</div>`
           }
           <div class="card-duration">${duration}</div>
@@ -472,16 +531,16 @@ class GalleryManager {
         <div class="card-body">
           <div class="card-header">
             <h3 class="card-title">
-              <span class="card-title-ar">${lesson.title}</span>
-              <span class="card-title-en">${lesson.titleEn}</span>
+              <span class="card-title-ar">${escapeHtmlGallery(lesson.title)}</span>
+              <span class="card-title-en">${escapeHtmlGallery(lesson.titleEn)}</span>
             </h3>
             <span class="card-ilr-badge ${ilrClass}">ILR ${lesson.ilrLevel}</span>
           </div>
 
           <div class="card-meta">
-            <span class="card-topic">${this.getTopicIcon(lesson.topic)} ${lesson.topic}</span>
+            <span class="card-topic">${this.getTopicIcon(lesson.topic)} ${escapeHtmlGallery(lesson.topic)}</span>
             <div class="card-meta-item">
-              <span>${lesson.author || 'Anonymous'}</span>
+              <span>${escapeHtmlGallery(lesson.author || 'Anonymous')}</span>
             </div>
           </div>
 
@@ -537,7 +596,7 @@ class GalleryManager {
   }
 
   openPreview(lessonId) {
-    const lesson = this.lessons.find(l => l.id === lessonId);
+    const lesson = this.lessons.find(l => String(l.id) === String(lessonId));
     if (!lesson) return;
 
     this.currentPreviewLesson = lesson;
@@ -549,20 +608,20 @@ class GalleryManager {
     this.previewBody.innerHTML = `
       <div class="preview-content">
         <div class="preview-header">
-          <h2 class="preview-title-ar">${lesson.title}</h2>
-          <p class="preview-title-en">${lesson.titleEn}</p>
+          <h2 class="preview-title-ar">${escapeHtmlGallery(lesson.title)}</h2>
+          <p class="preview-title-en">${escapeHtmlGallery(lesson.titleEn)}</p>
           <div class="preview-meta">
             <div class="preview-meta-item">
               <span class="card-ilr-badge ${this.getIlrClass(lesson.ilrLevel)}">ILR ${lesson.ilrLevel}</span>
             </div>
             <div class="preview-meta-item">
-              <span class="card-topic">${this.getTopicIcon(lesson.topic)} ${lesson.topic}</span>
+              <span class="card-topic">${this.getTopicIcon(lesson.topic)} ${escapeHtmlGallery(lesson.topic)}</span>
             </div>
             <div class="preview-meta-item">
               <span>${this.formatDuration(lesson.duration)}</span>
             </div>
             <div class="preview-meta-item">
-              <span>${lesson.author || 'Anonymous'}</span>
+              <span>${escapeHtmlGallery(lesson.author || 'Anonymous')}</span>
             </div>
           </div>
         </div>
@@ -570,14 +629,14 @@ class GalleryManager {
         ${lesson.description ? `
           <div class="preview-section">
             <h3>About This Lesson</h3>
-            <p class="preview-description">${lesson.description}</p>
+            <p class="preview-description">${escapeHtmlGallery(lesson.description)}</p>
           </div>
         ` : ''}
 
         ${lesson.transcript ? `
           <div class="preview-section">
             <h3>Transcript Preview</h3>
-            <div class="preview-transcript">${lesson.transcript.substring(0, 300)}${lesson.transcript.length > 300 ? '...' : ''}</div>
+            <div class="preview-transcript">${escapeHtmlGallery(lesson.transcript.substring(0, 300))}${lesson.transcript.length > 300 ? '...' : ''}</div>
           </div>
         ` : ''}
 
@@ -615,7 +674,7 @@ class GalleryManager {
   }
 
   async useLesson(lessonId) {
-    const lesson = this.lessons.find(l => l.id === lessonId);
+    const lesson = this.lessons.find(l => String(l.id) === String(lessonId));
     if (!lesson) return;
 
     // Record use via API
@@ -630,8 +689,8 @@ class GalleryManager {
         const fullLesson = await GalleryAPI.getLesson(lessonId);
         if (fullLesson.lesson) {
           // Store lesson in localStorage for the player to pick up
-          localStorage.setItem('tanaghum_play_lesson', JSON.stringify(fullLesson.lesson));
-          window.open(`player.html#gallery-${lessonId}`, '_blank');
+          localStorage.setItem('tanaghum_current_lesson', JSON.stringify(fullLesson.lesson));
+          window.open(`player.html#gallery-${lessonId}`, '_blank', 'noopener');
           this.closePreview();
           return;
         }
@@ -682,7 +741,7 @@ class GalleryManager {
 
   formatDuration(seconds) {
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
 

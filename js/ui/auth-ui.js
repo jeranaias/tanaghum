@@ -101,18 +101,77 @@ async function updateDropdownQuota() {
  * Set up user dropdown toggle
  */
 function setupUserDropdown() {
+  const userMenu = document.querySelector('.user-menu');
   const avatar = document.querySelector('.user-avatar');
   const dropdown = document.querySelector('.user-dropdown');
   if (!avatar || !dropdown) return;
 
+  // Make avatar focusable and announce as menu button
+  if (userMenu) {
+    userMenu.setAttribute('tabindex', '0');
+    userMenu.setAttribute('role', 'button');
+    userMenu.setAttribute('aria-haspopup', 'menu');
+    userMenu.setAttribute('aria-expanded', 'false');
+  }
+
+  function openDropdown() {
+    dropdown.classList.add('open');
+    if (userMenu) userMenu.setAttribute('aria-expanded', 'true');
+    // Focus first item
+    const firstItem = dropdown.querySelector('.user-dropdown-item');
+    if (firstItem) firstItem.focus();
+  }
+
+  function closeDropdown() {
+    dropdown.classList.remove('open');
+    if (userMenu) userMenu.setAttribute('aria-expanded', 'false');
+  }
+
   avatar.addEventListener('click', (e) => {
     e.stopPropagation();
-    dropdown.classList.toggle('open');
+    if (dropdown.classList.contains('open')) {
+      closeDropdown();
+    } else {
+      openDropdown();
+    }
+  });
+
+  // Keyboard: Enter/Space to open, Escape to close
+  if (userMenu) {
+    userMenu.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (dropdown.classList.contains('open')) {
+          closeDropdown();
+        } else {
+          openDropdown();
+        }
+      }
+    });
+  }
+
+  // Arrow key navigation and Escape within dropdown
+  dropdown.addEventListener('keydown', (e) => {
+    const items = [...dropdown.querySelectorAll('.user-dropdown-item')];
+    const idx = items.indexOf(document.activeElement);
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeDropdown();
+      if (userMenu) userMenu.focus();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      items[(idx + 1) % items.length]?.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      items[(idx - 1 + items.length) % items.length]?.focus();
+    }
   });
 
   // Close dropdown when clicking outside
   document.addEventListener('click', () => {
-    dropdown.classList.remove('open');
+    closeDropdown();
   });
 
   // Settings button

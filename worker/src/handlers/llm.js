@@ -20,7 +20,7 @@ const QUOTA_LIMITS = {
 
 // Allowed models per provider (prevent model injection)
 const ALLOWED_MODELS = {
-  google: ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'],
+  google: ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'],
   groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'allam-2-7b', 'qwen-qwq-32b'],
   cerebras: ['llama-3.3-70b', 'qwen-3-32b'],
   openrouter: [
@@ -224,7 +224,7 @@ async function handleGoogle(body, env, origin, userApiKey = null) {
     return jsonResponse({ error: 'Google API key not configured' }, 503, origin);
   }
 
-  const { prompt, model = 'gemini-2.0-flash', temperature = 0.7, maxTokens = 2048 } = body;
+  const { prompt, model = 'gemini-2.5-flash', temperature = 0.7, maxTokens = 2048 } = body;
 
   const validation = validatePromptInput(prompt, body.systemPrompt);
   if (!validation.valid) return jsonResponse({ error: validation.error }, 400, origin);

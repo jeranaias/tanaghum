@@ -1,11 +1,13 @@
 """
 Tanaghum yt-dlp Audio Extraction Service
-Deployed on Fly.io with PO Token support + Cloudflare WARP proxy
+Deployed on Fly.io with PO Token support + Cloudflare WARP proxy + cookie auth
 """
 
 import os
+import sys
 import json
 import subprocess
+import time
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 
@@ -29,108 +31,310 @@ CORS(app, origins=ALLOWED_ORIGINS)
 POT_SERVER_URL = 'http://127.0.0.1:4416'
 
 # Cloudflare WARP SOCKS5 proxy (wireproxy on port 40000)
-# Makes YouTube see residential IPs instead of datacenter IPs
 WARP_PROXY = 'socks5h://127.0.0.1:40000'
 
-def is_warp_available():
-    """Check if WARP proxy is running"""
+# Cookie file for YouTube authentication (bypasses datacenter IP blocking)
+COOKIES_FILE = '/app/cookies.txt'
+
+# Admin key for cookie upload (set via Fly.io secrets)
+ADMIN_KEY = os.environ.get('ADMIN_KEY', '')
+
+# Cache WARP connectivity status (avoid checking every request)
+_warp_status = {'available': None, 'checked_at': 0}
+WARP_CHECK_INTERVAL = 60  # seconds
+
+# Cache extraction results (avoid double extraction for extract→download flow)
+_extract_cache = {}
+EXTRACT_CACHE_TTL = 120  # seconds
+
+# Track IP blocking state — fast-fail when all IPs are known blocked
+_blocked_state = {'blocked': False, 'since': 0}
+BLOCKED_CACHE_TTL = 120  # seconds — watchdog/rotation clears this
+
+
+def has_cookies():
+    """Check if YouTube cookies file exists and is non-empty"""
+    return os.path.exists(COOKIES_FILE) and os.path.getsize(COOKIES_FILE) > 10
+
+
+def is_warp_available(force=False):
+    """Check if WARP proxy has actual internet connectivity (not just socket open)"""
+    now = time.time()
+    if not force and _warp_status['available'] is not None and (now - _warp_status['checked_at']) < WARP_CHECK_INTERVAL:
+        return _warp_status['available']
+
     import socket
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(1)
         result = sock.connect_ex(('127.0.0.1', 40000))
         sock.close()
-        return result == 0
-    except:
+        if result != 0:
+            _warp_status['available'] = False
+            _warp_status['checked_at'] = now
+            return False
+    except Exception:
+        _warp_status['available'] = False
+        _warp_status['checked_at'] = now
         return False
 
-def run_ytdlp(video_url, get_url=True):
-    """
-    Run yt-dlp via subprocess with POT provider + WARP proxy.
-    Uses Cloudflare WARP to appear as residential IP to YouTube.
-    """
+    try:
+        result = subprocess.run(
+            ['curl', '-s', '--max-time', '5', '--proxy', WARP_PROXY,
+             'https://www.google.com/generate_204', '-o', '/dev/null', '-w', '%{http_code}'],
+            capture_output=True, text=True, timeout=8
+        )
+        available = result.stdout.strip() == '204'
+        _warp_status['available'] = available
+        _warp_status['checked_at'] = now
+        return available
+    except Exception as e:
+        _warp_status['available'] = False
+        _warp_status['checked_at'] = now
+        return False
+
+
+def run_ytdlp(video_url, use_proxy=True):
+    """Run yt-dlp with cookies + POT provider + optional WARP proxy."""
     cmd = [
         'yt-dlp',
         '--dump-json',
         '-f', 'bestaudio/best',
         '--verbose',
-        # Try multiple player clients for best compatibility
-        '--extractor-args', 'youtube:player_client=tv_embedded,mweb,ios,android,web',
+        '--no-warnings',
+        '--js-runtimes', 'node:/usr/local/bin/node',
+        '--remote-components', 'ejs:github',
+        '--extractor-args', 'youtube:player_client=web,mweb,android_vr',
         '--extractor-args', f'youtubepot-bgutilhttp:base_url={POT_SERVER_URL}',
     ]
 
+    # Use cookies if available (bypasses datacenter IP blocking)
+    if has_cookies():
+        cmd.extend(['--cookies', COOKIES_FILE])
+
     # Route through Cloudflare WARP if available
-    if is_warp_available():
+    if use_proxy and is_warp_available():
         cmd.extend(['--proxy', WARP_PROXY])
+        proxy_used = 'warp'
     else:
-        import sys
-        print("[WARN] WARP proxy not available, using direct connection", file=sys.stderr)
+        proxy_used = 'direct'
 
     cmd.append(video_url)
 
     try:
-        # Log the command being run
-        import sys
-        print(f"Running: {' '.join(cmd)}", file=sys.stderr)
+        auth_mode = 'cookies' if has_cookies() else 'anonymous'
+        print(f"Running yt-dlp ({proxy_used}+{auth_mode}): {video_url}", file=sys.stderr)
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=120
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
-        # Log stderr for debugging
         if result.stderr:
-            print(f"yt-dlp stderr: {result.stderr[:2000]}", file=sys.stderr)
+            print(f"yt-dlp stderr ({proxy_used}): {result.stderr[:3000]}", file=sys.stderr)
 
         if result.returncode != 0:
             error_msg = result.stderr or result.stdout or 'Unknown error'
-            # Check if it's a PO token issue
-            if 'pot' in error_msg.lower() or 'provider' in error_msg.lower():
-                error_msg = f"POT provider issue: {error_msg}"
-            return None, error_msg
+            return None, error_msg, proxy_used
 
-        # Parse JSON output
         info = json.loads(result.stdout)
-        return info, None
+        return info, None, proxy_used
 
     except subprocess.TimeoutExpired:
-        return None, 'Request timed out'
+        return None, 'Request timed out (120s)', proxy_used
     except json.JSONDecodeError as e:
-        return None, f'Failed to parse yt-dlp output: {e}. stdout: {result.stdout[:500] if result.stdout else "empty"}'
+        stdout_preview = result.stdout[:500] if result.stdout else "empty"
+        return None, f'Failed to parse yt-dlp output: {e}. stdout: {stdout_preview}', proxy_used
     except Exception as e:
-        return None, str(e)
+        return None, str(e), proxy_used
+
+
+def rotate_warp():
+    """Re-register WARP with fresh credentials to get a new exit IP."""
+    try:
+        print("[WARP] Rotating WARP IP via full re-registration...", file=sys.stderr)
+
+        # Kill wireproxy
+        subprocess.run(['pkill', '-f', 'wireproxy'], timeout=5, capture_output=True)
+        time.sleep(2)
+
+        # Re-register WARP with fresh credentials
+        warp_dir = '/app/warp'
+        subprocess.run(['rm', '-f', f'{warp_dir}/wgcf-account.toml', f'{warp_dir}/wgcf-profile.conf'], timeout=5)
+        result = subprocess.run(['wgcf', 'register', '--accept-tos'], capture_output=True, text=True, timeout=15, cwd=warp_dir)
+        if result.returncode != 0:
+            print(f"[WARP] Registration failed: {result.stderr}", file=sys.stderr)
+            return
+
+        result = subprocess.run(['wgcf', 'generate'], capture_output=True, text=True, timeout=10, cwd=warp_dir)
+        if result.returncode != 0:
+            print(f"[WARP] Profile generation failed: {result.stderr}", file=sys.stderr)
+            return
+
+        # Read new credentials and write wireproxy config
+        with open(f'{warp_dir}/wgcf-profile.conf') as f:
+            profile = f.read()
+
+        import re
+        private_key = re.search(r'^PrivateKey\s*=\s*(.+)', profile, re.MULTILINE).group(1).strip()
+        public_key = re.search(r'^PublicKey\s*=\s*(.+)', profile, re.MULTILINE).group(1).strip()
+        address = re.search(r'^Address\s*=\s*(.+)', profile, re.MULTILINE).group(1).strip()
+
+        config = f"""[Interface]
+Address = {address}
+PrivateKey = {private_key}
+DNS = 1.1.1.1, 1.0.0.1
+MTU = 1280
+
+[Peer]
+PublicKey = {public_key}
+Endpoint = 162.159.192.1:2408
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25
+
+[Socks5]
+BindAddress = 127.0.0.1:40000
+"""
+        with open(f'{warp_dir}/wireproxy.conf', 'w') as f:
+            f.write(config)
+
+        # supervisord will auto-restart wireproxy
+        time.sleep(8)
+        _warp_status['available'] = None
+        _warp_status['checked_at'] = 0
+        _blocked_state['blocked'] = False
+        _blocked_state['since'] = 0
+        print(f"[WARP] New credentials generated, wireproxy restarting", file=sys.stderr)
+
+    except Exception as e:
+        print(f"[WARP] Rotation failed: {e}", file=sys.stderr)
+
+
+def extract_with_retry(video_url):
+    """Try extraction with WARP first, fall back to direct.
+    Does NOT rotate WARP IP — watchdog handles that in the background.
+    Fast-fails if recently blocked (cleared by watchdog/rotation).
+    """
+    now = time.time()
+
+    # Fast-fail if IP is known blocked (cleared by watchdog/rotate)
+    if _blocked_state['blocked'] and (now - _blocked_state['since']) < BLOCKED_CACHE_TTL:
+        return None, 'LOGIN_REQUIRED (cached — IP blocked, waiting for rotation)', 'blocked-cache'
+
+    # Try with WARP proxy
+    info, error, proxy_used = run_ytdlp(video_url, use_proxy=True)
+    if info:
+        _blocked_state['blocked'] = False
+        return info, None, proxy_used
+
+    if error and proxy_used == 'warp':
+        if 'Host unreachable' in error or 'ProxyError' in error or 'Socks5Error' in error:
+            _warp_status['available'] = False
+            _warp_status['checked_at'] = now
+
+    # Fallback: try without proxy
+    info, error_direct, proxy_used = run_ytdlp(video_url, use_proxy=False)
+    if info:
+        _blocked_state['blocked'] = False
+        return info, None, proxy_used
+
+    # Mark as blocked if LOGIN_REQUIRED
+    combined_error = error or error_direct or ''
+    if 'LOGIN_REQUIRED' in combined_error or 'not a bot' in combined_error.lower():
+        _blocked_state['blocked'] = True
+        _blocked_state['since'] = now
+
+    return None, combined_error, proxy_used
+
+
+def extract_cached(video_url):
+    """Cached extraction — avoids double yt-dlp runs for extract→download flow."""
+    now = time.time()
+    if video_url in _extract_cache:
+        cached = _extract_cache[video_url]
+        if now - cached['time'] < EXTRACT_CACHE_TTL and cached['info']:
+            return cached['info'], None, cached['proxy_used']
+
+    info, error, proxy_used = extract_with_retry(video_url)
+    if info:
+        _extract_cache[video_url] = {'info': info, 'error': None, 'proxy_used': proxy_used, 'time': now}
+        # Evict old entries
+        for k in list(_extract_cache.keys()):
+            if now - _extract_cache[k]['time'] > EXTRACT_CACHE_TTL:
+                del _extract_cache[k]
+    return info, error, proxy_used
 
 
 @app.route('/')
 def health():
-    """Health check endpoint"""
     return jsonify({
         'status': 'ok',
         'service': 'tanaghum-ytdlp',
-        'version': '3.0.0',
-        'pot_server': POT_SERVER_URL,
+        'version': '5.0.0',
+        'has_cookies': has_cookies(),
         'warp_proxy': is_warp_available()
     })
 
 
 @app.route('/health')
 def health_check():
-    """Health check for Fly.io"""
     return jsonify({'status': 'healthy'})
+
+
+@app.route('/cookies', methods=['GET', 'POST', 'DELETE'])
+def manage_cookies():
+    """Upload/check/delete YouTube cookies for authenticated extraction"""
+    if request.method == 'GET':
+        return jsonify({
+            'has_cookies': has_cookies(),
+            'cookies_size': os.path.getsize(COOKIES_FILE) if has_cookies() else 0
+        })
+
+    # POST and DELETE require admin key
+    key = request.headers.get('X-Admin-Key') or request.args.get('key')
+    if not ADMIN_KEY or key != ADMIN_KEY:
+        return jsonify({'error': 'Invalid or missing admin key'}), 403
+
+    if request.method == 'DELETE':
+        if os.path.exists(COOKIES_FILE):
+            os.remove(COOKIES_FILE)
+        return jsonify({'status': 'deleted'})
+
+    # POST - upload cookies
+    cookies_text = None
+
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        # File upload
+        f = request.files.get('cookies')
+        if f:
+            cookies_text = f.read().decode('utf-8', errors='replace')
+    else:
+        # Raw text or JSON body
+        data = request.get_json(silent=True)
+        if data:
+            cookies_text = data.get('cookies')
+        else:
+            cookies_text = request.get_data(as_text=True)
+
+    if not cookies_text or len(cookies_text) < 10:
+        return jsonify({'error': 'No valid cookies provided'}), 400
+
+    # Validate it looks like Netscape cookie format
+    lines = cookies_text.strip().split('\n')
+    cookie_lines = [l for l in lines if not l.startswith('#') and '\t' in l]
+    if len(cookie_lines) < 1:
+        return jsonify({'error': 'Invalid cookie format. Use Netscape/Mozilla cookie format (tab-separated).'}), 400
+
+    with open(COOKIES_FILE, 'w') as f:
+        f.write(cookies_text)
+
+    return jsonify({
+        'status': 'uploaded',
+        'cookie_count': len(cookie_lines),
+        'size': len(cookies_text)
+    })
 
 
 @app.route('/extract', methods=['GET', 'POST'])
 def extract_audio():
-    """
-    Extract audio URL from YouTube video
-
-    Query params or JSON body:
-    - url: YouTube video URL or ID
-    - format: 'url' (default) or 'info'
-    """
-    # Get URL from query params or JSON body
+    """Extract audio URL from YouTube video"""
     if request.method == 'POST':
         data = request.get_json() or {}
         video_url = data.get('url')
@@ -142,14 +346,10 @@ def extract_audio():
     if not video_url:
         return jsonify({'error': 'Missing url parameter'}), 400
 
-    # Normalize URL
-    if len(video_url) == 11 and not video_url.startswith('http'):
-        video_url = f'https://www.youtube.com/watch?v={video_url}'
-    elif not video_url.startswith('http'):
+    if not video_url.startswith('http'):
         video_url = f'https://www.youtube.com/watch?v={video_url}'
 
-    # Run yt-dlp
-    info, error = run_ytdlp(video_url)
+    info, error, proxy_used = extract_cached(video_url)
 
     if error:
         status_code = 400
@@ -161,37 +361,36 @@ def extract_audio():
             status_code = 403
         elif 'not a bot' in error.lower() or 'LOGIN_REQUIRED' in error:
             status_code = 403
-            # Provide helpful suggestion for blocked content
-            suggestion = 'This video requires authentication. Try using YouTube captions instead, or upload audio directly for Whisper transcription.'
+            if not has_cookies():
+                suggestion = 'YouTube blocked this IP. Upload cookies via /cookies to authenticate.'
+            else:
+                suggestion = 'YouTube cookies may be expired. Re-upload fresh cookies.'
 
-        response = {
-            'error': 'Audio extraction blocked by YouTube. Use captions or Whisper transcription.' if suggestion else error,
+        error_short = error[:500] if len(error) > 500 else error
+
+        return jsonify({
+            'error': error_short,
             'available': False,
             'suggestion': suggestion,
-            'blocked': 'LOGIN_REQUIRED' in error or 'not a bot' in error.lower()
-        }
-        return jsonify(response), status_code
+            'blocked': 'LOGIN_REQUIRED' in error or 'not a bot' in error.lower(),
+            'has_cookies': has_cookies(),
+            'proxy_used': proxy_used
+        }), status_code
 
     if not info:
         return jsonify({'error': 'Could not extract video info', 'available': False}), 404
 
-    # Find best audio format
     formats = info.get('formats', [])
     audio_formats = [f for f in formats if f.get('acodec') != 'none' and f.get('vcodec') == 'none']
-
     if not audio_formats:
-        # Fallback to any format with audio
         audio_formats = [f for f in formats if f.get('acodec') != 'none']
-
     if not audio_formats:
         return jsonify({'error': 'No audio formats available', 'available': False}), 404
 
-    # Sort by quality (bitrate)
     audio_formats.sort(key=lambda x: x.get('abr') or x.get('tbr') or 0, reverse=True)
     best_audio = audio_formats[0]
 
     if output_format == 'info':
-        # Return full info
         return jsonify({
             'videoId': info.get('id'),
             'title': info.get('title'),
@@ -201,81 +400,121 @@ def extract_audio():
             'mimeType': best_audio.get('ext'),
             'bitrate': best_audio.get('abr') or best_audio.get('tbr'),
             'filesize': best_audio.get('filesize'),
-            'available': True
+            'available': True,
+            'proxy_used': proxy_used
         })
     else:
-        # Return just the URL
         return jsonify({
             'videoId': info.get('id'),
             'available': True,
             'audioUrl': best_audio.get('url'),
             'mimeType': f"audio/{best_audio.get('ext', 'webm')}",
             'duration': info.get('duration'),
-            'title': info.get('title')
+            'title': info.get('title'),
+            'proxy_used': proxy_used
         })
 
 
 @app.route('/download', methods=['GET'])
 def download_audio():
-    """
-    Download and stream audio directly (for CORS bypass)
-    Warning: This uses more bandwidth
-    """
+    """Download and stream audio directly through WARP (preserves IP for YouTube URLs)"""
     video_url = request.args.get('url')
-
     if not video_url:
         return jsonify({'error': 'Missing url parameter'}), 400
 
-    # Normalize URL
-    if len(video_url) == 11:
+    if not video_url.startswith('http'):
         video_url = f'https://www.youtube.com/watch?v={video_url}'
 
-    info, error = run_ytdlp(video_url)
-
+    info, error, proxy_used = extract_cached(video_url)
     if error:
-        return jsonify({'error': error}), 500
+        return jsonify({'error': error[:500], 'available': False}), 500
 
     formats = info.get('formats', [])
     audio_formats = [f for f in formats if f.get('acodec') != 'none' and f.get('vcodec') == 'none']
-
     if not audio_formats:
         audio_formats = [f for f in formats if f.get('acodec') != 'none']
-
     if not audio_formats:
-        return jsonify({'error': 'No audio formats available'}), 404
+        return jsonify({'error': 'No audio formats available', 'available': False}), 404
 
     audio_formats.sort(key=lambda x: x.get('abr') or x.get('tbr') or 0, reverse=True)
-    best_audio = audio_formats[0]
-    audio_url = best_audio.get('url')
+    best = audio_formats[0]
+    audio_url = best.get('url')
+    ext = best.get('ext', 'webm')
+    content_type = f"audio/{ext}" if ext in ('webm', 'mp4', 'm4a', 'ogg', 'opus') else 'audio/webm'
 
-    # Stream the audio through our server
-    import requests
-    r = requests.get(audio_url, stream=True)
+    # Stream through WARP to match the IP that extracted the URL
+    proxy_args = ['--proxy', WARP_PROXY] if proxy_used == 'warp' and is_warp_available() else []
+    process = subprocess.Popen(
+        ['curl', '-s', '-L', '--max-time', '300'] + proxy_args + [audio_url],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+
+    def generate():
+        try:
+            while True:
+                chunk = process.stdout.read(8192)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            process.stdout.close()
+            process.wait()
 
     return Response(
-        r.iter_content(chunk_size=8192),
-        content_type=r.headers.get('content-type', 'audio/webm'),
+        generate(),
+        content_type=content_type,
         headers={
-            'Content-Disposition': f'attachment; filename="{info.get("id")}.webm"'
+            'X-Audio-Source': 'ytdlp',
+            'X-Audio-Duration': str(info.get('duration', 0)),
+            'X-Audio-Title': info.get('title', ''),
+            'X-Video-Id': info.get('id', ''),
         }
     )
 
 
+@app.route('/proxy', methods=['POST'])
+def proxy_stream():
+    """Stream a URL through WARP proxy (for IP-locked YouTube audio URLs)"""
+    data = request.get_json() or {}
+    target_url = data.get('url')
+    content_type = data.get('contentType', 'audio/webm')
+
+    if not target_url:
+        return jsonify({'error': 'Missing url parameter'}), 400
+
+    proxy_args = ['--proxy', WARP_PROXY] if is_warp_available() else []
+    process = subprocess.Popen(
+        ['curl', '-s', '-L', '--max-time', '300'] + proxy_args + [target_url],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+
+    def generate():
+        try:
+            while True:
+                chunk = process.stdout.read(8192)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            process.stdout.close()
+            process.wait()
+
+    return Response(generate(), content_type=content_type)
+
+
 @app.route('/info', methods=['GET'])
 def video_info():
-    """Get video metadata without audio URL"""
+    """Get video metadata"""
     video_url = request.args.get('url')
-
     if not video_url:
         return jsonify({'error': 'Missing url parameter'}), 400
 
-    if len(video_url) == 11:
+    if not video_url.startswith('http'):
         video_url = f'https://www.youtube.com/watch?v={video_url}'
 
-    info, error = run_ytdlp(video_url)
-
+    info, error, proxy_used = extract_with_retry(video_url)
     if error:
-        return jsonify({'error': error}), 500
+        return jsonify({'error': error[:500]}), 500
 
     return jsonify({
         'videoId': info.get('id'),
@@ -289,45 +528,76 @@ def video_info():
     })
 
 
+@app.route('/rotate', methods=['POST'])
+def rotate_ip():
+    """Force WARP IP rotation and test YouTube"""
+    key = request.headers.get('X-Admin-Key') or request.args.get('key')
+    if not ADMIN_KEY or key != ADMIN_KEY:
+        return jsonify({'error': 'Invalid or missing admin key'}), 403
+
+    max_attempts = int(request.args.get('attempts', 5))
+    test_video = 'jNQXAC9IVRw'
+
+    for attempt in range(1, max_attempts + 1):
+        rotate_warp()
+
+        # Test YouTube extraction
+        info, error, proxy_used = run_ytdlp(f'https://www.youtube.com/watch?v={test_video}', use_proxy=True)
+        if info:
+            # Get the WARP exit IP
+            try:
+                result = subprocess.run(
+                    ['curl', '-s', '--max-time', '5', '--proxy', WARP_PROXY, 'https://api.ipify.org'],
+                    capture_output=True, text=True, timeout=10
+                )
+                warp_ip = result.stdout.strip()
+            except Exception:
+                warp_ip = 'unknown'
+
+            return jsonify({
+                'status': 'ok',
+                'attempt': attempt,
+                'warp_ip': warp_ip,
+                'youtube_works': True,
+                'test_title': info.get('title')
+            })
+
+    return jsonify({
+        'status': 'failed',
+        'attempts': max_attempts,
+        'youtube_works': False,
+        'message': f'Could not find working WARP IP after {max_attempts} attempts'
+    }), 503
+
+
 @app.route('/debug', methods=['GET'])
 def debug_info():
-    """Debug endpoint to check yt-dlp and plugin status"""
-    import shutil
-
-    # Check yt-dlp version
+    """Debug endpoint"""
     try:
         result = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True)
         ytdlp_version = result.stdout.strip()
-    except:
+    except Exception:
         ytdlp_version = 'Not found'
 
-    # Check if bgutil plugin is installed
     try:
-        result = subprocess.run(['pip', 'list'], capture_output=True, text=True)
-        pip_list = result.stdout
-        has_bgutil = 'bgutil-ytdlp-pot-provider' in pip_list
-    except:
-        has_bgutil = False
-        pip_list = 'Error checking pip'
-
-    # Check if POT server is reachable
-    try:
-        import requests
-        pot_response = requests.get(f'{POT_SERVER_URL}/ping', timeout=2)
+        import requests as req
+        pot_response = req.get(f'{POT_SERVER_URL}/ping', timeout=2)
         pot_status = pot_response.status_code
     except Exception as e:
         pot_status = f'Error: {e}'
 
-    # Check if WARP proxy is running
-    warp_available = is_warp_available()
+    try:
+        result = subprocess.run(['node', '--version'], capture_output=True, text=True)
+        node_version = result.stdout.strip()
+    except Exception:
+        node_version = 'Not found'
 
     return jsonify({
         'ytdlp_version': ytdlp_version,
-        'bgutil_installed': has_bgutil,
-        'pot_server_url': POT_SERVER_URL,
         'pot_server_status': pot_status,
-        'warp_proxy': WARP_PROXY,
-        'warp_available': warp_available
+        'warp_available': is_warp_available(force=True),
+        'has_cookies': has_cookies(),
+        'node_version': node_version,
     })
 
 

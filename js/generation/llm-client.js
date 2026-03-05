@@ -10,6 +10,7 @@ import { EventBus, Events } from '../core/event-bus.js';
 import { StateManager } from '../core/state-manager.js';
 import { retry, createLogger, fetchWithRetry, getActionableError } from '../core/utils.js';
 import { authManager } from '../core/auth.js';
+import { QuestionValidator } from './question-validator.js';
 
 const log = createLogger('LLM');
 
@@ -22,7 +23,7 @@ const PROVIDERS = {
   google: {
     name: 'Google AI Studio',
     endpoint: '/api/llm/google',
-    model: 'gemini-2.0-flash',
+    model: 'gemini-2.5-flash',
     dailyLimit: 1500,
     rateLimit: 15,
     supportsJson: true,
@@ -75,6 +76,33 @@ class LLMClient {
     this.quotas = this.loadQuotas();
     this.currentProvider = this.selectBestProvider();
     log.log(`LLM Client v${LLM_CLIENT_VERSION} initialized`);
+  }
+
+  /**
+   * Get a locally-stored API key for direct provider calls (bypasses worker)
+   * @param {string} provider - Provider name (e.g. 'google')
+   * @returns {string|null}
+   */
+  getLocalApiKey(provider) {
+    try {
+      return localStorage.getItem(`tanaghum_apikey_${provider}`) || null;
+    } catch { return null; }
+  }
+
+  /**
+   * Set a local API key for direct provider calls
+   * @param {string} provider - Provider name
+   * @param {string} key - API key
+   */
+  setLocalApiKey(provider, key) {
+    try {
+      if (key) {
+        localStorage.setItem(`tanaghum_apikey_${provider}`, key);
+        log.log(`Local ${provider} API key saved`);
+      } else {
+        localStorage.removeItem(`tanaghum_apikey_${provider}`);
+      }
+    } catch (e) { log.warn('Failed to save local key:', e); }
   }
 
   /**
@@ -260,7 +288,7 @@ class LLMClient {
       maxTokens = 2048,
       jsonMode = false,
       provider = null, // Force specific provider
-      retries = 2,
+      retries = 4, // More retries to handle 429 rate limits with longer backoff
       timeout = 45000, // 45 second timeout per request
       signal = null, // AbortSignal for cancellation
       _fallbackAttempt = 0 // Internal: track fallback depth to prevent infinite recursion
@@ -299,9 +327,59 @@ class LLMClient {
 
     log.log(`Making LLM request to ${providerConfig.name} (${providerConfig.model})`);
 
+    // Check for local Google API key (bypasses worker, calls Google directly)
+    const localGoogleKey = providerId === 'google' ? this.getLocalApiKey('google') : null;
+
     // Make request with retry and timeout
     const makeRequest = async () => {
-      const response = await fetchWithRetry(`${this.workerUrl}${providerConfig.endpoint}`, {
+      let response;
+
+      if (localGoogleKey) {
+        // Direct call to Google's API (CORS-enabled, bypasses worker rate limits)
+        log.log('Using local Google API key (direct call)');
+        const googleBody = {
+          ...(body.systemPrompt ? { systemInstruction: { parts: [{ text: body.systemPrompt }] } } : {}),
+          contents: [{ parts: [{ text: body.prompt }] }],
+          generationConfig: {
+            temperature: body.temperature || 0.7,
+            maxOutputTokens: body.maxTokens || 2048,
+            responseMimeType: body.jsonMode ? 'application/json' : 'text/plain'
+          }
+        };
+        response = await fetchWithRetry(
+          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(providerConfig.model)}:generateContent?key=${localGoogleKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(googleBody),
+            timeout: timeout,
+            maxRetries: retries,
+            signal: signal
+          }
+        );
+
+        if (!response.ok) {
+          const errorBody = await response.text();
+          const err = new Error(`Google API error: ${response.status}`);
+          err.status = response.status;
+          throw err;
+        }
+
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        return {
+          provider: 'google',
+          model: providerConfig.model,
+          text,
+          usage: {
+            promptTokens: data.usageMetadata?.promptTokenCount || 0,
+            completionTokens: data.usageMetadata?.candidatesTokenCount || 0
+          }
+        };
+      }
+
+      // Standard path: proxy through worker
+      response = await fetchWithRetry(`${this.workerUrl}${providerConfig.endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -352,20 +430,39 @@ class LLMClient {
       const shouldFallback = !provider; // Only fallback if not forcing a specific provider
 
       if (shouldFallback) {
-        // Handle timeout - try next provider
+        // Handle timeout - mark provider so we try a different one
         if (error.name === 'AbortError') {
-          log.warn(`Provider ${providerId} timed out, trying next provider...`);
+          this.quotas[providerId] = 0;
+          log.warn(`Provider ${providerId} timed out, marking as exhausted`);
           EventBus.emit(Events.LLM_PROVIDER_SWITCH, {
             from: providerId,
             to: 'next',
             reason: 'timeout'
           });
         }
-        // Only mark as exhausted for rate limit errors, not temporary failures
+        // For rate limit errors, temporarily cool down rather than permanently exhaust
         else if (this.isRateLimitError(error)) {
-          this.quotas[providerId] = 0; // Mark as exhausted for this session
-          this.saveQuotas();
-          log.warn(`Provider ${providerId} rate limited, marking as exhausted`);
+          // Check if error message indicates a permanent quota issue vs temporary rate limit
+          const msg = error.message?.toLowerCase() || '';
+          const isPermanentQuota = msg.includes('quota exceeded') || msg.includes('daily quota');
+          if (isPermanentQuota) {
+            this.quotas[providerId] = 0;
+            this.saveQuotas();
+            log.warn(`Provider ${providerId} daily quota exceeded, marking as exhausted`);
+          } else {
+            // Temporary rate limit — save current quota, cool down, then restore
+            const savedQuota = this.quotas[providerId];
+            this.quotas[providerId] = 0;
+            log.warn(`Provider ${providerId} rate limited, cooling down for 30s (quota preserved: ${savedQuota})`);
+            // Restore quota after cooldown so the provider can be retried later
+            setTimeout(() => {
+              if (this.quotas[providerId] === 0 && savedQuota > 0) {
+                this.quotas[providerId] = savedQuota;
+                this.saveQuotas();
+                log.log(`Provider ${providerId} cooldown complete, quota restored to ${savedQuota}`);
+              }
+            }, 30000);
+          }
         } else if (!this.isTemporaryError(error)) {
           // For non-temporary errors (auth, bad request), also mark exhausted
           this.quotas[providerId] = 0;
@@ -379,7 +476,7 @@ class LLMClient {
           log.log(`Falling back to ${fallbackProvider}`);
           return this.request({
             ...options,
-            provider: fallbackProvider,
+            provider: null, // Don't force — allow deeper fallback if this one also fails
             _fallbackAttempt: _fallbackAttempt + 1
           });
         }
@@ -455,7 +552,7 @@ class LLMClient {
       jsonText = jsonText
         .replace(/,\s*}/g, '}')  // Remove trailing commas in objects
         .replace(/,\s*\]/g, ']') // Remove trailing commas in arrays
-        .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+        .replace(/[\x00-\x1F\x7F\u2028\u2029]/g, '') // Remove control characters and line/paragraph separators
         .trim();
 
       result.data = JSON.parse(jsonText);
@@ -639,7 +736,9 @@ ${transcript.substring(0, 3000)}`;
       count = 5,
       ilrLevel = 2.0,
       topic = 'general',
-      existingQuestions = []
+      duration = 0,
+      existingQuestions = [],
+      signal = null
     } = options;
 
     const phaseDescriptions = {
@@ -654,9 +753,20 @@ ${transcript.substring(0, 3000)}`;
       post: ['vocabulary_in_context', 'speaker_attitude', 'synthesis', 'evaluation']
     };
 
+    // ILR-level specific guidance for question complexity
+    const ilrGuidance = {
+      1.0: 'Use SIMPLE vocabulary and SHORT sentences. Questions should test basic comprehension of concrete facts (who, what, where). Avoid abstract concepts.',
+      1.5: 'Use simple vocabulary with some common expressions. Questions about routine topics, basic facts, and simple sequences.',
+      2.0: 'Standard vocabulary. Questions can test factual details, simple inferences, and main ideas from news or narratives.',
+      2.5: 'Moderately complex vocabulary. Questions can involve implied meaning, speaker purpose, and connections between ideas.',
+      3.0: 'Advanced vocabulary allowed. Questions can test nuanced understanding, rhetorical devices, and complex arguments.',
+      3.5: 'Full complexity. Questions can address subtle implications, cultural references, and evaluative analysis.'
+    };
+
     const systemPrompt = `You are an expert Arabic language teacher creating HIGH-QUALITY comprehension questions for ILR level ${ilrLevel} learners.
 
 ${phaseDescriptions[phase]}
+${ilrGuidance[ilrLevel] || ilrGuidance[2.0]}
 
 Question types for this phase: ${questionTypes[phase].join(', ')}
 
@@ -683,14 +793,16 @@ RULE 4 - ANSWER VERIFICATION:
 - If you cannot quote the text to justify an answer, DO NOT include that question
 
 FORMAT (4 options):
-- Option A: CORRECT - verifiable from text
-- Option B: PLAUSIBLE but wrong
-- Option C: WRONG but topically related
-- Option D: CLEARLY WRONG
+- One option: CORRECT - verifiable from text
+- One option: PLAUSIBLE but wrong (most common student mistake)
+- One option: WRONG but topically related
+- One option: CLEARLY WRONG
+Place the correct answer in a RANDOM position (not always first).
 
-Fewer excellent questions > many questionable ones.`;
+If the text is too short to support ${count} good questions, return FEWER rather than inventing content.`;
 
     const prompt = `Create ${count} HIGH-QUALITY ${phase}-listening comprehension questions for this Arabic text about "${topic}".
+${duration > 0 ? `Audio duration: ${Math.round(duration)} seconds.` : ''}
 
 CRITICAL REMINDERS:
 - ONLY ask about information EXPLICITLY stated in the text below
@@ -698,8 +810,7 @@ CRITICAL REMINDERS:
 - Use ONLY Arabic (text_ar) and English (text_en) - NO other languages
 - Correct answers must be VERIFIABLE from the text
 
-${existingQuestions.length > 0 ? `Avoid these topics already covered: ${existingQuestions.map(q => q.skill).join(', ')}\n` : ''}
-
+${existingQuestions.length > 0 ? `Avoid asking about these topics already covered:\n${existingQuestions.slice(0, 10).map(q => `- ${q.question_text?.en || q.question_en || ''}`).filter(t => t !== '- ').join('\n')}\n` : ''}
 Return JSON array where each question has:
 - type: "multiple_choice" | "true_false"
 - skill: one of ${JSON.stringify(questionTypes[phase])}
@@ -709,7 +820,7 @@ Return JSON array where each question has:
 - correct_answer: boolean (for true_false)
 - explanation_ar, explanation_en: explain why correct answer is right AND why the plausible answer is not the best choice
 - distractor_explanations: object mapping each wrong option's text_en to a brief English explanation of why it is wrong. Example: {"option B text": "This is wrong because...", "option C text": "This is wrong because..."}
-${phase === 'while' ? '- timestamp_percent: number 0-1 indicating when in audio this appears' : ''}
+${phase === 'while' && duration > 0 ? `- timestamp_percent: number 0-1 indicating when in the ${Math.round(duration)}s audio this content appears` : phase === 'while' ? '- timestamp_percent: number 0-1 indicating when in audio this appears' : ''}
 
 VERIFY: Before including any question, confirm the answer is IN THE TEXT.
 
@@ -721,9 +832,9 @@ ${transcript}`;
     const result = await this.json({
       prompt,
       systemPrompt,
-      temperature: 0.7,
-      maxTokens: 4096,
-      ...options
+      temperature: 0.3,
+      maxTokens: Math.min(16384, Math.max(6144, count * 2000)),
+      signal
     });
 
     log.log('LLM response received, parsing questions...');
@@ -864,6 +975,16 @@ ${transcript}`;
           : null,
         timestamp_percent: q.timestamp_percent
       };
+
+      // Shuffle options so correct answer isn't always A
+      if (cleaned.type === 'multiple_choice' && cleaned.options.length > 1) {
+        for (let j = cleaned.options.length - 1; j > 0; j--) {
+          const k = Math.floor(Math.random() * (j + 1));
+          [cleaned.options[j], cleaned.options[k]] = [cleaned.options[k], cleaned.options[j]];
+        }
+        cleaned.options.forEach((opt, idx) => { opt.id = String.fromCharCode(97 + idx); });
+      }
+
       return cleaned;
     });
 
@@ -895,8 +1016,7 @@ ${transcript}`;
     for (const q of questions) {
       // Normalize question text for comparison (remove punctuation, extra spaces)
       const norm = (q.question_text.ar || '').replace(/[؟?!.,،]/g, '').replace(/\s+/g, ' ').trim();
-      // Use first 30 chars as a fingerprint (catches near-duplicates)
-      const fingerprint = norm.substring(0, 30);
+      const fingerprint = norm;
       if (seenQuestions.has(fingerprint)) {
         log.warn(`Dropping duplicate question: ${q.question_text.en}`);
         continue;
@@ -907,6 +1027,18 @@ ${transcript}`;
     questions = deduplicated;
 
     // Re-index after filtering
+    questions = questions.map((q, i) => ({ ...q, id: `${phase}-${i + 1}` }));
+
+    // Validate with QuestionValidator — drop questions with structural errors
+    questions = questions.filter(q => {
+      const result = QuestionValidator.validate(q, phase);
+      if (!result.isValid) {
+        log.warn(`Dropping invalid question: ${result.errors.join(', ')}`);
+      }
+      return result.isValid;
+    });
+
+    // Re-index after validation
     questions = questions.map((q, i) => ({ ...q, id: `${phase}-${i + 1}` }));
 
     return questions;
@@ -960,7 +1092,7 @@ OUTPUT (JSON array only, no other text):`;
         prompt,
         systemPrompt,
         temperature: 0.2,
-        maxTokens: 3000,
+        maxTokens: Math.max(4096, count * 350),
         ...options
       });
 

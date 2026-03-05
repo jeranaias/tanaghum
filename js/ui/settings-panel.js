@@ -51,7 +51,11 @@ export function initSettingsPanel() {
  * Open the settings modal
  */
 async function openSettings() {
-  if (!authManager.isAuthenticated) return;
+  if (!authManager.isAuthenticated) {
+    // Notify user they need to sign in
+    EventBus.emit('toast', { type: 'info', title: 'Sign In Required', message: 'Please sign in to manage API keys and providers' });
+    return;
+  }
 
   // Create modal if it doesn't exist
   if (!modalElement) {
@@ -165,8 +169,13 @@ function renderKeyForms() {
  * Refresh settings data from server
  */
 async function refreshSettings() {
-  // Load keys
-  const keys = await authManager.getKeys();
+  let keys = [];
+  try {
+    keys = await authManager.getKeys();
+  } catch (error) {
+    console.error('Failed to load keys:', error);
+    return;
+  }
   const configuredProviders = new Set(keys.map(k => k.provider));
 
   PROVIDERS.forEach(p => {
@@ -192,7 +201,12 @@ async function refreshSettings() {
   });
 
   // Load quota
-  const quota = await authManager.getQuota();
+  let quota;
+  try {
+    quota = await authManager.getQuota();
+  } catch (error) {
+    console.error('Failed to load quota:', error);
+  }
   const quotaEl = document.getElementById('settings-quota');
   if (quotaEl && quota) {
     quotaEl.innerHTML = `
@@ -229,17 +243,23 @@ async function saveKey(provider) {
   saveBtn.textContent = 'Saving...';
   saveBtn.disabled = true;
 
-  const success = await authManager.saveKey(provider, apiKey);
+  try {
+    const success = await authManager.saveKey(provider, apiKey);
 
-  saveBtn.textContent = 'Save';
-  saveBtn.disabled = false;
-
-  if (success) {
-    input.value = '';
-    await refreshSettings();
-  } else {
+    if (success) {
+      input.value = '';
+      await refreshSettings();
+    } else {
+      input.classList.add('input-error');
+      setTimeout(() => input.classList.remove('input-error'), 2000);
+    }
+  } catch (error) {
+    console.error('Failed to save key:', error);
     input.classList.add('input-error');
     setTimeout(() => input.classList.remove('input-error'), 2000);
+  } finally {
+    saveBtn.textContent = 'Save';
+    saveBtn.disabled = false;
   }
 }
 
@@ -254,12 +274,15 @@ async function deleteKey(provider) {
   deleteBtn.textContent = 'Removing...';
   deleteBtn.disabled = true;
 
-  const success = await authManager.deleteKey(provider);
-
-  deleteBtn.textContent = 'Remove';
-  deleteBtn.disabled = false;
-
-  if (success) {
-    await refreshSettings();
+  try {
+    const success = await authManager.deleteKey(provider);
+    if (success) {
+      await refreshSettings();
+    }
+  } catch (error) {
+    console.error('Failed to delete key:', error);
+  } finally {
+    deleteBtn.textContent = 'Remove';
+    deleteBtn.disabled = false;
   }
 }

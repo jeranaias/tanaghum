@@ -103,7 +103,7 @@
         </div>
 
         <!-- Find Videos (Search) - DEFAULT -->
-        <div class="source-content" id="source-search" role="tabpanel" aria-labelledby="tab-search">
+        <div class="source-content" id="source-search">
           <!-- Topic Dropdown -->
           <div class="form-group">
             <label for="topic-select" class="form-label">Topic</label>
@@ -174,19 +174,19 @@
         </div>
 
         <!-- YouTube URL Input (Secondary) -->
-        <div class="source-content hidden" id="source-youtube" role="tabpanel" aria-labelledby="tab-youtube">
+        <div class="source-content hidden" id="source-youtube">
           <div class="form-group">
             <label class="form-label" for="youtube-url">YouTube URL</label>
             <input type="url" id="youtube-url" class="form-input"
                    placeholder="https://youtube.com/watch?v=..."
                    pattern="https?://(www\.)?(youtube\.com|youtu\.be)/.+"
                    aria-describedby="youtube-hint">
-            <p class="form-hint" id="youtube-hint">Works with any Arabic video that has captions</p>
+            <p class="form-hint" id="youtube-hint">Works with any Arabic video (captions or auto-transcription)</p>
           </div>
         </div>
 
         <!-- Upload Input -->
-        <div class="source-content hidden" id="source-upload" role="tabpanel" aria-labelledby="tab-upload">
+        <div class="source-content hidden" id="source-upload">
           <div id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-label="Upload audio file. Drag and drop or click to upload">
             <span class="drop-icon" aria-hidden="true">&#128193;</span>
             <span>Drag & drop or click to upload</span>
@@ -264,7 +264,7 @@
           <div style="font-size: 64px; opacity: 0.3; margin-bottom: 24px;" aria-hidden="true">&#127911;</div>
           <p style="margin-bottom: 12px; font-size: 1.25rem; font-weight: 600;">Ready to Generate</p>
           <p style="color: var(--color-text-secondary); max-width: 400px; margin: 0 auto;">
-            Select a content source from the left panel, set your target ILR level and topic,
+            Select a content source above, set your target ILR level and topic,
             then click "Generate Lesson" to begin.
           </p>
         </div>
@@ -500,7 +500,7 @@
           <div class="quota-bar">
             <div class="quota-fill" id="quota-fill-google" style="width: 100%"></div>
           </div>
-          <div class="quota-text" id="quota-text-google">250 / 250 requests remaining today</div>
+          <div class="quota-text" id="quota-text-google">Loading quota...</div>
         </div>
 
       </div>
@@ -512,7 +512,7 @@
           <div class="tips-title">Getting the Best Results</div>
           <ul class="tips-list">
             <li>Choose videos with clear audio and minimal background noise</li>
-            <li>YouTube videos with existing captions work best</li>
+            <li>Videos with captions are faster; others are auto-transcribed</li>
             <li>Keep duration under 5 minutes for faster processing</li>
             <li>Select the appropriate ILR level for your students</li>
           </ul>
@@ -1161,6 +1161,7 @@
 
             // Update progress bar
             $('#progress-fill').style.width = `${percent}%`;
+            $('#progress-fill').parentElement.setAttribute('aria-valuenow', Math.round(percent));
 
             // Progressive save when step completes (percent reaches next threshold)
             if (step !== lastCompletedStep && data) {
@@ -1240,6 +1241,13 @@
       $('#export-btn').disabled = false;
       showPublishButton();
 
+      // Disable ILR slider when lesson is generated (changing it would require regeneration)
+      const ilrSlider = $('#ilr-slider');
+      if (ilrSlider) {
+        ilrSlider.disabled = true;
+        ilrSlider.title = 'Regenerate lesson to change ILR level';
+      }
+
       // Populate with real lesson data
       const lesson = StateManager.get('lesson');
       if (lesson) {
@@ -1250,7 +1258,18 @@
       }
     }
 
+    // Track whether confidence data is genuinely varied across segments
+    let _hasVariedConfidence = false;
+
+    function detectConfidenceVariation(segments) {
+      if (!segments || segments.length < 2) return false;
+      const values = new Set(segments.map(s => Math.round((s.confidence || 0.8) * 100)));
+      return values.size > 1;
+    }
+
     function getConfidenceClass(confidence) {
+      // If all segments have the same confidence, don't color-code (show as high)
+      if (!_hasVariedConfidence) return 'confidence-high';
       // Map confidence score to CSS class
       if (confidence >= 0.85) return 'confidence-high';
       if (confidence >= 0.6) return 'confidence-medium';
@@ -1258,6 +1277,9 @@
     }
 
     function populateLessonData(lesson) {
+      // Check if confidence data is genuinely per-segment or just a uniform default
+      _hasVariedConfidence = detectConfidenceVariation(lesson.content.transcript.segments);
+
       // Populate transcript with confidence-based coloring
       const transcriptHtml = lesson.content.transcript.segments.map((seg, idx) => {
         const confidence = seg.confidence || 0.8;
@@ -1272,7 +1294,7 @@
                data-confidence="${confidence}"
                title="Confidence: ${confidencePercent}%">
             <span class="segment-time">${formatTime(seg.start)}</span>
-            <span class="segment-text" contenteditable="true" dir="rtl" lang="ar">${seg.text}</span>
+            <span class="segment-text" contenteditable="true" dir="rtl" lang="ar">${escapeHtml(seg.text)}</span>
           </div>
         `;
       }).join('');
@@ -1294,6 +1316,20 @@
       const uniqueWords = new Set(words.map(w => w.replace(/[\u064B-\u065F]/g, ''))); // Remove diacritics for comparison
       $('#result-words').textContent = words.length;
       $('#result-unique').textContent = `${uniqueWords.size} unique`;
+
+      // Update ILR level from analysis
+      const ilrLevel = lesson.analysis?.ilrLevel || lesson.analysis?.score || lesson.metadata?.ilr?.detected || '2.0';
+      const ilrNames = {
+        '1.0': 'Elementary', '1': 'Elementary',
+        '1.5': 'Elementary+', '1+': 'Elementary+',
+        '2.0': 'Limited Working', '2': 'Limited Working',
+        '2.5': 'Limited Working+', '2+': 'Limited Working+',
+        '3.0': 'General Professional', '3': 'General Professional',
+        '3.5': 'General Professional+', '3+': 'General Professional+'
+      };
+      const ilrStr = String(ilrLevel);
+      $('#result-ilr').textContent = ilrStr;
+      $('#result-ilr-name').textContent = ilrNames[ilrStr] || 'Limited Working';
 
       // Update dialect
       const dialect = lesson.content?.dialect?.detected || 'msa';
@@ -1360,6 +1396,10 @@
             segment.title = 'Confidence: 100% (corrected)';
           }
 
+          // Rebuild full transcript text from all segments
+          lesson.content.transcript.text = lesson.content.transcript.segments
+            .map(s => s.text).join(' ');
+
           // Update state
           StateManager.set('lesson', lesson);
 
@@ -1410,7 +1450,7 @@
                data-confidence="${seg.confidence}"
                title="Confidence: ${confidencePercent}%">
             <span class="segment-time">${formatTime(seg.start)}</span>
-            <span class="segment-text" contenteditable="true" dir="rtl" lang="ar">${seg.text}</span>
+            <span class="segment-text" contenteditable="true" dir="rtl" lang="ar">${escapeHtml(seg.text)}</span>
           </div>
         `;
       }).join('');
@@ -1452,6 +1492,40 @@
         `).join('');
       });
     }
+
+    // Back button - return to input state while preserving lesson data
+    $('#back-btn').addEventListener('click', () => {
+      $('#review-state').classList.add('hidden');
+      $('#input-state').classList.remove('hidden');
+
+      // Reset step indicators to step 1
+      document.querySelectorAll('.step').forEach((step, i) => {
+        step.classList.remove('active', 'completed');
+        if (i === 0) step.classList.add('active');
+      });
+
+      // Disable review-only buttons
+      $('#back-btn').disabled = true;
+      $('#preview-btn').disabled = true;
+      $('#export-btn').disabled = true;
+      hidePublishButton();
+
+      // Re-enable ILR slider
+      const ilrSlider = $('#ilr-slider');
+      if (ilrSlider) {
+        ilrSlider.disabled = false;
+        ilrSlider.title = '';
+      }
+    });
+
+    // Edit Transcript button - scroll to transcript and focus first editable segment
+    $('#edit-transcript-btn')?.addEventListener('click', () => {
+      const firstSegment = document.querySelector('.segment-text[contenteditable]');
+      if (firstSegment) {
+        firstSegment.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => firstSegment.focus(), 300);
+      }
+    });
 
     // Start Over button - clear everything and reset to initial state
     $('#start-over-btn').addEventListener('click', () => {
@@ -2159,7 +2233,7 @@
         return `
           <div class="video-search-card ${ilrMatch ? 'recommended' : ''}"
                data-video-id="${escapeHtml(video.videoId)}"
-               data-video='${JSON.stringify(video).replace(/'/g, "&#39;")}'
+               data-video='${escapeHtml(JSON.stringify(video))}'
                data-estimated-ilr="${estimatedIlr}">
             <img class="video-thumb-small" src="${escapeHtml(video.thumbnail)}" alt="${escapeHtml(video.title)}" loading="lazy">
             <div class="video-info">
@@ -2359,7 +2433,7 @@
     EventBus.on(Events.LLM_QUOTA_UPDATE, (quotas) => {
       console.log('LLM quotas updated:', quotas);
 
-      const limits = { google: 1500 };
+      const limits = { google: 1500, groq: 1000, cerebras: 1000, openrouter: 200 };
 
       for (const [provider, remaining] of Object.entries(quotas)) {
         const limit = limits[provider] || 100;
