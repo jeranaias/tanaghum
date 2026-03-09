@@ -1536,6 +1536,8 @@ h2.section-title {
 .action-group {
   display: flex;
   gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 /* ============================================

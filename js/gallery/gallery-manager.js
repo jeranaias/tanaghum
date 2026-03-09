@@ -269,7 +269,7 @@ class GalleryManager {
       videoId: apiLesson.video_id || '',
       sourceType: apiLesson.source_type || '',
       wordCount: apiLesson.word_count || 0,
-      thumbnail: null, // API lessons use placeholder
+      thumbnail: apiLesson.video_id ? `https://i.ytimg.com/vi/${apiLesson.video_id}/hqdefault.jpg` : null,
       _fromApi: true
     };
   }
@@ -518,11 +518,16 @@ class GalleryManager {
     const duration = this.formatDuration(lesson.duration);
     const rating = this.renderStars(lesson.rating || 0);
 
+    // Use YouTube thumbnail if videoId is available
+    const thumbnailUrl = lesson.thumbnail ||
+      (lesson.videoId ? `https://i.ytimg.com/vi/${lesson.videoId}/hqdefault.jpg` : null);
+
     return `
       <div class="lesson-card" data-lesson-id="${lesson.id}">
         <div class="card-thumbnail">
-          ${lesson.thumbnail ?
-            `<img src="${escapeHtmlGallery(lesson.thumbnail)}" alt="${escapeHtmlGallery(lesson.titleEn)}">` :
+          ${thumbnailUrl ?
+            `<img src="${escapeHtmlGallery(thumbnailUrl)}" alt="${escapeHtmlGallery(lesson.titleEn)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+             <div class="card-thumbnail-placeholder" style="display:none">${this.getTopicIcon(lesson.topic)}</div>` :
             `<div class="card-thumbnail-placeholder">${this.getTopicIcon(lesson.topic)}</div>`
           }
           <div class="card-duration">${duration}</div>
@@ -605,8 +610,18 @@ class GalleryManager {
     this.previewTitle.textContent = lesson.titleEn;
 
     // Render preview content
+    const previewThumb = lesson.thumbnail ||
+      (lesson.videoId ? `https://i.ytimg.com/vi/${lesson.videoId}/hqdefault.jpg` : null);
+
     this.previewBody.innerHTML = `
       <div class="preview-content">
+        ${previewThumb ? `
+          <div class="preview-thumbnail" style="width:100%;max-height:280px;overflow:hidden;border-radius:8px;margin-bottom:16px;">
+            <img src="${escapeHtmlGallery(previewThumb)}" alt="${escapeHtmlGallery(lesson.titleEn)}"
+                 style="width:100%;height:auto;display:block;object-fit:cover;"
+                 onerror="this.parentElement.style.display='none'">
+          </div>
+        ` : ''}
         <div class="preview-header">
           <h2 class="preview-title-ar">${escapeHtmlGallery(lesson.title)}</h2>
           <p class="preview-title-en">${escapeHtmlGallery(lesson.titleEn)}</p>

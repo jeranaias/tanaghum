@@ -380,8 +380,9 @@
       <div class="content-card hidden" id="review-state">
         <div class="content-card-header">
           <h2 class="content-card-title">Review Lesson</h2>
-          <div>
+          <div style="display: flex; gap: 8px;">
             <button class="btn btn-secondary btn-sm" id="edit-transcript-btn">Edit Transcript</button>
+            <button class="btn btn-ghost btn-sm" id="regenerate-transcript-btn" title="Re-run transcription from audio">Regenerate Transcript</button>
           </div>
         </div>
 
@@ -475,13 +476,12 @@
       <!-- Action Bar -->
       <div class="action-bar" id="action-bar" role="toolbar" aria-label="Lesson actions">
         <div class="action-group">
-          <button class="btn btn-ghost" id="back-btn" type="button" disabled>Back</button>
-          <button class="btn btn-danger" id="start-over-btn" type="button" title="Clear everything and start fresh">Start Over</button>
-          <button class="btn btn-ghost" id="reset-quota-btn" type="button" title="Reset LLM quotas if you ran out">Reset LLM Quota</button>
+          <button class="btn btn-danger btn-sm" id="start-over-btn" type="button" title="Clear everything and start fresh">Start Over</button>
+          <button class="btn btn-ghost btn-sm" id="reset-quota-btn" type="button" title="Reset LLM quotas if you ran out">Reset Quota</button>
         </div>
         <div class="action-group">
           <button class="btn btn-secondary" id="preview-btn" type="button" disabled>Preview</button>
-          <button class="btn btn-primary" id="export-btn" type="button" disabled>Export Lesson</button>
+          <button class="btn btn-primary" id="export-btn" type="button" disabled>Export HTML</button>
           <button class="btn btn-primary" id="publish-gallery-btn" type="button" disabled style="display:none;" title="Share this lesson with all users">Publish to Gallery</button>
         </div>
       </div>
@@ -1236,7 +1236,7 @@
       document.querySelector('[data-step="3"]').classList.add('active');
 
       // Enable buttons
-      $('#back-btn').disabled = false;
+      $('#back-btn') && ($('#back-btn').disabled = false);
       $('#preview-btn').disabled = false;
       $('#export-btn').disabled = false;
       showPublishButton();
@@ -1493,8 +1493,8 @@
       });
     }
 
-    // Back button - return to input state while preserving lesson data
-    $('#back-btn').addEventListener('click', () => {
+    // Back button - return to input state while preserving lesson data (button may not exist)
+    $('#back-btn')?.addEventListener('click', () => {
       $('#review-state').classList.add('hidden');
       $('#input-state').classList.remove('hidden');
 
@@ -1505,7 +1505,7 @@
       });
 
       // Disable review-only buttons
-      $('#back-btn').disabled = true;
+      $('#back-btn') && ($('#back-btn').disabled = true);
       $('#preview-btn').disabled = true;
       $('#export-btn').disabled = true;
       hidePublishButton();
@@ -1524,6 +1524,84 @@
       if (firstSegment) {
         firstSegment.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setTimeout(() => firstSegment.focus(), 300);
+      }
+    });
+
+    // Regenerate Transcript button - re-run transcription from the same source
+    $('#regenerate-transcript-btn')?.addEventListener('click', async () => {
+      const source = StateManager.get('source');
+      if (!source) {
+        showToast('error', 'No source', 'No audio source available to re-transcribe');
+        return;
+      }
+      if (!confirm('Re-run transcription? This will replace the current transcript and regenerate questions.')) {
+        return;
+      }
+
+      const btn = $('#regenerate-transcript-btn');
+      btn.disabled = true;
+      btn.textContent = 'Regenerating...';
+
+      try {
+        showToast('info', 'Regenerating', 'Re-transcribing audio...');
+
+        // Clear transcription cache so we get a fresh transcription
+        try {
+          const { transcriptionService } = await import('./js/transcription/transcription-service.js');
+          await transcriptionService.invalidateCache(source);
+        } catch (e) {
+          console.warn('Failed to invalidate transcription cache:', e);
+        }
+
+        // Switch back to processing view
+        $('#review-state').classList.add('hidden');
+        $('#processing-state').classList.remove('hidden');
+
+        // Reset step indicators
+        document.querySelectorAll('.step').forEach((step, i) => {
+          step.classList.remove('active', 'completed');
+          if (i <= 1) step.classList.add('completed');
+        });
+        document.querySelector('[data-step="transcribe"]')?.classList.add('active');
+
+        // Create new abort controller
+        generationAbortController = new AbortController();
+
+        const targetIlr = StateManager.get('params.targetIlr') || 2.0;
+        const topic = StateManager.get('params.topic') || 'general';
+
+        // Re-run the full workflow
+        await lessonGeneratorWorkflow.generate({
+          source,
+          targetIlr,
+          topic,
+          signal: generationAbortController?.signal,
+          onProgress: (progress) => {
+            const { step, percent, message, stage } = progress;
+            const stepEl = document.querySelector(`[data-step="${step}"]`);
+            if (stepEl) {
+              stepEl.classList.add('active');
+              stepEl.querySelector('.processing-step-status').textContent = message || 'In progress...';
+            }
+            $('#progress-fill').style.width = `${percent}%`;
+            $('#processing-status').textContent = message || stage || 'Processing...';
+          }
+        });
+
+        generationAbortController = null;
+        showReviewStateWithLesson();
+        showToast('success', 'Done', 'Transcript regenerated successfully');
+      } catch (error) {
+        console.error('Regeneration failed:', error);
+        if (error.name !== 'AbortError') {
+          showToast('error', 'Regeneration Failed', error.message);
+        }
+        // Return to review state
+        $('#processing-state').classList.add('hidden');
+        $('#review-state').classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Regenerate Transcript';
       }
     });
 
@@ -1555,7 +1633,7 @@
       });
 
       // Reset action buttons
-      $('#back-btn').disabled = true;
+      $('#back-btn') && ($('#back-btn').disabled = true);
       $('#preview-btn').disabled = true;
       $('#export-btn').disabled = true;
       hidePublishButton();
@@ -2522,7 +2600,7 @@
           document.querySelector('[data-step="3"]').classList.remove('completed');
 
           // Enable buttons
-          $('#back-btn').disabled = false;
+          $('#back-btn') && ($('#back-btn').disabled = false);
           $('#preview-btn').disabled = false;
           $('#export-btn').disabled = false;
           showPublishButton();

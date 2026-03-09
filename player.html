@@ -22,6 +22,7 @@
   <!-- Styles -->
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/player.css">
+  <link rel="stylesheet" href="css/export-dialog.css">
 </head>
 <body>
   <!-- Skip Navigation Link -->
@@ -108,11 +109,18 @@
     <section class="panel panel-player" id="panel-player" aria-labelledby="lesson-title">
       <!-- Lesson Info -->
       <div class="lesson-info" id="lesson-info">
-        <h1 class="lesson-title" id="lesson-title">Loading lesson...</h1>
-        <div class="lesson-meta" aria-label="Lesson metadata">
-          <span class="ilr-badge" id="lesson-ilr">ILR 2.0</span>
-          <span class="lesson-topic" id="lesson-topic">General</span>
-          <span class="lesson-duration" id="lesson-duration" aria-label="Duration">0:00</span>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+          <div>
+            <h1 class="lesson-title" id="lesson-title">Loading lesson...</h1>
+            <div class="lesson-meta" aria-label="Lesson metadata">
+              <span class="ilr-badge" id="lesson-ilr">ILR 2.0</span>
+              <span class="lesson-topic" id="lesson-topic">General</span>
+              <span class="lesson-duration" id="lesson-duration" aria-label="Duration">0:00</span>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" id="player-export-btn" type="button" title="Export as standalone HTML file" style="white-space: nowrap; flex-shrink: 0;">
+            Export HTML
+          </button>
         </div>
       </div>
 
@@ -278,6 +286,7 @@
     import { VocabularyPanel } from './js/player/vocabulary-panel.js';
     import { initAuthUI } from './js/ui/auth-ui.js';
     import { initSettingsPanel } from './js/ui/settings-panel.js';
+    import { exportDialog } from './js/ui/export-dialog.js';
 
     // Initialize auth and settings
     initAuthUI();
@@ -786,6 +795,21 @@
           break;
         }
       }
+    });
+
+    // Export button on player page
+    $('#player-export-btn')?.addEventListener('click', () => {
+      if (!currentLesson) {
+        showToast('error', 'No Lesson', 'Load a lesson first before exporting');
+        return;
+      }
+      exportDialog.show(currentLesson);
+    });
+
+    // Listen for export dialog toast events
+    document.addEventListener('show-toast', (e) => {
+      const { type, title, message } = e.detail;
+      showToast(type, title, message);
     });
 
     // Load modal

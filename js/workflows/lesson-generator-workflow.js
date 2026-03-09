@@ -30,36 +30,35 @@ class LessonGeneratorWorkflow {
    * @returns {string} Cleaned text
    */
   cleanHallucinations(text) {
-    if (!text || text.length < 50) return text;
+    if (!text || text.length < 20) return text;
 
     let cleaned = text;
 
-    // Detection 1: Repeated words (space-separated, e.g. "ألف ألف ألف ألف...")
+    // Detection 1: Repeated single words (e.g. "ألف ألف ألف ألف...")
     const words = cleaned.split(/\s+/);
-    if (words.length > 10) {
+    if (words.length > 6) {
       const wordRuns = [];
       let runWord = words[0], runCount = 1;
       for (let i = 1; i < words.length; i++) {
         if (words[i] === runWord) {
           runCount++;
         } else {
-          if (runCount > 3) wordRuns.push({ word: runWord, count: runCount, endIdx: i });
+          if (runCount > 2) wordRuns.push({ word: runWord, count: runCount, endIdx: i });
           runWord = words[i];
           runCount = 1;
         }
       }
-      if (runCount > 3) wordRuns.push({ word: runWord, count: runCount, endIdx: words.length });
+      if (runCount > 2) wordRuns.push({ word: runWord, count: runCount, endIdx: words.length });
 
       if (wordRuns.length > 0) {
         log.warn(`Detected repeated word hallucination: "${wordRuns[0].word}" repeated ${wordRuns[0].count} times`);
-        // Collapse each run to a single occurrence
         const result = [];
         let i = 0;
         while (i < words.length) {
           result.push(words[i]);
           const run = wordRuns.find(r => r.endIdx - r.count === i);
           if (run) {
-            i += run.count; // Skip the repeated words
+            i += run.count;
           } else {
             i++;
           }
@@ -68,9 +67,45 @@ class LessonGeneratorWorkflow {
       }
     }
 
-    // Detection 2: Repeated phrases (comma/period-delimited)
+    // Detection 2: Repeated 2-3 word n-gram patterns (e.g. "أجل أجل" looping)
+    const words2 = cleaned.split(/\s+/);
+    for (const n of [2, 3]) {
+      if (words2.length < n * 3) continue;
+      const ngrams = {};
+      for (let i = 0; i <= words2.length - n; i++) {
+        const gram = words2.slice(i, i + n).join(' ');
+        ngrams[gram] = (ngrams[gram] || 0) + 1;
+      }
+      const repeated = Object.entries(ngrams).filter(([, count]) => count >= 3);
+      if (repeated.length > 0) {
+        log.warn(`Detected n-gram hallucination (n=${n}): "${repeated[0][0]}" x${repeated[0][1]}`);
+        // Rebuild text keeping only first occurrence of each repeated n-gram
+        const seen = new Set();
+        const result = [];
+        let i = 0;
+        while (i < words2.length) {
+          if (i <= words2.length - n) {
+            const gram = words2.slice(i, i + n).join(' ');
+            const isRepeated = repeated.some(([g]) => g === gram);
+            if (isRepeated) {
+              if (!seen.has(gram)) {
+                seen.add(gram);
+                result.push(...words2.slice(i, i + n));
+              }
+              i += n;
+              continue;
+            }
+          }
+          result.push(words2[i]);
+          i++;
+        }
+        cleaned = result.join(' ');
+      }
+    }
+
+    // Detection 3: Repeated phrases (comma/period-delimited)
     const phrases = cleaned.split(/[،,\.]/);
-    if (phrases.length >= 4) {
+    if (phrases.length >= 3) {
       const normalize = (s) => s.trim().replace(/\s+/g, ' ');
       const seen = {};
       for (const p of phrases) {
@@ -79,7 +114,7 @@ class LessonGeneratorWorkflow {
         seen[n] = (seen[n] || 0) + 1;
       }
 
-      const hallucinated = Object.entries(seen).filter(([, count]) => count > 3);
+      const hallucinated = Object.entries(seen).filter(([, count]) => count > 2);
       if (hallucinated.length > 0) {
         log.warn(`Detected phrase hallucination: "${hallucinated[0][0]}" repeated ${hallucinated[0][1]} times`);
         const kept = [];
@@ -93,6 +128,28 @@ class LessonGeneratorWorkflow {
           }
         }
         cleaned = kept.join('، ');
+      }
+    }
+
+    // Detection 4: Overall repetitiveness — if unique word ratio is very low, flag it
+    const finalWords = cleaned.split(/\s+/).filter(w => w.length > 0);
+    if (finalWords.length > 10) {
+      const unique = new Set(finalWords);
+      const ratio = unique.size / finalWords.length;
+      if (ratio < 0.25) {
+        log.warn(`Text is extremely repetitive (${Math.round(ratio * 100)}% unique words). Likely Whisper hallucination.`);
+        // Keep only unique phrases by splitting on natural breaks
+        const sentences = cleaned.split(/[.،!؟\n]+/).filter(s => s.trim().length > 2);
+        const uniqueSentences = [];
+        const seenSet = new Set();
+        for (const s of sentences) {
+          const norm = s.trim().replace(/\s+/g, ' ');
+          if (!seenSet.has(norm)) {
+            seenSet.add(norm);
+            uniqueSentences.push(s.trim());
+          }
+        }
+        cleaned = uniqueSentences.join('، ');
       }
     }
 
@@ -428,9 +485,9 @@ class LessonGeneratorWorkflow {
     // 500-1000 words (~4-8min): full
     // 1000+ words (~8min+): expanded
     if (wordCount < 50) {
-      return { pre: 1, while: 2, post: 1 };
+      return { pre: 2, while: 3, post: 2 };
     } else if (wordCount < 200) {
-      return { pre: 2, while: 4, post: 2 };
+      return { pre: 2, while: 5, post: 2 };
     } else if (wordCount < 500) {
       return { pre: 2, while: 6, post: 3 };
     } else if (wordCount < 1000) {
@@ -472,15 +529,21 @@ class LessonGeneratorWorkflow {
     const shared = { ilrLevel: targetIlr, topic, duration, signal };
 
     // Helper: generate with one retry on empty result
+    // Request extra questions to survive validation filtering
     const generatePhase = async (phase, count, existingQuestions = []) => {
+      const requestCount = Math.max(count, Math.ceil(count * 1.5));
       let result = await llmClient.generateQuestions(transcription.text, {
-        phase, count, existingQuestions, ...shared
+        phase, count: requestCount, existingQuestions, ...shared
       });
       if (result.length === 0 && count > 0) {
         log.warn(`${phase}-listening returned 0 questions, retrying once...`);
         result = await llmClient.generateQuestions(transcription.text, {
-          phase, count, existingQuestions, ...shared
+          phase, count: requestCount, existingQuestions, ...shared
         });
+      }
+      // Trim to requested count if we got more than needed
+      if (result.length > count) {
+        result = result.slice(0, count);
       }
       return result;
     };

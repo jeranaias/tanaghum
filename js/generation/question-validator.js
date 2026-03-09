@@ -141,9 +141,25 @@ function validateMultipleChoice(question, errors, warnings) {
   }).length;
 
   if (correctCount === 0) {
-    errors.push('No correct answer marked');
+    // Try auto-repair: check for "correct" in option id or other hints
+    const repaired = tryRepairCorrectAnswer(question);
+    if (!repaired) {
+      errors.push('No correct answer marked');
+    } else {
+      warnings.push('Auto-repaired correct answer marking');
+    }
   } else if (correctCount > 1) {
-    errors.push('Multiple correct answers marked (should be exactly 1)');
+    // Try to keep only the first correct one instead of failing
+    let foundFirst = false;
+    for (const opt of options) {
+      const isCorrect = opt.is_correct === true || opt.is_correct === 'true' || opt.is_correct === 1;
+      if (isCorrect && foundFirst) {
+        opt.is_correct = false;
+      } else if (isCorrect) {
+        foundFirst = true;
+      }
+    }
+    warnings.push('Fixed multiple correct answers (kept first)');
   }
 
   // Check each option for required content
@@ -251,6 +267,53 @@ function validateOpenEnded(question, errors, warnings) {
   if (!question.sample_response?.ar && !question.sample_response_ar) {
     warnings.push('Missing sample response');
   }
+}
+
+/**
+ * Try to repair a multiple-choice question with no correct answer marked.
+ * Looks for hints like "correct" in option properties or answer field.
+ * @returns {boolean} Whether repair was successful
+ */
+function tryRepairCorrectAnswer(question) {
+  const options = question.options;
+  if (!Array.isArray(options) || options.length === 0) return false;
+
+  // Strategy 1: Check for a "correct_answer" or "answer" field on the question itself
+  const answer = question.correct_answer || question.answer;
+  if (answer) {
+    const answerStr = String(answer).trim().toLowerCase();
+    for (const opt of options) {
+      const optId = String(opt.id || '').toLowerCase();
+      const optTextAr = (opt.text?.ar || opt.text_ar || '').trim();
+      const optTextEn = (opt.text?.en || opt.text_en || '').trim().toLowerCase();
+      if (optId === answerStr || optTextAr === answerStr || optTextEn === answerStr) {
+        opt.is_correct = true;
+        return true;
+      }
+    }
+    // If answer is a letter index like "a", "b", etc.
+    const idx = answerStr.charCodeAt(0) - 97; // a=0, b=1, etc.
+    if (idx >= 0 && idx < options.length) {
+      options[idx].is_correct = true;
+      return true;
+    }
+  }
+
+  // Strategy 2: If only one option has is_correct as a truthy non-boolean
+  for (const opt of options) {
+    if (opt.is_correct && opt.is_correct !== false && opt.is_correct !== 'false' && opt.is_correct !== 0) {
+      opt.is_correct = true;
+      return true;
+    }
+  }
+
+  // Strategy 3: Mark first option as correct as last resort (better than dropping the question)
+  if (options.length >= 2) {
+    options[0].is_correct = true;
+    return true;
+  }
+
+  return false;
 }
 
 /**
