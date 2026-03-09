@@ -4,6 +4,7 @@
  */
 
 import { createLogger, formatTime } from '../core/utils.js';
+import { Config } from '../core/config.js';
 
 const log = createLogger('LessonExporter');
 
@@ -12,12 +13,15 @@ const log = createLogger('LessonExporter');
  */
 const DEFAULT_OPTIONS = {
   embedAudio: false,           // Embed audio as base64 (increases file size)
+  embedVideo: false,           // Embed video as base64 (large file size)
+  mediaEmbed: 'youtube',       // 'youtube', 'audio', 'video', 'none'
   includeTranslation: true,    // Include translation tab
   includeVocabulary: true,     // Include vocabulary
   includeQuestions: true,      // Include questions
   theme: 'light',              // 'light' or 'dark'
   minifyPlayer: false,         // Minify player JS (future enhancement)
-  maxAudioSize: 15 * 1024 * 1024  // 15MB max for audio embedding
+  maxAudioSize: 50 * 1024 * 1024,  // 50MB max for audio embedding
+  maxVideoSize: 200 * 1024 * 1024  // 200MB max for video embedding
 };
 
 /**
@@ -219,10 +223,8 @@ class LessonExporter {
     let audio = lesson.audio || {};
 
     // Try to get audio URL from StateManager if not in lesson
-    // This handles cases where the blob URL is still available in state
     if (!audio.url && audio.type !== 'youtube') {
       try {
-        // Dynamic import to avoid circular dependency
         const { StateManager } = await import('../core/state-manager.js');
         const stateAudio = StateManager.get('audio') || {};
         if (stateAudio.url) {
@@ -230,55 +232,81 @@ class LessonExporter {
           log.log('Got audio URL from StateManager');
         }
       } catch (e) {
-        // StateManager not available, continue without it
+        // StateManager not available
       }
     }
 
     let mediaElement = '';
+    const mediaEmbed = options.mediaEmbed || (options.embedAudio ? 'audio' : (options.embedVideo ? 'video' : 'youtube'));
 
-    if (audio.type === 'youtube') {
-      // YouTube video - requires internet connection
-      mediaElement = `
-        <iframe
-          id="media-player"
-          width="100%"
-          height="400"
-          src="https://www.youtube.com/embed/${audio.videoId}?enablejsapi=1"
-          frameborder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowfullscreen>
-        </iframe>
-        <p style="text-align: center; margin-top: 8px; font-size: 13px; color: var(--text-secondary);">
-          Note: YouTube video requires internet connection
-        </p>
-      `;
+    if (audio.type === 'youtube' && audio.videoId) {
+      // YouTube source — handle based on embed mode
+      if (mediaEmbed === 'video') {
+        // Embed video as base64 from yt-dlp
+        try {
+          log.log('Fetching video for embedding...');
+          const mediaData = await this.fetchYouTubeMedia(audio.videoId, 'video', options.maxVideoSize);
+          mediaElement = `
+            <video id="media-player" controls width="100%" style="max-height: 500px; background: #000;">
+              <source src="${mediaData.dataUrl}" type="${mediaData.mimeType}">
+              Your browser does not support the video element.
+            </video>
+          `;
+          log.log(`Video embedded as base64, size: ${this.formatFileSize(mediaData.size)}`);
+        } catch (error) {
+          log.error('Failed to embed video:', error);
+          mediaElement = this.createYouTubeEmbed(audio.videoId);
+        }
 
-      log.warn('YouTube video exported - requires internet connection');
+      } else if (mediaEmbed === 'audio') {
+        // Embed audio as base64 from yt-dlp
+        try {
+          log.log('Fetching audio for embedding...');
+          const mediaData = await this.fetchYouTubeMedia(audio.videoId, 'audio', options.maxAudioSize);
+          mediaElement = `
+            <audio id="media-player" controls style="width: 100%;">
+              <source src="${mediaData.dataUrl}" type="${mediaData.mimeType}">
+              Your browser does not support the audio element.
+            </audio>
+          `;
+          log.log(`Audio embedded as base64, size: ${this.formatFileSize(mediaData.size)}`);
+        } catch (error) {
+          log.error('Failed to embed audio:', error);
+          mediaElement = this.createYouTubeEmbed(audio.videoId);
+        }
+
+      } else if (mediaEmbed === 'none') {
+        mediaElement = `
+          <div style="padding: 40px; text-align: center; color: var(--text-tertiary);">
+            <p>Media not included in this export</p>
+          </div>
+        `;
+
+      } else {
+        // Default: YouTube iframe embed
+        mediaElement = this.createYouTubeEmbed(audio.videoId);
+      }
 
     } else if (options.embedAudio && audio.url) {
-      // Embed audio as base64
+      // Non-YouTube: embed audio as base64
       try {
         const audioData = await this.fetchAndEncodeAudio(audio.url, options.maxAudioSize);
         mediaElement = `
-          <audio id="media-player" controls>
+          <audio id="media-player" controls style="width: 100%;">
             <source src="${audioData.dataUrl}" type="${audioData.mimeType}">
             Your browser does not support the audio element.
           </audio>
         `;
         log.log(`Audio embedded as base64, size: ${this.formatFileSize(audioData.size)}`);
-
       } catch (error) {
         log.error('Failed to embed audio:', error);
-        // Fallback to external URL
         mediaElement = this.createExternalAudioElement(audio.url);
       }
 
     } else if (audio.url) {
-      // External audio URL (requires internet if not local)
       mediaElement = this.createExternalAudioElement(audio.url);
 
     } else {
-      // No audio available
       mediaElement = `
         <div style="padding: 40px; text-align: center; color: var(--text-tertiary);">
           <p>No audio available for this lesson</p>
@@ -288,6 +316,73 @@ class LessonExporter {
     }
 
     return html.replace('{{MEDIA_ELEMENT}}', mediaElement);
+  }
+
+  /**
+   * Create YouTube iframe embed
+   */
+  createYouTubeEmbed(videoId) {
+    return `
+      <iframe
+        id="media-player"
+        width="100%"
+        height="400"
+        src="https://www.youtube.com/embed/${this.escapeHtml(videoId)}?enablejsapi=1"
+        frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen>
+      </iframe>
+      <p style="text-align: center; margin-top: 8px; font-size: 13px; color: var(--text-secondary);">
+        Note: YouTube video requires internet connection
+      </p>
+    `;
+  }
+
+  /**
+   * Fetch YouTube media (audio or video) via yt-dlp proxy and encode as base64
+   * @param {string} videoId - YouTube video ID
+   * @param {string} type - 'audio' or 'video'
+   * @param {number} maxSize - Maximum size in bytes
+   * @returns {Promise<Object>} Encoded media data
+   */
+  async fetchYouTubeMedia(videoId, type, maxSize) {
+    // Get download links from worker
+    const res = await fetch(`${Config.WORKER_URL}${Config.API.YOUTUBE_DOWNLOAD}?v=${videoId}`);
+    const data = await res.json();
+
+    if (!data.available || !data.downloads?.[type]) {
+      throw new Error(`No ${type} available for this video`);
+    }
+
+    const dl = data.downloads[type];
+
+    // Check estimated size
+    if (dl.filesize && dl.filesize > maxSize) {
+      throw new Error(`${type} too large: ${this.formatFileSize(dl.filesize)} (max: ${this.formatFileSize(maxSize)})`);
+    }
+
+    // Stream through yt-dlp proxy
+    const proxyRes = await fetch(dl.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dl.proxyBody)
+    });
+
+    if (!proxyRes.ok) throw new Error(`Failed to fetch ${type}: HTTP ${proxyRes.status}`);
+
+    const blob = await proxyRes.blob();
+
+    if (blob.size > maxSize) {
+      throw new Error(`${type} too large: ${this.formatFileSize(blob.size)} (max: ${this.formatFileSize(maxSize)})`);
+    }
+
+    const dataUrl = await this.blobToDataUrl(blob);
+
+    return {
+      dataUrl,
+      mimeType: dl.mimeType || (type === 'video' ? 'video/mp4' : 'audio/mp4'),
+      size: blob.size
+    };
   }
 
   /**
@@ -569,27 +664,36 @@ class LessonExporter {
    */
   getEstimatedSize(lesson, options = {}) {
     const baseSize = 200; // KB for HTML + CSS + JS
+    const duration = lesson.metadata?.duration || 0;
+    const mediaEmbed = options.mediaEmbed || (options.embedAudio ? 'audio' : (options.embedVideo ? 'video' : 'youtube'));
 
-    let audioSize = 0;
-    if (options.embedAudio && lesson.audio?.url) {
-      // Estimate ~1MB per minute of audio
-      const duration = lesson.metadata?.duration || 0;
-      audioSize = (duration / 60) * 1000; // KB
+    let mediaSize = 0;
+    if (mediaEmbed === 'audio') {
+      // ~1MB per minute of audio (base64 adds ~33%)
+      mediaSize = (duration / 60) * 1300;
+    } else if (mediaEmbed === 'video') {
+      // ~5MB per minute of video (base64 adds ~33%)
+      mediaSize = (duration / 60) * 6500;
     }
 
-    const vocabularySize = (lesson.content?.vocabulary?.items?.length || 0) * 0.5; // ~0.5KB per item
-    const transcriptSize = (lesson.content?.transcript?.text?.length || 0) / 1024; // Text size in KB
+    const vocabularySize = (lesson.content?.vocabulary?.items?.length || 0) * 0.5;
+    const transcriptSize = (lesson.content?.transcript?.text?.length || 0) / 1024;
 
-    const totalKB = baseSize + audioSize + vocabularySize + transcriptSize;
+    const totalKB = baseSize + mediaSize + vocabularySize + transcriptSize;
+
+    let warning = null;
+    if (mediaSize > 50000) warning = 'Embedded media will be very large (>50MB). Consider using YouTube embed instead.';
+    else if (mediaSize > 10000) warning = 'Embedded media will be large (>10MB). Download may take a while.';
 
     return {
       base: baseSize,
-      audio: audioSize,
+      audio: mediaEmbed === 'audio' ? mediaSize : 0,
+      video: mediaEmbed === 'video' ? mediaSize : 0,
       vocabulary: vocabularySize,
       transcript: transcriptSize,
       total: totalKB,
       totalFormatted: this.formatFileSize(totalKB * 1024),
-      warning: audioSize > 10000 ? 'Audio file is very large (>10MB)' : null
+      warning
     };
   }
 }

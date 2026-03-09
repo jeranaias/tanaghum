@@ -12,6 +12,7 @@ const Config = {
     YOUTUBE_CAPTIONS: '/api/youtube/captions',
     YOUTUBE_METADATA: '/api/youtube/metadata',
     YOUTUBE_AUDIO: '/api/youtube/audio',
+    YOUTUBE_DOWNLOAD: '/api/youtube/download',
     LLM_GOOGLE: '/api/llm/google',
     LLM_GROQ: '/api/llm/groq',
     LLM_CEREBRAS: '/api/llm/cerebras',

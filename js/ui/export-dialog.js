@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from '../core/utils.js';
+import { Config } from '../core/config.js';
 import { lessonExporter } from '../export/lesson-exporter.js';
 
 const log = createLogger('ExportDialog');
@@ -17,6 +18,7 @@ class ExportDialog {
     this.currentLesson = null;
     this.options = {
       embedAudio: false,
+      embedVideo: false,
       includeTranslation: true,
       includeVocabulary: true,
       includeQuestions: true,
@@ -71,9 +73,39 @@ class ExportDialog {
             Teachers can share this file with students who can open it in any web browser.
           </p>
 
+          ${this._isYouTubeLesson() ? `
+          <div class="export-options">
+            <h3 class="section-subtitle">Download Media</h3>
+            <div class="option-group" style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="btn btn-secondary" id="download-audio-btn" style="flex: 1; min-width: 120px;">
+                <span>&#127925;</span> Download Audio (m4a)
+              </button>
+              <button class="btn btn-secondary" id="download-video-btn" style="flex: 1; min-width: 120px;">
+                <span>&#127916;</span> Download Video (mp4)
+              </button>
+            </div>
+            <div id="download-status" class="export-warning hidden" style="margin-top: 8px;">
+              <span class="warning-text"></span>
+            </div>
+          </div>
+          ` : ''}
+
           <div class="export-options">
             <h3 class="section-subtitle">Export Options</h3>
 
+            ${this._isYouTubeLesson() ? `
+            <div class="option-group">
+              <label class="select-label">
+                <span class="select-title">Media Embed</span>
+                <select id="media-embed-select" class="form-select">
+                  <option value="youtube" selected>YouTube Embed (requires internet)</option>
+                  <option value="audio">Embed Audio (offline, smaller)</option>
+                  <option value="video">Embed Video (offline, larger)</option>
+                  <option value="none">No media</option>
+                </select>
+              </label>
+            </div>
+            ` : `
             <div class="option-group">
               <label class="checkbox-label">
                 <input type="checkbox" id="embed-audio-check" ${this.options.embedAudio ? 'checked' : ''}>
@@ -83,6 +115,7 @@ class ExportDialog {
                 </span>
               </label>
             </div>
+            `}
 
             <div class="option-group">
               <label class="checkbox-label">
@@ -189,15 +222,28 @@ class ExportDialog {
 
     // Option checkboxes
     const embedAudioCheck = document.getElementById('embed-audio-check');
+    const mediaEmbedSelect = document.getElementById('media-embed-select');
     const includeTranslationCheck = document.getElementById('include-translation-check');
     const includeVocabularyCheck = document.getElementById('include-vocabulary-check');
     const includeQuestionsCheck = document.getElementById('include-questions-check');
     const themeSelect = document.getElementById('theme-select');
 
-    embedAudioCheck.addEventListener('change', () => {
-      this.options.embedAudio = embedAudioCheck.checked;
-      this.updateEstimatedSize();
-    });
+    if (embedAudioCheck) {
+      embedAudioCheck.addEventListener('change', () => {
+        this.options.embedAudio = embedAudioCheck.checked;
+        this.updateEstimatedSize();
+      });
+    }
+
+    if (mediaEmbedSelect) {
+      mediaEmbedSelect.addEventListener('change', () => {
+        const val = mediaEmbedSelect.value;
+        this.options.embedAudio = val === 'audio';
+        this.options.embedVideo = val === 'video';
+        this.options.mediaEmbed = val;
+        this.updateEstimatedSize();
+      });
+    }
 
     includeTranslationCheck.addEventListener('change', () => {
       this.options.includeTranslation = includeTranslationCheck.checked;
@@ -216,6 +262,17 @@ class ExportDialog {
     themeSelect.addEventListener('change', () => {
       this.options.theme = themeSelect.value;
     });
+
+    // Download media buttons
+    const downloadAudioBtn = document.getElementById('download-audio-btn');
+    const downloadVideoBtn = document.getElementById('download-video-btn');
+
+    if (downloadAudioBtn) {
+      downloadAudioBtn.addEventListener('click', () => this._downloadMedia('audio'));
+    }
+    if (downloadVideoBtn) {
+      downloadVideoBtn.addEventListener('click', () => this._downloadMedia('video'));
+    }
 
     // Action buttons
     const previewBtn = document.getElementById('export-preview-btn');
@@ -259,7 +316,8 @@ class ExportDialog {
       Base HTML/CSS/JS: ${lessonExporter.formatFileSize(sizeEstimate.base * 1024)}
       Transcript: ${lessonExporter.formatFileSize(sizeEstimate.transcript * 1024)}
       Vocabulary: ${lessonExporter.formatFileSize(sizeEstimate.vocabulary * 1024)}
-      ${this.options.embedAudio ? `Audio: ${lessonExporter.formatFileSize(sizeEstimate.audio * 1024)}` : ''}
+      ${sizeEstimate.audio ? `Audio: ${lessonExporter.formatFileSize(sizeEstimate.audio * 1024)}` : ''}
+      ${sizeEstimate.video ? `Video: ${lessonExporter.formatFileSize(sizeEstimate.video * 1024)}` : ''}
     `;
 
     if (sizeEl) {
@@ -352,6 +410,78 @@ class ExportDialog {
       detail: { type, title, message }
     });
     document.dispatchEvent(event);
+  }
+
+  /**
+   * Check if current lesson is from YouTube
+   */
+  _isYouTubeLesson() {
+    return this.currentLesson?.audio?.type === 'youtube' && this.currentLesson?.audio?.videoId;
+  }
+
+  /**
+   * Download media (audio or video) directly from YouTube
+   */
+  async _downloadMedia(type) {
+    const videoId = this.currentLesson?.audio?.videoId;
+    if (!videoId) return;
+
+    const btn = document.getElementById(type === 'audio' ? 'download-audio-btn' : 'download-video-btn');
+    const statusEl = document.getElementById('download-status');
+    const statusText = statusEl?.querySelector('.warning-text');
+    const originalText = btn.innerHTML;
+
+    try {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Fetching...';
+      statusEl?.classList.remove('hidden');
+      statusText.textContent = `Getting ${type} download link...`;
+
+      // Get download links from worker
+      const res = await fetch(`${Config.WORKER_URL}${Config.API.YOUTUBE_DOWNLOAD}?v=${videoId}`);
+      const data = await res.json();
+
+      if (!data.available || !data.downloads?.[type]) {
+        throw new Error(`No ${type} available for this video`);
+      }
+
+      const dl = data.downloads[type];
+      statusText.textContent = `Downloading ${type}...`;
+
+      // Stream through the yt-dlp proxy (needed for IP-locked URLs)
+      const proxyRes = await fetch(dl.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dl.proxyBody)
+      });
+
+      if (!proxyRes.ok) throw new Error(`Download failed: HTTP ${proxyRes.status}`);
+
+      const blob = await proxyRes.blob();
+      const ext = dl.ext || (type === 'video' ? 'mp4' : 'm4a');
+      const title = dl.title || videoId;
+      const safeName = title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '_').substring(0, 80);
+      const filename = `${safeName}.${ext}`;
+
+      // Trigger browser download
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      statusText.textContent = `Downloaded: ${filename} (${lessonExporter.formatFileSize(blob.size)})`;
+
+    } catch (error) {
+      log.error(`${type} download failed:`, error);
+      statusText.textContent = `Download failed: ${error.message}`;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+    }
   }
 
   /**

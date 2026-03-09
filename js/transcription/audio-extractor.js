@@ -87,42 +87,13 @@ class AudioExtractor {
         response = null;
       }
 
-      // Step 2: If server-side failed, fall back to browser audio capture
+      // Step 2: If server-side failed, throw error (no browser capture fallback)
       if (!response) {
-        log.warn('Server-side extraction failed:', lastError);
-        onProgress?.({ stage: 'browser-capture', percent: 5, message: 'Server extraction unavailable, capturing audio from browser...' });
-
-        try {
-          const captureResult = await captureYouTubeAudio(videoId, {
-            playbackSpeed: 1.0,
-            onProgress: (progress) => {
-              onProgress?.({
-                stage: 'browser-capture',
-                percent: 5 + Math.round(progress.percent * 0.9),
-                message: `Capturing audio: ${Math.round(progress.currentTime || 0)}s / ${Math.round(progress.duration || 0)}s`
-              });
-            }
-          });
-
-          log.log('Browser audio capture successful');
-
-          if (captureResult && typeof captureResult === 'object' && captureResult.audio !== undefined) {
-            return {
-              audio: captureResult.audio,
-              realDuration: captureResult.realDuration,
-              playbackSpeed: captureResult.playbackSpeed,
-              isCaptureResult: true
-            };
-          }
-          return captureResult;
-
-        } catch (captureError) {
-          log.error('Browser audio capture failed:', captureError);
-          throw new Error(
-            'Audio extraction failed. Browser capture was cancelled or failed. ' +
-            'Please try again and allow audio sharing when prompted.'
-          );
-        }
+        log.error('Server-side extraction failed:', lastError);
+        throw new Error(
+          'Audio extraction failed: ' + (lastError || 'Server unavailable') +
+          '. Please try again or check the video URL.'
+        );
       }
 
       // Step 3: Read the streamed audio bytes with progress

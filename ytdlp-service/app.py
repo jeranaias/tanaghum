@@ -34,7 +34,7 @@ POT_SERVER_URL = 'http://127.0.0.1:4416'
 WARP_PROXY = 'socks5h://127.0.0.1:40000'
 
 # Cookie file for YouTube authentication (bypasses datacenter IP blocking)
-COOKIES_FILE = '/app/cookies.txt'
+COOKIES_FILE = '/data/cookies.txt'
 
 # Admin key for cookie upload (set via Fly.io secrets)
 ADMIN_KEY = os.environ.get('ADMIN_KEY', '')
@@ -94,13 +94,12 @@ def is_warp_available(force=False):
         return False
 
 
-def run_ytdlp(video_url, use_proxy=True):
+def run_ytdlp(video_url, use_proxy=True, format_spec='bestaudio/best'):
     """Run yt-dlp with cookies + POT provider + optional WARP proxy."""
     cmd = [
         'yt-dlp',
         '--dump-json',
-        '-f', 'bestaudio/best',
-        '--verbose',
+        '-f', format_spec,
         '--no-warnings',
         '--js-runtimes', 'node:/usr/local/bin/node',
         '--remote-components', 'ejs:github',
@@ -207,7 +206,7 @@ BindAddress = 127.0.0.1:40000
         print(f"[WARP] Rotation failed: {e}", file=sys.stderr)
 
 
-def extract_with_retry(video_url):
+def extract_with_retry(video_url, format_spec='bestaudio/best'):
     """Try extraction with WARP first, fall back to direct.
     Does NOT rotate WARP IP — watchdog handles that in the background.
     Fast-fails if recently blocked (cleared by watchdog/rotation).
@@ -219,7 +218,7 @@ def extract_with_retry(video_url):
         return None, 'LOGIN_REQUIRED (cached — IP blocked, waiting for rotation)', 'blocked-cache'
 
     # Try with WARP proxy
-    info, error, proxy_used = run_ytdlp(video_url, use_proxy=True)
+    info, error, proxy_used = run_ytdlp(video_url, use_proxy=True, format_spec=format_spec)
     if info:
         _blocked_state['blocked'] = False
         return info, None, proxy_used
@@ -230,7 +229,7 @@ def extract_with_retry(video_url):
             _warp_status['checked_at'] = now
 
     # Fallback: try without proxy
-    info, error_direct, proxy_used = run_ytdlp(video_url, use_proxy=False)
+    info, error_direct, proxy_used = run_ytdlp(video_url, use_proxy=False, format_spec=format_spec)
     if info:
         _blocked_state['blocked'] = False
         return info, None, proxy_used
@@ -244,17 +243,18 @@ def extract_with_retry(video_url):
     return None, combined_error, proxy_used
 
 
-def extract_cached(video_url):
+def extract_cached(video_url, format_spec='bestaudio/best'):
     """Cached extraction — avoids double yt-dlp runs for extract→download flow."""
+    cache_key = f"{video_url}|{format_spec}"
     now = time.time()
-    if video_url in _extract_cache:
-        cached = _extract_cache[video_url]
+    if cache_key in _extract_cache:
+        cached = _extract_cache[cache_key]
         if now - cached['time'] < EXTRACT_CACHE_TTL and cached['info']:
             return cached['info'], None, cached['proxy_used']
 
-    info, error, proxy_used = extract_with_retry(video_url)
+    info, error, proxy_used = extract_with_retry(video_url, format_spec=format_spec)
     if info:
-        _extract_cache[video_url] = {'info': info, 'error': None, 'proxy_used': proxy_used, 'time': now}
+        _extract_cache[cache_key] = {'info': info, 'error': None, 'proxy_used': proxy_used, 'time': now}
         # Evict old entries
         for k in list(_extract_cache.keys()):
             if now - _extract_cache[k]['time'] > EXTRACT_CACHE_TTL:
@@ -332,6 +332,34 @@ def manage_cookies():
     })
 
 
+def _handle_extract_error(error, proxy_used):
+    """Shared error handling for extract endpoints."""
+    status_code = 400
+    suggestion = None
+
+    if 'Video unavailable' in error:
+        status_code = 404
+    elif 'Private video' in error:
+        status_code = 403
+    elif 'not a bot' in error.lower() or 'LOGIN_REQUIRED' in error:
+        status_code = 403
+        if not has_cookies():
+            suggestion = 'YouTube blocked this IP. Upload cookies via /cookies to authenticate.'
+        else:
+            suggestion = 'YouTube cookies may be expired. Re-upload fresh cookies.'
+
+    error_short = error[:2000] if len(error) > 2000 else error
+
+    return jsonify({
+        'error': error_short,
+        'available': False,
+        'suggestion': suggestion,
+        'blocked': 'LOGIN_REQUIRED' in error or 'not a bot' in error.lower(),
+        'has_cookies': has_cookies(),
+        'proxy_used': proxy_used
+    }), status_code
+
+
 @app.route('/extract', methods=['GET', 'POST'])
 def extract_audio():
     """Extract audio URL from YouTube video"""
@@ -352,30 +380,7 @@ def extract_audio():
     info, error, proxy_used = extract_cached(video_url)
 
     if error:
-        status_code = 400
-        suggestion = None
-
-        if 'Video unavailable' in error:
-            status_code = 404
-        elif 'Private video' in error:
-            status_code = 403
-        elif 'not a bot' in error.lower() or 'LOGIN_REQUIRED' in error:
-            status_code = 403
-            if not has_cookies():
-                suggestion = 'YouTube blocked this IP. Upload cookies via /cookies to authenticate.'
-            else:
-                suggestion = 'YouTube cookies may be expired. Re-upload fresh cookies.'
-
-        error_short = error[:500] if len(error) > 500 else error
-
-        return jsonify({
-            'error': error_short,
-            'available': False,
-            'suggestion': suggestion,
-            'blocked': 'LOGIN_REQUIRED' in error or 'not a bot' in error.lower(),
-            'has_cookies': has_cookies(),
-            'proxy_used': proxy_used
-        }), status_code
+        return _handle_extract_error(error, proxy_used)
 
     if not info:
         return jsonify({'error': 'Could not extract video info', 'available': False}), 404
@@ -413,6 +418,66 @@ def extract_audio():
             'title': info.get('title'),
             'proxy_used': proxy_used
         })
+
+
+@app.route('/extract-video', methods=['GET'])
+def extract_video():
+    """Extract video+audio (mp4) URL from YouTube video"""
+    video_url = request.args.get('url')
+    if not video_url:
+        return jsonify({'error': 'Missing url parameter'}), 400
+
+    if not video_url.startswith('http'):
+        video_url = f'https://www.youtube.com/watch?v={video_url}'
+
+    # Request best mp4 video+audio, fallback to best available
+    info, error, proxy_used = extract_cached(video_url, format_spec='bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b')
+
+    if error:
+        return _handle_extract_error(error, proxy_used)
+
+    if not info:
+        return jsonify({'error': 'Could not extract video info', 'available': False}), 404
+
+    # requested_downloads contains the merged/selected format info
+    req_dl = info.get('requested_downloads', [{}])[0] if info.get('requested_downloads') else {}
+    video_url_result = req_dl.get('url') or info.get('url')
+    ext = req_dl.get('ext') or info.get('ext') or 'mp4'
+    filesize = req_dl.get('filesize') or info.get('filesize')
+    vcodec = req_dl.get('vcodec') or info.get('vcodec')
+    acodec = req_dl.get('acodec') or info.get('acodec')
+
+    # If merge is needed (separate video+audio), fall back to formats list
+    if not video_url_result:
+        formats = info.get('formats', [])
+        # Find best mp4 with both video and audio
+        combined = [f for f in formats if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('url')]
+        combined.sort(key=lambda x: x.get('tbr') or 0, reverse=True)
+        if combined:
+            best = combined[0]
+            video_url_result = best['url']
+            ext = best.get('ext', 'mp4')
+            filesize = best.get('filesize')
+            vcodec = best.get('vcodec')
+            acodec = best.get('acodec')
+
+    if not video_url_result:
+        return jsonify({'error': 'No downloadable video format found', 'available': False}), 404
+
+    return jsonify({
+        'videoId': info.get('id'),
+        'available': True,
+        'videoUrl': video_url_result,
+        'mimeType': f"video/{ext}",
+        'ext': ext,
+        'duration': info.get('duration'),
+        'title': info.get('title'),
+        'filesize': filesize,
+        'vcodec': vcodec,
+        'acodec': acodec,
+        'thumbnail': info.get('thumbnail'),
+        'proxy_used': proxy_used
+    })
 
 
 @app.route('/download', methods=['GET'])

@@ -316,6 +316,9 @@ export async function handleYouTube(request, env, url, origin) {
         }
         return await getVideoAudio(videoId, origin, env);
 
+      case 'download':
+        return await getVideoDownloadLinks(videoId, origin, env);
+
       default:
         return jsonResponse({ error: 'Unknown YouTube endpoint' }, 404, origin);
     }
@@ -1166,6 +1169,84 @@ async function getAudioViaCobalt(videoId, env) {
   }
 
   return null;
+}
+
+/**
+ * Get download links for a YouTube video (audio + video).
+ * Returns JSON with proxy-streamed URLs for mp3/m4a and mp4.
+ */
+async function getVideoDownloadLinks(videoId, origin, env) {
+  const ytdlpServiceUrl = env?.YTDLP_SERVICE_URL || 'https://tanaghum-ytdlp.fly.dev';
+
+  // Fetch audio and video info in parallel
+  const [audioRes, videoRes] = await Promise.all([
+    fetch(`${ytdlpServiceUrl}/extract?url=${videoId}&format=info`, {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(30000)
+    }).catch(e => ({ ok: false, error: e.message })),
+    fetch(`${ytdlpServiceUrl}/extract-video?url=${videoId}`, {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(30000)
+    }).catch(e => ({ ok: false, error: e.message }))
+  ]);
+
+  const result = { videoId, downloads: {} };
+
+  // Process audio result
+  if (audioRes.ok) {
+    try {
+      const audioData = await audioRes.json();
+      if (audioData.available && audioData.audioUrl) {
+        result.downloads.audio = {
+          // Stream through yt-dlp's WARP proxy so the IP matches
+          url: `${ytdlpServiceUrl}/proxy`,
+          proxyBody: { url: audioData.audioUrl, contentType: `audio/${audioData.mimeType || 'webm'}` },
+          directUrl: audioData.audioUrl,
+          mimeType: `audio/${audioData.mimeType || 'm4a'}`,
+          ext: audioData.mimeType || 'm4a',
+          bitrate: audioData.bitrate,
+          filesize: audioData.filesize,
+          duration: audioData.duration,
+          title: audioData.title
+        };
+      }
+    } catch (e) {
+      console.error('[Download] Audio parse error:', e.message);
+    }
+  }
+
+  // Process video result
+  if (videoRes.ok) {
+    try {
+      const videoData = await videoRes.json();
+      if (videoData.available && videoData.videoUrl) {
+        result.downloads.video = {
+          url: `${ytdlpServiceUrl}/proxy`,
+          proxyBody: { url: videoData.videoUrl, contentType: videoData.mimeType || 'video/mp4' },
+          directUrl: videoData.videoUrl,
+          mimeType: videoData.mimeType || 'video/mp4',
+          ext: videoData.ext || 'mp4',
+          filesize: videoData.filesize,
+          duration: videoData.duration,
+          title: videoData.title,
+          thumbnail: videoData.thumbnail
+        };
+      }
+    } catch (e) {
+      console.error('[Download] Video parse error:', e.message);
+    }
+  }
+
+  if (!result.downloads.audio && !result.downloads.video) {
+    return jsonResponse({
+      videoId,
+      available: false,
+      error: 'Could not extract download links'
+    }, 200, origin);
+  }
+
+  result.available = true;
+  return jsonResponse(result, 200, origin);
 }
 
 /**

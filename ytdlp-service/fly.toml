@@ -17,6 +17,10 @@ primary_region = 'lhr'
   min_machines_running = 1
   processes = ['app']
 
+[mounts]
+  source = 'tanaghum_data'
+  destination = '/data'
+
 [[vm]]
   memory = '1gb'
   cpu_kind = 'shared'
